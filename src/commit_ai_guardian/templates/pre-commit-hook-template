@@ -6,8 +6,14 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# 运行 AI 代码审核
-python -m commit_ai_guardian audit --repo "$REPO_ROOT"
+# 检测 uv 是否可用，优先使用 uv run
+if command -v uv &> /dev/null; then
+    # 使用 uv run 在虚拟环境中运行
+    uv run --python-preference only-managed python -m commit_ai_guardian audit --repo "$REPO_ROOT"
+else
+    # 回退到系统 python
+    python -m commit_ai_guardian audit --repo "$REPO_ROOT"
+fi
 
 # 获取退出码
 EXIT_CODE=$?
