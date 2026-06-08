@@ -26,20 +26,24 @@ except ImportError:
     yaml = None
 
 
-# 案例文件所在目录（cases/ 与当前文件同级）
-CASES_DIR = Path(__file__).parent / "cases"
+# 内置案例目录（随工具代码一起发布）
+BUILTIN_CASES_DIR = Path(__file__).parent / "cases"
 
 
 class CaseLoader:
-    """加载和管理审核案例"""
+    """加载和管理审核案例
+    
+    优先级：远程案例（Git 仓库拉取的）> 内置案例
+    """
     
     def __init__(self, cases_dir: Optional[Path] = None):
         """初始化
         
         Args:
-            cases_dir: 案例目录路径，默认使用内置 cases/
+            cases_dir: 案例目录路径。None 则使用内置案例。
+                        传入远程仓库路径则使用远程案例（优先级更高）。
         """
-        self.cases_dir = cases_dir or CASES_DIR
+        self.cases_dir = cases_dir or BUILTIN_CASES_DIR
         self._cases: List[Dict[str, Any]] = []
     
     def load_all(self) -> List[Dict[str, Any]]:

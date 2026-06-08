@@ -87,9 +87,20 @@ class AIEngine:
         self.config = config
         self.client = None
         
-        # 初始化案例加载器（cases/ 目录下的 YAML 案例）
+        # === 案例系统初始化 ===
+        # 如果配置了远程案例仓库，先拉取最新案例，再加载
+        cases_dir = None
+        if getattr(config, 'cases_repo', ''):
+            from .cases_updater import CasesUpdater
+            updater = CasesUpdater(config.cases_repo)
+            updater.update()  # git clone / git pull
+            cases_dir = updater.get_cases_dir()
+            if cases_dir:
+                print(f"[信息] 使用远程案例库: {config.cases_repo}")
+        
+        # 初始化案例加载器（有远程案例用远程，否则用内置）
         from .case_loader import CaseLoader
-        self.case_loader = CaseLoader()
+        self.case_loader = CaseLoader(cases_dir=cases_dir)
         
         # 检查 openai 包是否安装
         if openai is None:

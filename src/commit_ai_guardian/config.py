@@ -42,6 +42,7 @@ class Config:
     ])
     timeout: int = 60                        # API 请求超时（秒）
     proxy: Optional[str] = None              # HTTP 代理地址
+    cases_repo: str = ""                     # 案例库 Git 仓库地址（为空则使用内置案例）
 
     def __post_init__(self):
         """校验配置值，非法值回退到默认值（防止用户手误改坏配置）"""

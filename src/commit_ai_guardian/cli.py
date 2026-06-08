@@ -242,6 +242,18 @@ def configure(config_path):
     proxy = click.prompt("请输入代理地址 (留空表示不使用)", default=config.proxy or "", show_default=False)
     config.proxy = proxy if proxy else None
     
+    # Cases Repo（案例库 Git 仓库地址）
+    click.echo("\n📚 案例库配置（可选）")
+    click.echo("   可以配置一个 Git 仓库地址，存放审核案例 YAML 文件")
+    click.echo("   每次审核前会自动拉取最新案例")
+    click.echo("   示例: git@github.com:yourteam/review-cases.git")
+    cases_repo = click.prompt(
+        "请输入案例库 Git 仓库地址 (留空使用内置案例)",
+        default=config.cases_repo or "",
+        show_default=False
+    )
+    config.cases_repo = cases_repo if cases_repo else ""
+    
     # Save
     config_manager.save(config)
     click.echo(f"\n✅ 配置已保存到: {config_manager.get_default_config_path()}")
@@ -266,6 +278,7 @@ def status():
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
+        click.echo(f"  - 案例库: {config.cases_repo or '使用内置案例（未配置远程仓库）'}")
         
         click.echo()
         if installer.is_git_repo():
