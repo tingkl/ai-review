@@ -26,6 +26,14 @@ cd your-code-repo
 commit-ai-guardian install
 ```
 
+`install` 会根据当前仓库的 hook 状态做不同处理：
+
+| 场景 | 行为 |
+|------|------|
+| 没有 pre-commit | **创建** hook 文件 |
+| 有 pre-commit，且是本工具安装的 | **替换**为最新版本 |
+| 有 pre-commit，是其他工具或手动创建的 | **拒绝操作**，提示用 `--force` 覆盖（覆盖前会自动备份为 `.backup`） |
+
 ### 4. 日常使用
 
 ```bash
