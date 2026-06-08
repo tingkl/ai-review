@@ -2,39 +2,67 @@
 
 Git commit 前的 AI 代码审核工具。
 
-## 安装（一次）
+## 推荐用法
+
+### 1. 安装工具（全局，一次）
 
 ```bash
-git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git
-cd ai-review
+git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git ~/ai-review
+cd ~/ai-review
 uv sync && uv pip install -e .
-uv run commit-ai-guardian configure   # 输入 API Key
+uv tool install -e .
 ```
 
-## 使用
+### 2. 配置 API Key（一次）
 
-### 方式一：commit 时自动审核
+```bash
+commit-ai-guardian configure
+```
 
-在代码仓库里执行：
+### 3. 给代码仓库装上 Hook（每个仓库一次）
 
 ```bash
 cd your-code-repo
-uv run --project /path/to/ai-review commit-ai-guardian install
+commit-ai-guardian install
 ```
 
-之后每次 `git commit` 自动触发审核。不通过则阻断提交，加 `--no-verify` 可跳过。
+### 4. 日常使用
 
-### 方式二：审核指定文件/目录
+```bash
+git add .
+git commit -m "xxx"
+# 自动触发 AI 审核，不通过会阻断提交
+```
+
+---
+
+## 其他用法
+
+### 手动审核指定文件/目录（不经过 git）
 
 ```bash
 # 单个文件
-uv run --project /path/to/ai-review commit-ai-guardian review -f src/main.py
+commit-ai-guardian review -f src/auth.py
 
-# 整个目录
-uv run --project /path/to/ai-review commit-ai-guardian review -d src/
+# 目录
+commit-ai-guardian review -d src/
 
 # glob 模式
-uv run --project /path/to/ai-review commit-ai-guardian review -p 'src/**/*.py'
+commit-ai-guardian review -p 'src/**/*.py'
 ```
 
-把 `/path/to/ai-review` 换成 ai-review 的实际绝对路径。
+### 不想全局安装
+
+不执行 `uv tool install`，每次用 `--project` 指定 ai-review 的路径：
+
+```bash
+cd your-code-repo
+uv run --project ~/ai-review commit-ai-guardian install
+```
+
+### 查看状态 / 卸载 Hook
+
+```bash
+commit-ai-guardian status       # 查看配置和 hook 状态
+commit-ai-guardian uninstall    # 卸载当前仓库的 hook
+```
