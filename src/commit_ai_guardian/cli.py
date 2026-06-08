@@ -53,31 +53,9 @@ def main():
 
 @main.command()
 @click.option('--repo', default='.', help='目标 Git 仓库路径', type=click.Path(exists=True))
-def init(repo):
-    """在目标仓库初始化 .ai-review/ 项目案例目录
-    
-    创建 .ai-review/cases/ 目录并复制示例案例文件。
-    每个项目可以有自己的审核规则，编辑 .yaml 文件即可自定义。
-    """
-    try:
-        installer = HookInstaller(repo)
-        if installer.init_project():
-            click.echo("\n✅ 项目初始化完成！")
-            click.echo("   案例目录: .ai-review/cases/")
-            click.echo("   编辑 .yaml 文件来自定义审核规则")
-        else:
-            click.echo("❌ 初始化失败。")
-            sys.exit(1)
-    except RuntimeError as e:
-        click.echo(f"❌ 错误: {e}")
-        sys.exit(1)
-
-
-@main.command()
-@click.option('--repo', default='.', help='目标 Git 仓库路径', type=click.Path(exists=True))
 @click.option('--force', is_flag=True, help='强制覆盖已存在的 hook')
 def install(repo, force):
-    """在指定 Git 仓库安装 pre-commit hook"""
+    """在指定 Git 仓库安装 pre-commit hook，同时初始化 .ai-review/ 案例目录"""
     try:
         installer = HookInstaller(repo)
         if installer.install(force=force):

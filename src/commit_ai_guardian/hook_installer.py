@@ -111,6 +111,10 @@ class HookInstaller:
         self.hook_path.chmod(self.hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         
         print(f"[成功] pre-commit hook 已安装到: {self.hook_path}")
+        
+        # 安装 hook 时顺便初始化 .ai-review/ 案例目录
+        self._init_review_dir()
+        
         return True
     
     def uninstall(self) -> bool:
@@ -152,8 +156,8 @@ class HookInstaller:
             print(f"[错误] 卸载失败: {e}")
             return False
     
-    def init_project(self) -> bool:
-        """在目标仓库初始化 .ai-review/ 项目配置目录
+    def _init_review_dir(self) -> bool:
+        """在目标仓库初始化 .ai-review/ 项目配置目录（install 时自动调用）
         
         创建 .ai-review/cases/ 目录，并复制示例案例文件。
         用户可以根据项目需求修改这些示例。
