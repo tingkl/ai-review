@@ -1,4 +1,8 @@
-"""CLI 命令模块 - 提供命令行接口."""
+"""CLI 命令模块 - 所有用户命令的入口，相当于"总指挥" """
+
+# sys: 用于获取命令行参数、控制退出码
+# Path: 用于处理文件路径（比字符串拼接更可靠）
+# click: Python 的命令行框架，用装饰器定义命令和选项
 
 import sys
 from pathlib import Path
@@ -59,20 +63,20 @@ def uninstall(repo):
 def audit(repo, output, config_path):
     """手动运行代码审核（被 hook 调用）"""
     try:
-        # 加载配置
+        # Step 1: 加载配置（从 ~/.commit-ai-guardian/config.yaml 读取）
         config_manager = ConfigManager(config_path)
         config = config_manager.load()
         
-        # 检查 API Key
+        # 检查 API Key 是否已配置（没有这个就无法调用 AI）
         if not config.api_key:
             click.echo("❌ 未配置 API Key。请运行 'commit-ai-guardian config' 进行配置。")
             sys.exit(2)
         
-        # 采集 diff
+        # Step 2: 采集 diff（从 Git 暂存区获取变更内容）
         collector = DiffCollector(repo)
         file_diffs = collector.get_staged_diffs(
-            ignore_patterns=config.ignore_patterns,
-            max_file_size=config.max_file_size
+            ignore_patterns=config.ignore_patterns,   # 过滤掉 lock/json/md 等文件
+            max_file_size=config.max_file_size          # 过滤掉超过 500KB 的文件
         )
         
         if not file_diffs:
@@ -81,15 +85,16 @@ def audit(repo, output, config_path):
         
         click.echo(f"🔍 发现 {len(file_diffs)} 个文件变更，正在审核中...\n")
         
-        # AI 审核
+        # Step 3: AI 审核（逐个文件调用 AI API，获取审核结果）
         engine = AIEngine(config)
         results = engine.review_batch(file_diffs)
         
-        # 展示结果
+        # Step 4: 终端展示（用 Rich 库美化输出审核报告）
         formatter = ResultFormatter(config)
         all_passed = formatter.format_and_display(results)
         
-        # 根据严重程度阈值判断
+        # Step 5: 判断是否阻断 commit
+        # 只有 severity >= error 的问题才会阻断（默认 threshold 是 warning，但 error 才阻断）
         threshold_level = config.severity_threshold
         threshold_map = {"info": 0, "warning": 1, "error": 2, "critical": 3}
         threshold_value = threshold_map.get(threshold_level, 1)
@@ -104,6 +109,7 @@ def audit(repo, output, config_path):
             if has_blocking_issue:
                 break
         
+        # exit(0) = 放行，exit(1) = 阻断 commit
         if not all_passed and has_blocking_issue:
             sys.exit(1)
         sys.exit(0)
@@ -127,7 +133,7 @@ def audit(repo, output, config_path):
 def review(file, dir, pattern, recursive, max_files, output, config_path):
     """直接审核指定文件/目录的完整代码内容（不依赖 Git diff）"""
     try:
-        # 加载配置
+        # Step 1: 加载配置
         config_manager = ConfigManager(config_path)
         config = config_manager.load()
         
@@ -136,7 +142,7 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
             click.echo("❌ 未配置 API Key。请运行 'commit-ai-guardian configure' 进行配置。")
             sys.exit(2)
         
-        # 校验至少提供一个输入源
+        # Step 2: 校验输入（至少提供一个文件/目录/模式）
         if not file and not dir and not pattern:
             click.echo("❌ 请至少指定一个文件/目录/模式。")
             click.echo("   示例:")
@@ -146,42 +152,42 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
             click.echo("     commit-ai-guardian review -d src/ --no-recursive")
             sys.exit(2)
         
-        # 导入文件采集器
+        # Step 3: 采集文件（从文件系统读取，不经过 Git）
         from .file_collector import FileCollector
         
         collector = FileCollector(
-            ignore_patterns=config.ignore_patterns,
-            max_file_size=config.max_file_size
+            ignore_patterns=config.ignore_patterns,   # 过滤配置
+            max_file_size=config.max_file_size          # 大小限制
         )
         
-        # 采集文件
+        # collect() 支持三种来源同时采集，自动去重
         source_files = collector.collect(
-            files=list(file) if file else None,
-            dirs=list(dir) if dir else None,
-            patterns=list(pattern) if pattern else None,
-            recursive=recursive
+            files=list(file) if file else None,         # 单文件列表
+            dirs=list(dir) if dir else None,            # 目录列表
+            patterns=list(pattern) if pattern else None, # glob 模式列表
+            recursive=recursive                          # 是否递归子目录
         )
         
         if not source_files:
             click.echo("📭 没有找到符合条件的代码文件。")
             sys.exit(0)
         
-        # 限制最大文件数
+        # 限制最大文件数（防止一次提交太多文件导致 API 超时）
         if len(source_files) > max_files:
             click.echo(f"⚠️ 发现 {len(source_files)} 个文件，超过最大限制 {max_files}，只审核前 {max_files} 个。")
             source_files = source_files[:max_files]
         
         click.echo(f"🔍 发现 {len(source_files)} 个代码文件，正在审核中...\n")
         
-        # AI 审核
+        # Step 4: AI 审核（调用完整文件审核模式，不是 diff 模式）
         engine = AIEngine(config)
         results = engine.review_source_batch(source_files)
         
-        # 展示结果
+        # Step 5: 终端展示
         formatter = ResultFormatter(config)
         all_passed = formatter.format_and_display(results)
         
-        # 非阻塞模式（review 命令不阻断任何东西，exit 0 即可）
+        # review 命令永远不阻断（不像 audit 会 exit(1) 阻断 commit）
         sys.exit(0)
         
     except RuntimeError as e:

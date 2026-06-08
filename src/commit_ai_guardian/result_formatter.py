@@ -1,4 +1,14 @@
-"""审核结果格式化与终端展示模块 - 使用 Rich 库美化输出审核结果."""
+"""审核结果格式化与终端展示模块
+
+使用 Rich 库将 ReviewResult 列表渲染为彩色、结构化的终端输出。
+
+输出层次：
+1. 标题 Panel（青色边框）
+2. 每个文件一个 Panel（绿色=通过/黄色=有建议/红色=未通过）
+3. 问题表格（级别/类别/行号/描述/建议）
+4. 汇总 Panel（统计数字 + 分布图）
+5. 结论 Panel（通过/未通过）
+"""
 
 from typing import TYPE_CHECKING, List
 
@@ -15,17 +25,21 @@ if TYPE_CHECKING:
 
 
 class ResultFormatter:
-    """审核结果格式化器 - 终端展示"""
+    """审核结果格式化器
     
-    # 严重级别到颜色的映射
+    将 ReviewResult 列表渲染为终端输出。
+    视觉设计：严重级别用颜色区分，类别用图标区分，文件用边框色区分状态。
+    """
+    
+    # === 严重级别 → Rich 颜色样式 ===
     SEVERITY_STYLES = {
-        "critical": "bold red",
-        "error": "red",
-        "warning": "yellow",
-        "info": "blue",
+        "critical": "bold red",  # 严重 = 粗体红
+        "error": "red",          # 错误 = 红
+        "warning": "yellow",     # 警告 = 黄
+        "info": "blue",          # 提示 = 蓝
     }
     
-    # 严重级别到中文字的映射
+    # === 严重级别 → 中文标签 ===
     SEVERITY_LABELS = {
         "critical": "严重",
         "error": "错误",
@@ -33,7 +47,7 @@ class ResultFormatter:
         "info": "提示",
     }
     
-    # 问题类别到图标的映射
+    # === 类别 → 图标 ===
     CATEGORY_ICONS = {
         "bug": "🐛",
         "security": "🔒",
@@ -43,7 +57,7 @@ class ResultFormatter:
         "documentation": "📝",
     }
     
-    # 问题类别到中文的映射
+    # === 类别 → 中文标签 ===
     CATEGORY_LABELS = {
         "bug": "Bug",
         "security": "安全",

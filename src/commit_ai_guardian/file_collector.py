@@ -1,7 +1,14 @@
-"""文件采集器 - 用于直接审核指定文件/目录的完整代码内容.
+"""文件采集器
 
-不依赖 Git diff，直接读取文件系统上的代码文件进行 AI 审核。
-支持：单文件、目录递归扫描、glob 模式匹配。
+用于 review 命令（直接审核指定文件/目录），不依赖 Git。
+
+功能：
+- collect_file()    → 单文件
+- collect_dir()     → 目录（递归/非递归）
+- collect_pattern() → glob 模式
+- collect()         → 综合采集（文件+目录+模式，自动去重）
+
+过滤机制：二进制文件、超大文件、ignore_patterns 匹配的文件都会被跳过。
 """
 
 import os
@@ -54,39 +61,38 @@ BINARY_EXTENSIONS = {
 
 @dataclass
 class SourceFile:
-    """源代码文件信息
+    """源代码文件信息（AI 审核引擎 review_source() 的输入）
     
-    用于直接文件审核模式（非 Git diff 模式）。
-    包含文件名、编程语言、完整文件内容。
+    与 FileDiff 的区别：FileDiff 存的是 diff 片段，SourceFile 存的是完整文件内容。
     """
-    filename: str = ""
-    language: str = ""
-    content: str = ""
-    line_count: int = 0
-    file_size: int = 0  # bytes
+    filename: str = ""       # 文件绝对/相对路径
+    language: str = ""       # 编程语言（从扩展名推断，用于 prompt 代码高亮）
+    content: str = ""        # 完整文件内容（传给 AI 审核）
+    line_count: int = 0      # 行数（用于 prompt 显示）
+    file_size: int = 0       # 文件大小（bytes，用于日志）
 
 
 class FileCollector:
-    """文件采集器 - 发现并读取指定路径的代码文件
+    """文件采集器
     
-    支持三种使用方式：
-    1. 单文件: FileCollector.collect_file("src/main.py")
-    2. 目录: FileCollector.collect_dir("src/", recursive=True)
-    3. 混合: FileCollector.collect(paths=["src/", "tests/*.py"], recursive=True)
+    使用示例：
+        c = FileCollector()
+        sources = c.collect(files=["a.py"], dirs=["src/"], patterns=["tests/*.py"])
+    
+    collect() 方法支持同时从三种来源采集，自动去重。
     """
     
     def __init__(self,
                  ignore_patterns: Optional[List[str]] = None,
                  max_file_size: int = 500):
-        """
-        初始化文件采集器
+        """初始化
         
         Args:
-            ignore_patterns: 忽略文件模式列表（glob 格式，如 ["*.pyc", "__pycache__/*"]）
-            max_file_size: 最大文件大小（KB），超过此值的文件将被跳过
+            ignore_patterns: 忽略模式列表（glob 格式），如 ["*.lock", "*.json"]
+            max_file_size: 最大文件大小（KB），超过的文件会被跳过
         """
         self.ignore_patterns = ignore_patterns or []
-        self.max_file_size = max_file_size * 1024  # 转为 bytes
+        self.max_file_size = max_file_size * 1024  # KB → bytes
     
     def collect_file(self, file_path: str) -> Optional[SourceFile]:
         """
@@ -200,14 +206,15 @@ class FileCollector:
                 dirs: Optional[List[str]] = None,
                 patterns: Optional[List[str]] = None,
                 recursive: bool = True) -> List[SourceFile]:
-        """
-        综合采集 - 同时支持文件、目录、模式三种方式
+        """综合采集 - 同时支持文件、目录、模式三种方式，自动去重
+        
+        去重机制：用 set 记录已处理的文件名，同一个文件通过多种方式指定也只审核一次。
         
         Args:
-            files: 文件路径列表
-            dirs: 目录路径列表
-            patterns: glob 模式列表
-            recursive: 目录是否递归
+            files: 单文件路径列表，如 ["src/main.py", "src/auth.py"]
+            dirs: 目录路径列表，如 ["src/", "tests/"]
+            patterns: glob 模式列表，如 ["src/**/*.py"]
+            recursive: 目录是否递归子目录（默认 True）
             
         Returns:
             去重后的 SourceFile 列表

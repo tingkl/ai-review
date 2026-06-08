@@ -1,4 +1,16 @@
-"""AI 审核引擎 - 调用大语言模型对代码变更进行审核."""
+"""AI 审核引擎
+
+核心职责：
+- 构建 Prompt（把代码 + 审核维度说明发给 AI）
+- 调用 OpenAI API（含重试、超时、错误处理）
+- 解析 AI 的 JSON 响应为结构化数据（ReviewResult）
+
+双模式设计：
+- review_file()     → 审核 Git diff（只关注变更部分）
+- review_source()   → 审核完整文件（扫描存量代码）
+
+容错原则：任何环节失败都返回 passed=True，绝不阻断用户提交。
+"""
 
 import json
 import re
@@ -53,28 +65,35 @@ class ReviewResult:
 
 
 class AIEngine:
-    """AI 代码审核引擎"""
+    """AI 代码审核引擎
+    
+    封装了与 OpenAI API 的所有交互，包括：
+    - Prompt 构建（审核维度说明 + 代码内容）
+    - API 调用（含指数退避重试）
+    - 响应解析（JSON 提取 + 容错）
+    """
     
     def __init__(self, config: Any):
-        """
-        初始化 AI 审核引擎
+        """初始化
         
         Args:
-            config: Config 配置对象，需包含 api_key, api_base, model, timeout, proxy 字段
+            config: Config 对象，需要 api_key, api_base, model, timeout, proxy 等字段
         """
         self.config = config
         self.client = None
         
+        # 检查 openai 包是否安装
         if openai is None:
             raise RuntimeError("openai 包未安装，请运行: pip install openai")
         
-        # 配置 httpx 客户端（支持代理）
+        # 配置 httpx 客户端（支持代理和超时）
         http_kwargs = {}
         if config.proxy:
-            http_kwargs["proxies"] = config.proxy
+            http_kwargs["proxies"] = config.proxy  # 设置代理（用于内网/翻墙）
         
         http_kwargs["timeout"] = httpx.Timeout(config.timeout if hasattr(config, 'timeout') else 60)
         
+        # 初始化 OpenAI 客户端（兼容第三方 API：Azure、Gemini、本地部署等）
         try:
             self.client = openai.OpenAI(
                 api_key=config.api_key,
@@ -82,27 +101,31 @@ class AIEngine:
                 http_client=httpx.Client(**http_kwargs) if httpx else None,
             )
         except Exception as e:
+            # 初始化失败不抛异常，后续调用时返回降级结果
             print(f"[警告] OpenAI 客户端初始化失败: {e}")
             self.client = None
     
     def review_file(self, file_diff: Any) -> ReviewResult:
-        """
-        对单个文件进行 AI 审核
+        """审核单个文件的 diff（pre-commit 场景）
+        
+        流程：构建 diff Prompt → 调用 API → 解析响应
         
         Args:
-            file_diff: FileDiff 对象，需包含 filename, language, status, diff_content 字段
+            file_diff: FileDiff 对象，需包含 filename, language, diff_content
             
         Returns:
-            ReviewResult 审核结果
+            ReviewResult。任何失败都返回 passed=True（不阻断提交）
         """
+        # 防御：客户端初始化失败
         if self.client is None:
             return ReviewResult(
                 filename=getattr(file_diff, 'filename', 'unknown'),
                 summary="AI 客户端未初始化，无法审核",
-                passed=True,  # 不阻止提交
+                passed=True,  # ← 不阻止提交
                 raw_response="",
             )
         
+        # 防御：API Key 未配置
         if not getattr(self.config, 'api_key', None):
             return ReviewResult(
                 filename=getattr(file_diff, 'filename', 'unknown'),
@@ -111,17 +134,19 @@ class AIEngine:
                 raw_response="",
             )
         
+        # 构建 Prompt 并调用 AI
         prompt = self._build_prompt(file_diff)
         
         try:
             response = self._call_api(prompt)
             return self._parse_response(response, getattr(file_diff, 'filename', 'unknown'))
         except Exception as e:
+            # 任何异常都返回降级结果，不阻断用户
             print(f"[错误] 审核文件 {getattr(file_diff, 'filename', 'unknown')} 失败: {e}")
             return ReviewResult(
                 filename=getattr(file_diff, 'filename', 'unknown'),
                 summary=f"审核失败: {str(e)}",
-                passed=True,  # 审核失败不阻止提交
+                passed=True,  # ← 审核失败也不阻止提交
                 raw_response=str(e),
             )
     
@@ -221,17 +246,27 @@ class AIEngine:
         return prompt
     
     def _call_api(self, prompt: str) -> str:
-        """
-        调用 AI API，包含重试逻辑
+        """调用 AI API，含指数退避重试
+        
+        重试策略（最多3次）：
+        - 第1次失败：等 1 秒重试
+        - 第2次失败：等 2 秒重试  
+        - 第3次失败：等 4 秒重试
+        - 第3次仍失败：抛异常
+        
+        覆盖的错误类型：
+        - RateLimitError（API 限流）
+        - APITimeoutError（请求超时）
+        - APIError（服务端错误）
         
         Args:
-            prompt: 提示词
+            prompt: 完整的审核 Prompt（含代码 + 审核维度说明）
             
         Returns:
-            API 响应文本
+            AI 的文本响应（JSON 格式，markdown 包裹）
             
         Raises:
-            RuntimeError: API 调用失败
+            RuntimeError: 3 次重试后仍失败
         """
         model = getattr(self.config, 'model', 'gpt-4o-mini')
         max_retries = 3
@@ -241,23 +276,25 @@ class AIEngine:
                 response = self.client.chat.completions.create(
                     model=model,
                     messages=[
+                        # system 消息设定 AI 的角色和行为约束
                         {"role": "system", "content": "你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。请严格按照要求的 JSON 格式输出。"},
+                        # user 消息是真正的审核请求
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.3,
-                    max_tokens=2048,
+                    temperature=0.3,     # 低温度 = 输出更确定、更可预测
+                    max_tokens=2048,     # 限制响应长度（防止超长输出）
                 )
                 return response.choices[0].message.content or ""
             
-            except openai.RateLimitError:
+            except openai.RateLimitError:  # API 限流（429）
                 if attempt < max_retries - 1:
-                    wait_time = 2 ** attempt
+                    wait_time = 2 ** attempt  # 指数退避：1, 2, 4
                     print(f"[信息] API 速率限制，{wait_time}秒后重试...")
                     time.sleep(wait_time)
                 else:
                     raise RuntimeError("API 速率限制，已达到最大重试次数")
             
-            except openai.APITimeoutError:
+            except openai.APITimeoutError:  # 请求超时
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt
                     print(f"[信息] API 超时，{wait_time}秒后重试...")
@@ -265,7 +302,7 @@ class AIEngine:
                 else:
                     raise RuntimeError("API 调用超时")
             
-            except openai.APIError as e:
+            except openai.APIError as e:  # 其他 API 错误
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt
                     print(f"[信息] API 错误 ({e})，{wait_time}秒后重试...")
@@ -273,7 +310,7 @@ class AIEngine:
                 else:
                     raise RuntimeError(f"API 调用失败: {e}")
             
-            except Exception as e:
+            except Exception as e:  # 兜底：网络断开等
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt
                     print(f"[信息] 调用失败 ({e})，{wait_time}秒后重试...")
@@ -284,32 +321,36 @@ class AIEngine:
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
     def _parse_response(self, response: str, filename: str) -> ReviewResult:
-        """
-        解析 AI 响应为结构化 ReviewResult
+        """解析 AI 的响应文本为结构化的 ReviewResult
+        
+        解析策略（层层降级，保证不崩）：
+        1. 从 markdown 代码块 ```json ... ``` 中提取 JSON
+        2. 如果不行，直接解析整个响应
+        3. 如果还不行，尝试修复常见问题（BOM、单引号等）
+        4. 最后都失败 → 返回空结果（passed=True）
         
         Args:
-            response: API 响应文本
-            filename: 文件名
+            response: AI 返回的原始文本（含 markdown 代码块）
+            filename: 被审核的文件名（用于 ReviewResult.filename）
             
         Returns:
-            ReviewResult 对象
+            ReviewResult。解析失败也返回 passed=True（不阻断提交）
         """
         result = ReviewResult(filename=filename, raw_response=response)
         
+        # 防御：空响应
         if not response or not response.strip():
             result.summary = "API 返回空响应"
             result.passed = True
             return result
         
-        # 尝试从 markdown 代码块中提取 JSON
+        # 策略 1：从 ```json ... ``` 或 ``` ... ``` 代码块中提取
         json_str = None
-        
-        # 尝试匹配 ```json ... ```
         json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
         if json_match:
             json_str = json_match.group(1).strip()
         else:
-            # 尝试直接解析整个响应
+            # 策略 2：直接解析整个响应（AI 没加代码块的情况）
             json_str = response.strip()
         
         if not json_str:
@@ -317,27 +358,25 @@ class AIEngine:
             result.passed = True
             return result
         
+        # 策略 3：正常 JSON 解析
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError:
-            # 尝试修复常见 JSON 问题后重新解析
-            # 1. 去除可能的 BOM
-            json_str = json_str.lstrip('\ufeff')
-            # 2. 替换单引号为双引号（但要小心嵌套）
+            # 策略 4：尝试修复常见 JSON 问题
+            json_str = json_str.lstrip('\ufeff')  # 去除 BOM 头
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError:
+                # 所有策略都失败了 → 返回空结果
                 result.summary = "JSON 解析失败"
                 result.passed = True
                 return result
         
-        # 提取 summary
+        # 提取各字段（用 .get() 防止字段缺失时报错）
         result.summary = data.get('summary', '审核完成')
-        
-        # 提取 passed
         result.passed = bool(data.get('passed', True))
         
-        # 提取 issues
+        # 解析 issues 列表
         issues_data = data.get('issues', [])
         if isinstance(issues_data, list):
             for issue_data in issues_data:

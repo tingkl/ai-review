@@ -1,4 +1,13 @@
-"""Git Diff 采集与解析模块 - 负责获取和解析暂存区的代码变更."""
+"""Git Diff 采集与解析模块
+
+负责：
+- 执行 `git diff --cached` 获取暂存区变更
+- 解析 diff 文本，提取文件名、变更类型、行号
+- 过滤二进制文件、大文件、忽略模式匹配的文件
+- 推断编程语言
+
+输出：FileDiff 对象列表（每个文件一个），供 AI 引擎审核
+"""
 
 import os
 import re
@@ -18,14 +27,14 @@ except ImportError:
 
 @dataclass
 class FileDiff:
-    """单个文件的 Diff 信息"""
-    filename: str = ""
-    status: str = ""  # added, modified, deleted, renamed
-    additions: int = 0
-    deletions: int = 0
-    diff_content: str = ""
-    language: str = ""
-    line_numbers: List[int] = field(default_factory=list)
+    """单个文件的 Diff 信息（AI 审核引擎 review_file() 的输入）"""
+    filename: str = ""       # 文件相对路径，如 "src/auth.py"
+    status: str = ""         # 变更类型：added / modified / deleted / renamed
+    additions: int = 0       # 新增行数（用于统计展示）
+    deletions: int = 0       # 删除行数（用于统计展示）
+    diff_content: str = ""   # 完整 diff 文本（含上下文，传给 AI 审核）
+    language: str = ""       # 编程语言（从扩展名推断，用于 prompt 中的代码高亮）
+    line_numbers: List[int] = field(default_factory=list)  # 变更涉及的行号（AI 指出问题时用）
 
 
 # 编程语言映射表
@@ -70,21 +79,29 @@ BINARY_EXTENSIONS = {
 
 
 class DiffCollector:
-    """Git Diff 采集器 - 获取暂存区的代码变更"""
+    """Git Diff 采集器
+    
+    核心方法：get_staged_diffs()
+    执行 git diff --cached 并解析结果，返回 FileDiff 列表。
+    """
     
     def __init__(self, repo_path: str = "."):
-        """
-        初始化 Diff 采集器
+        """初始化
         
         Args:
-            repo_path: Git 仓库路径
+            repo_path: Git 仓库路径（默认当前目录）
+            
+        Raises:
+            RuntimeError: GitPython 未安装 或 路径不是有效 Git 仓库
         """
         self.repo_path = Path(repo_path).resolve()
         self.repo = None
         
+        # 检查 GitPython 是否安装（用户可能忘了 uv sync）
         if not gitpython_available:
             raise RuntimeError("GitPython 未安装，请运行: pip install gitpython")
         
+        # 用 GitPython 打开仓库，后续操作都通过这个对象
         try:
             self.repo = Repo(self.repo_path)
         except InvalidGitRepositoryError:
@@ -92,15 +109,19 @@ class DiffCollector:
     
     def get_staged_diffs(self, ignore_patterns: Optional[List[str]] = None,
                          max_file_size: int = 500) -> List[FileDiff]:
-        """
-        获取暂存区（staged）的所有变更
+        """获取暂存区（staged）的所有变更
+        
+        执行流程：
+        1. git diff --cached --unified=5 --diff-filter=ACMRT
+        2. 按文件拆分 diff
+        3. 逐个解析 + 多层过滤（二进制/大文件/忽略模式）
         
         Args:
-            ignore_patterns: 忽略的文件模式列表（glob 格式）
-            max_file_size: 最大文件大小限制（KB）
+            ignore_patterns: 忽略的文件模式列表（glob 格式，如 ["*.lock", "*.json"]）
+            max_file_size: 最大文件大小限制（KB），超过的文件跳过
             
         Returns:
-            FileDiff 列表
+            FileDiff 列表（可能为空，表示暂存区没有可审核的文件）
         """
         if ignore_patterns is None:
             ignore_patterns = []
