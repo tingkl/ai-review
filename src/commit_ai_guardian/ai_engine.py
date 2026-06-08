@@ -9,10 +9,11 @@
 - review_file()     → 审核 Git diff（只关注变更部分）
 - review_source()   → 审核完整文件（扫描存量代码）
 
-案例系统（新功能）：
-- 从 cases/ 目录加载 YAML 案例（坏代码示例 + 好代码示例）
+案例系统（三级优先级）：
+- 项目级别：目标仓库的 .ai-review/cases/（每个项目自己的规则）
+- 全局级别：远程 Git 仓库拉取的案例（团队共享）
+- 内置级别：工具自带的默认案例（开箱即用）
 - 审核时把匹配编程语言的案例注入 Prompt
-- AI 参照这些具体案例做对比检查，审核更精准
 
 容错原则：任何环节失败都返回 passed=True，绝不阻断用户提交。
 """
@@ -78,29 +79,32 @@ class AIEngine:
     - 响应解析（JSON 提取 + 容错）
     """
     
-    def __init__(self, config: Any):
+    def __init__(self, config: Any, repo_path: str = "."):
         """初始化
         
         Args:
             config: Config 对象，需要 api_key, api_base, model, timeout, proxy 等字段
+            repo_path: 目标代码仓库路径（用于加载 .ai-review/cases/ 项目级别案例）
         """
         self.config = config
         self.client = None
         
-        # === 案例系统初始化 ===
-        # 如果配置了远程案例仓库，先拉取最新案例，再加载
-        cases_dir = None
+        # === 案例系统初始化（三级优先级） ===
+        # 1. 先检查远程案例仓库配置（cases_repo）
+        remote_cases_dir = None
         if getattr(config, 'cases_repo', ''):
             from .cases_updater import CasesUpdater
             updater = CasesUpdater(config.cases_repo)
             updater.update()  # git clone / git pull
-            cases_dir = updater.get_cases_dir()
-            if cases_dir:
-                print(f"[信息] 使用远程案例库: {config.cases_repo}")
+            remote_cases_dir = updater.get_cases_dir()
         
-        # 初始化案例加载器（有远程案例用远程，否则用内置）
+        # 2. 初始化案例加载器（传入 repo_path 和 remote_cases_dir）
+        #    CaseLoader 内部按优先级选择：项目 > 远程 > 内置
         from .case_loader import CaseLoader
-        self.case_loader = CaseLoader(cases_dir=cases_dir)
+        self.case_loader = CaseLoader(
+            repo_path=repo_path,
+            remote_cases_dir=remote_cases_dir,
+        )
         
         # 检查 openai 包是否安装
         if openai is None:

@@ -16,6 +16,34 @@ from .ai_engine import AIEngine
 from .result_formatter import ResultFormatter
 
 
+def _find_repo_path(start_path: str = ".") -> str:
+    """从指定路径向上查找 Git 仓库根目录
+    
+    用于 review 命令：即使用户审核的是单个文件/目录，
+    也能找到所在的 Git 仓库，加载 .ai-review/cases/ 项目级别案例。
+    
+    Args:
+        start_path: 起始路径（文件或目录）
+        
+    Returns:
+        Git 仓库根目录路径，找不到则返回 start_path
+    """
+    current = Path(start_path).resolve()
+    
+    # 如果 start_path 是文件，从父目录开始
+    if current.is_file():
+        current = current.parent
+    
+    # 逐级向上查找 .git/ 目录
+    while current != current.parent:  # 到达根目录时停止
+        if (current / ".git").is_dir():
+            return str(current)
+        current = current.parent
+    
+    # 找不到 Git 仓库，返回原路径
+    return start_path
+
+
 @click.group()
 @click.version_option(version='0.1.0')
 def main():
@@ -86,7 +114,8 @@ def audit(repo, output, config_path):
         click.echo(f"🔍 发现 {len(file_diffs)} 个文件变更，正在审核中...\n")
         
         # Step 3: AI 审核（逐个文件调用 AI API，获取审核结果）
-        engine = AIEngine(config)
+        # 传入 repo_path，让 AIEngine 能加载 .ai-review/cases/ 项目级别案例
+        engine = AIEngine(config, repo_path=repo)
         results = engine.review_batch(file_diffs)
         
         # Step 4: 终端展示（用 Rich 库美化输出审核报告）
@@ -180,7 +209,12 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
         click.echo(f"🔍 发现 {len(source_files)} 个代码文件，正在审核中...\n")
         
         # Step 4: AI 审核（调用完整文件审核模式，不是 diff 模式）
-        engine = AIEngine(config)
+        # 尝试找到 Git 仓库根目录，加载 .ai-review/cases/ 项目级别案例
+        # 优先级：第一个文件的目录 > 第一个目录
+        search_path = file[0] if file else (dir[0] if dir else ".")
+        repo_path = _find_repo_path(search_path)
+        
+        engine = AIEngine(config, repo_path=repo_path)
         results = engine.review_source_batch(source_files)
         
         # Step 5: 终端展示

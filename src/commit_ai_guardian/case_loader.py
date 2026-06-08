@@ -1,6 +1,9 @@
 """案例加载器
 
-从 cases/ 目录加载 YAML 案例文件，审核时注入 Prompt 作为参照。
+支持三种来源，按优先级自动选择：
+1. 目标仓库的 .ai-review/cases/    ← 项目级别（优先级最高）
+2. 远程 Git 仓库拉取的案例         ← 全局共享
+3. 工具内置的默认案例              ← 兜底
 
 案例文件格式（YAML）：
     title: "SQL 注入"
@@ -11,10 +14,6 @@
     bad_example: "坏代码..."
     good_example: "好代码..."
     check_points: ["检查点1", "检查点2"]
-
-用法：
-    loader = CaseLoader()
-    cases = loader.get_cases_for_language("python")  # 只取 Python 相关案例
 """
 
 from pathlib import Path
@@ -26,25 +25,75 @@ except ImportError:
     yaml = None
 
 
-# 内置案例目录（随工具代码一起发布）
+# 内置案例目录（随工具代码一起发布，作为兜底）
 BUILTIN_CASES_DIR = Path(__file__).parent / "cases"
+
+# 目标仓库中存放案例的目录名
+REPO_CASES_DIR = ".ai-review" / "cases"
 
 
 class CaseLoader:
     """加载和管理审核案例
     
-    优先级：远程案例（Git 仓库拉取的）> 内置案例
+    三级优先级（从高到低）：
+    1. 目标仓库的 .ai-review/cases/  — 项目自己的规则
+    2. 远程 Git 仓库拉取的案例       — 团队共享的规则
+    3. 工具内置的默认案例            — 开箱即用
+    
+    使用方式：
+        # audit 场景（知道目标仓库路径）
+        loader = CaseLoader(repo_path="/path/to/your-code-repo")
+        
+        # review 场景（可能不知道仓库路径）
+        loader = CaseLoader()
     """
     
-    def __init__(self, cases_dir: Optional[Path] = None):
+    def __init__(self,
+                 repo_path: Optional[str] = None,
+                 remote_cases_dir: Optional[Path] = None):
         """初始化
         
         Args:
-            cases_dir: 案例目录路径。None 则使用内置案例。
-                        传入远程仓库路径则使用远程案例（优先级更高）。
+            repo_path: 目标代码仓库路径（用于查找 .ai-review/cases/）
+            remote_cases_dir: 远程 Git 仓库拉取的案例目录路径
         """
-        self.cases_dir = cases_dir or BUILTIN_CASES_DIR
+        self.repo_path = repo_path
+        self.remote_cases_dir = remote_cases_dir
+        
+        # 按优先级确定最终使用哪个目录
+        self.cases_dir = self._resolve_cases_dir()
         self._cases: List[Dict[str, Any]] = []
+        
+        # 打印信息，让用户知道用的是哪套案例
+        self._log_source()
+    
+    def _resolve_cases_dir(self) -> Path:
+        """按三级优先级确定案例目录
+        
+        Returns:
+            最终使用的案例目录 Path 对象
+        """
+        # === 优先级 1：目标仓库的 .ai-review/cases/ ===
+        if self.repo_path:
+            local_cases = Path(self.repo_path) / REPO_CASES_DIR
+            if local_cases.exists():
+                return local_cases
+        
+        # === 优先级 2：远程 Git 仓库拉取的案例 ===
+        if self.remote_cases_dir and self.remote_cases_dir.exists():
+            return self.remote_cases_dir
+        
+        # === 优先级 3：工具内置的默认案例 ===
+        return BUILTIN_CASES_DIR
+    
+    def _log_source(self) -> None:
+        """打印当前使用的案例来源（方便用户确认）"""
+        if self.cases_dir == BUILTIN_CASES_DIR:
+            pass  # 内置案例，不打印（太常见）
+        elif self.repo_path and str(self.cases_dir).startswith(str(self.repo_path)):
+            print(f"[信息] 使用项目案例: {self.cases_dir}")
+        else:
+            print(f"[信息] 使用远程案例: {self.cases_dir}")
     
     def load_all(self) -> List[Dict[str, Any]]:
         """加载所有案例文件
