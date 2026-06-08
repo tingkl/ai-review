@@ -1,0 +1,25 @@
+title: "弱哈希算法"
+description: "使用 MD5/SHA1 等不安全的哈希算法"
+severity: "error"
+category: "security"
+languages: ["python", "java", "javascript", "go", "php"]
+bad_example: |
+  import hashlib
+  
+  # 危险：MD5 已不安全
+  password_hash = hashlib.md5(password.encode()).hexdigest()
+  
+  # 危险：SHA1 已不安全  
+  checksum = hashlib.sha1(data).hexdigest()
+good_example: |
+  import bcrypt
+  
+  # 安全：bcrypt 带盐哈希
+  password_hash = bcrypt.hashpw(password, bcrypt.gensalt())
+  
+  # 安全：SHA-256 用于校验
+  checksum = hashlib.sha256(data).hexdigest()
+check_points:
+  - "是否使用了 md5() 或 sha1()"
+  - "密码是否用了 bcrypt/argon2/scrypt"
+  - "哈希是否加了随机盐"

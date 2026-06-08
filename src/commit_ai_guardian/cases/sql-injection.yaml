@@ -1,0 +1,16 @@
+title: "SQL 注入"
+description: "直接拼接用户输入到 SQL 语句中"
+severity: "critical"
+category: "security"
+languages: ["python", "java", "javascript", "go", "php"]
+bad_example: |
+  # 危险：用户输入直接拼进 SQL
+  query = f"SELECT * FROM users WHERE id = {user_id}"
+  cursor.execute(query)
+good_example: |
+  # 安全：使用参数化查询
+  cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+check_points:
+  - "是否有字符串拼接构建 SQL"
+  - "是否使用了参数化查询/预编译语句"
+  - "ORM 的 raw() / execute() 是否传了用户输入"

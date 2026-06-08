@@ -1,13 +1,18 @@
 """AI 审核引擎
 
 核心职责：
-- 构建 Prompt（把代码 + 审核维度说明发给 AI）
+- 构建 Prompt（代码 + 审核维度 + 案例参照 → 发给 AI）
 - 调用 OpenAI API（含重试、超时、错误处理）
 - 解析 AI 的 JSON 响应为结构化数据（ReviewResult）
 
 双模式设计：
 - review_file()     → 审核 Git diff（只关注变更部分）
 - review_source()   → 审核完整文件（扫描存量代码）
+
+案例系统（新功能）：
+- 从 cases/ 目录加载 YAML 案例（坏代码示例 + 好代码示例）
+- 审核时把匹配编程语言的案例注入 Prompt
+- AI 参照这些具体案例做对比检查，审核更精准
 
 容错原则：任何环节失败都返回 passed=True，绝不阻断用户提交。
 """
@@ -68,7 +73,7 @@ class AIEngine:
     """AI 代码审核引擎
     
     封装了与 OpenAI API 的所有交互，包括：
-    - Prompt 构建（审核维度说明 + 代码内容）
+    - Prompt 构建（审核维度 + 案例参照 + 代码内容）
     - API 调用（含指数退避重试）
     - 响应解析（JSON 提取 + 容错）
     """
@@ -81,6 +86,10 @@ class AIEngine:
         """
         self.config = config
         self.client = None
+        
+        # 初始化案例加载器（cases/ 目录下的 YAML 案例）
+        from .case_loader import CaseLoader
+        self.case_loader = CaseLoader()
         
         # 检查 openai 包是否安装
         if openai is None:
@@ -192,9 +201,13 @@ class AIEngine:
             'c': 'C', 'csharp': 'C#', 'ruby': 'Ruby', 'php': 'PHP',
         }.get(language, language)
         
+        # 加载与当前编程语言匹配的案例
+        cases = self.case_loader.get_cases_for_language(language)
+        cases_text = self.case_loader.format_cases_for_prompt(cases)
+
         prompt = f"""你是一位资深代码审核专家。请对以下代码变更进行严格审核。
 
-## 审核维度
+## 审核维度（通用规则）
 1. **Bug 检测**: 逻辑错误、空指针、边界条件、资源泄漏、并发问题等
 2. **安全漏洞**: SQL注入、XSS、敏感信息泄露、硬编码密码、不安全的反序列化等
 3. **代码风格**: 命名规范、代码格式、注释质量、代码组织
@@ -217,7 +230,7 @@ class AIEngine:
 ```{language}
 {diff_content}
 ```
-
+{cases_text}
 ## 输出格式
 请以 JSON 格式输出，不要包含任何其他文字:
 ```json
@@ -241,6 +254,7 @@ class AIEngine:
 - 如无问题，issues 为空数组，passed 为 true
 - line_number 为变更代码中的行号
 - 只关注本次变更引入的问题，不要审核已有代码
+- **重点参照上面的"问题模式"案例进行对比检查**
 - 尽量给出具体的修复建议，不要泛泛而谈"""
         
         return prompt
@@ -480,9 +494,13 @@ class AIEngine:
             'c': 'C', 'csharp': 'C#', 'ruby': 'Ruby', 'php': 'PHP',
         }.get(language, language)
         
+        # 加载与当前编程语言匹配的案例
+        cases = self.case_loader.get_cases_for_language(language)
+        cases_text = self.case_loader.format_cases_for_prompt(cases)
+
         prompt = f"""你是一位资深代码审核专家。请对以下完整代码文件进行全面审核。
 
-## 审核维度
+## 审核维度（通用规则）
 1. **Bug 检测**: 逻辑错误、空指针、边界条件、资源泄漏、并发问题等
 2. **安全漏洞**: SQL注入、XSS、敏感信息泄露、硬编码密码、不安全的反序列化等
 3. **代码风格**: 命名规范、代码格式、注释质量、代码组织
@@ -506,7 +524,7 @@ class AIEngine:
 ```{language}
 {content}
 ```
-
+{cases_text}
 ## 输出格式
 请以 JSON 格式输出，不要包含任何其他文字:
 ```json
@@ -530,6 +548,7 @@ class AIEngine:
 - 如无问题，issues 为空数组，passed 为 true
 - line_number 为问题所在的行号
 - 对整个文件进行全面审核，不限于变更部分
+- **重点参照上面的"问题模式"案例进行对比检查**
 - 尽量给出具体的修复建议，不要泛泛而谈"""
         
         return prompt

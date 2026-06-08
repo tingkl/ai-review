@@ -1,0 +1,18 @@
+title: "资源泄漏"
+description: "文件、数据库连接、锁等未正确释放"
+severity: "error"
+category: "bug"
+languages: ["python", "java", "javascript", "go", "rust"]
+bad_example: |
+  # 危险：f 可能不关闭（中途异常）
+  f = open("data.txt")
+  data = f.read()
+  f.close()
+good_example: |
+  # 安全：with 语句自动关闭
+  with open("data.txt") as f:
+      data = f.read()
+check_points:
+  - "文件打开是否用了 with/try-finally"
+  - "数据库连接是否正确关闭"
+  - "锁是否可能因异常未释放"

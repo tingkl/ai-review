@@ -1,0 +1,21 @@
+title: "空指针/None 引用"
+description: "未检查空值就直接使用对象属性或方法"
+severity: "error"
+category: "bug"
+languages: ["python", "java", "javascript", "go"]
+bad_example: |
+  # 危险：user 可能为 None
+  name = user.name
+  
+  # 危险：列表可能为空
+  first = items[0]
+good_example: |
+  # 安全：先检查
+  name = user.name if user else "anonymous"
+  
+  # 安全：判空
+  first = items[0] if items else None
+check_points:
+  - "使用对象前是否检查了 None/null"
+  - "列表/字典索引前是否检查了长度"
+  - "函数返回值是否做了空值处理"

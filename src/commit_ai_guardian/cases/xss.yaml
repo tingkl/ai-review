@@ -1,0 +1,21 @@
+title: "XSS 跨站脚本攻击"
+description: "用户输入未经转义直接输出到 HTML 页面"
+severity: "critical"
+category: "security"
+languages: ["javascript", "python", "java", "php"]
+bad_example: |
+  // 危险：直接插入用户输入
+  element.innerHTML = userInput;
+  
+  // 危险：模板中不转义
+  <div>{{ user_comment }}</div>  // Django/Jinja 未加 |safe
+good_example: |
+  // 安全：使用 textContent 代替 innerHTML
+  element.textContent = userInput;
+  
+  // 安全：自动转义（默认行为）
+  <div>{{ user_comment }}</div>  // Django/Jinja 默认转义
+check_points:
+  - "innerHTML、document.write 是否插入用户输入"
+  - "模板渲染是否使用了 |safe 或类似标记"
+  - "用户输入是否在 URL/JS 事件中直接使用"
