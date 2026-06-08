@@ -152,6 +152,59 @@ class HookInstaller:
             print(f"[错误] 卸载失败: {e}")
             return False
     
+    def init_project(self) -> bool:
+        """在目标仓库初始化 .ai-review/ 项目配置目录
+        
+        创建 .ai-review/cases/ 目录，并复制示例案例文件。
+        用户可以根据项目需求修改这些示例。
+        
+        Returns:
+            True = 初始化成功（或已存在）
+            False = 失败
+        """
+        if not self.is_git_repo():
+            print(f"[错误] '{self.repo_path}' 不是 Git 仓库")
+            return False
+        
+        # 创建 .ai-review/cases/ 目录
+        review_dir = self.repo_path / ".ai-review"
+        cases_dir = review_dir / "cases"
+        
+        try:
+            cases_dir.mkdir(parents=True, exist_ok=True)
+            print(f"[成功] 创建目录: {cases_dir}")
+            
+            # 复制示例案例文件（从工具的 templates/case-examples/）
+            examples_source = Path(__file__).parent / "templates" / "case-examples"
+            if examples_source.exists():
+                copied = 0
+                for example_file in sorted(examples_source.glob("*.yaml")):
+                    target = cases_dir / example_file.name
+                    if not target.exists():  # 不覆盖已有文件
+                        import shutil
+                        shutil.copy2(example_file, target)
+                        copied += 1
+                
+                if copied > 0:
+                    print(f"[成功] 复制了 {copied} 个示例案例文件")
+                    print(f"        请根据你的项目需求修改这些示例")
+                else:
+                    print(f"[信息] 案例文件已存在，未覆盖")
+            
+            # 创建 .gitignore（确保 .ai-review/ 不会被提交，或让用户自己决定）
+            gitignore = review_dir / ".gitignore"
+            if not gitignore.exists():
+                gitignore.write_text("#  Uncomment the line below if you DON'T want to share cases with team\n# *\n", encoding='utf-8')
+            
+            print(f"\n[提示] 项目案例目录已初始化: {cases_dir}")
+            print(f"        编辑 .yaml 文件来自定义审核规则")
+            print(f"        共享给团队: git add .ai-review/ && git commit")
+            return True
+            
+        except OSError as e:
+            print(f"[错误] 初始化失败: {e}")
+            return False
+
     def _get_hook_script(self) -> str:
         """获取 hook 脚本内容
         

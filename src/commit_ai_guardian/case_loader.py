@@ -1,19 +1,13 @@
 """案例加载器
 
-支持三种来源，按优先级自动选择：
+支持两种来源：
 1. 目标仓库的 .ai-review/cases/    ← 项目级别（优先级最高）
 2. 远程 Git 仓库拉取的案例         ← 全局共享
-3. 工具内置的默认案例              ← 兜底
 
-案例文件格式（YAML）：
-    title: "SQL 注入"
-    description: "..."
-    severity: "critical"
-    category: "security"
-    languages: ["python", "java"]
-    bad_example: "坏代码..."
-    good_example: "好代码..."
-    check_points: ["检查点1", "检查点2"]
+没有内置默认案例！如果两个都没有，审核退化为通用规则检查。
+
+初始化命令：
+    commit-ai-guardian init    ← 在目标仓库创建 .ai-review/cases/ + 示例
 """
 
 from pathlib import Path
@@ -25,9 +19,6 @@ except ImportError:
     yaml = None
 
 
-# 内置案例目录（随工具代码一起发布，作为兜底）
-BUILTIN_CASES_DIR = Path(__file__).parent / "cases"
-
 # 目标仓库中存放案例的目录名
 REPO_CASES_DIR = ".ai-review" / "cases"
 
@@ -35,17 +26,11 @@ REPO_CASES_DIR = ".ai-review" / "cases"
 class CaseLoader:
     """加载和管理审核案例
     
-    三级优先级（从高到低）：
+    两级优先级（从高到低）：
     1. 目标仓库的 .ai-review/cases/  — 项目自己的规则
-    2. 远程 Git 仓库拉取的案例       — 团队共享的规则
-    3. 工具内置的默认案例            — 开箱即用
+    2. 远程 Git 仓库拉取的案例       — 团队共享
     
-    使用方式：
-        # audit 场景（知道目标仓库路径）
-        loader = CaseLoader(repo_path="/path/to/your-code-repo")
-        
-        # review 场景（可能不知道仓库路径）
-        loader = CaseLoader()
+    没有内置默认！找不到案例时返回空列表。
     """
     
     def __init__(self,
@@ -67,11 +52,11 @@ class CaseLoader:
         # 打印信息，让用户知道用的是哪套案例
         self._log_source()
     
-    def _resolve_cases_dir(self) -> Path:
-        """按三级优先级确定案例目录
+    def _resolve_cases_dir(self) -> Optional[Path]:
+        """按两级优先级确定案例目录
         
         Returns:
-            最终使用的案例目录 Path 对象
+            案例目录 Path，或 None（两个来源都没有）
         """
         # === 优先级 1：目标仓库的 .ai-review/cases/ ===
         if self.repo_path:
@@ -83,13 +68,13 @@ class CaseLoader:
         if self.remote_cases_dir and self.remote_cases_dir.exists():
             return self.remote_cases_dir
         
-        # === 优先级 3：工具内置的默认案例 ===
-        return BUILTIN_CASES_DIR
+        # === 没有案例 ===
+        return None
     
     def _log_source(self) -> None:
-        """打印当前使用的案例来源（方便用户确认）"""
-        if self.cases_dir == BUILTIN_CASES_DIR:
-            pass  # 内置案例，不打印（太常见）
+        """打印当前使用的案例来源"""
+        if self.cases_dir is None:
+            print("[信息] 未找到案例库（运行 'commit-ai-guardian init' 初始化项目案例）")
         elif self.repo_path and str(self.cases_dir).startswith(str(self.repo_path)):
             print(f"[信息] 使用项目案例: {self.cases_dir}")
         else:
@@ -99,7 +84,7 @@ class CaseLoader:
         """加载所有案例文件
         
         Returns:
-            案例字典列表
+            案例字典列表（没有则返回空列表）
         """
         if self._cases:
             return self._cases
@@ -108,7 +93,7 @@ class CaseLoader:
             print("[警告] PyYAML 未安装，无法加载审核案例")
             return []
         
-        if not self.cases_dir.exists():
+        if self.cases_dir is None or not self.cases_dir.exists():
             return []
         
         cases = []
@@ -129,13 +114,11 @@ class CaseLoader:
     def get_cases_for_language(self, language: str) -> List[Dict[str, Any]]:
         """获取指定编程语言相关的案例
         
-        如果案例的 languages 列表包含该语言（或为空表示通用），则匹配。
-        
         Args:
             language: 编程语言，如 "python"
             
         Returns:
-            匹配的案例列表
+            匹配的案例列表（可能为空）
         """
         all_cases = self.load_all()
         if not language or language == "unknown":
@@ -144,7 +127,6 @@ class CaseLoader:
         matched = []
         for case in all_cases:
             langs = case.get("languages", [])
-            # languages 为空 或 包含目标语言 都匹配
             if not langs or language.lower() in [l.lower() for l in langs]:
                 matched.append(case)
         
@@ -157,7 +139,7 @@ class CaseLoader:
             cases: 案例字典列表
             
         Returns:
-            适合插入 Prompt 的文本
+            适合插入 Prompt 的文本（空列表则返回空字符串）
         """
         if not cases:
             return ""
