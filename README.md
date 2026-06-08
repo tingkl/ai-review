@@ -88,12 +88,39 @@ uv run commit-ai-guardian install
 commit-ai-guardian install
 ```
 
-### 3. 正常使用 Git
+### 3a. 自动模式：Git commit 触发审核（推荐）
 
 ```bash
 git add <files>
 git commit -m "your message"
 # 此时会自动触发 AI 代码审核！
+```
+
+### 3b. 手动模式：直接审核指定文件/目录
+
+无需 Git 提交，直接对代码文件进行审核（适合存量代码扫描）：
+
+```bash
+# 审核单个文件
+uv run commit-ai-guardian review -f src/auth.py
+
+# 审核多个文件
+uv run commit-ai-guardian review -f src/auth.py -f src/utils.py
+
+# 审核整个目录（递归）
+uv run commit-ai-guardian review -d src/
+
+# 审核多个目录
+uv run commit-ai-guardian review -d src/ -d tests/
+
+# 使用 glob 模式
+uv run commit-ai-guardian review -p 'src/**/*.py'
+
+# 不递归子目录
+uv run commit-ai-guardian review -d src/ --no-recursive
+
+# 组合使用
+uv run commit-ai-guardian review -d src/ -f README.md -p 'tests/*.py'
 ```
 
 ## 📋 命令说明
@@ -103,7 +130,11 @@ git commit -m "your message"
 | `uv run commit-ai-guardian install` | 在当前仓库安装 pre-commit hook |
 | `uv run commit-ai-guardian install --force` | 强制覆盖已存在的 hook |
 | `uv run commit-ai-guardian uninstall` | 卸载 pre-commit hook |
-| `uv run commit-ai-guardian audit` | 手动运行代码审核 |
+| `uv run commit-ai-guardian audit` | 手动运行 Git staged diff 审核 |
+| **`uv run commit-ai-guardian review`** | **直接审核指定文件/目录（完整代码）** |
+| `uv run commit-ai-guardian review -f file.py` | 审核单个文件 |
+| `uv run commit-ai-guardian review -d src/` | 递归审核目录 |
+| `uv run commit-ai-guardian review -p 'src/**/*.py'` | 用 glob 模式匹配文件 |
 | `uv run commit-ai-guardian configure` | 交互式配置管理 |
 | `uv run commit-ai-guardian status` | 查看配置和安装状态 |
 
