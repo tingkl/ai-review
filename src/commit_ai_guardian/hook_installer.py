@@ -175,34 +175,33 @@ class HookInstaller:
         cases_dir = review_dir / "cases"
         
         try:
+            is_new = not cases_dir.exists()
             cases_dir.mkdir(parents=True, exist_ok=True)
-            print(f"[成功] 创建目录: {cases_dir}")
             
-            # 复制示例案例文件（从工具的 templates/case-examples/）
+            # 复制示例案例文件（只复制不存在的，不覆盖已有）
             examples_source = Path(__file__).parent / "templates" / "case-examples"
+            copied = 0
             if examples_source.exists():
-                copied = 0
                 for example_file in sorted(examples_source.glob("*.yaml")):
                     target = cases_dir / example_file.name
-                    if not target.exists():  # 不覆盖已有文件
+                    if not target.exists():
                         import shutil
                         shutil.copy2(example_file, target)
                         copied += 1
-                
-                if copied > 0:
-                    print(f"[成功] 复制了 {copied} 个示例案例文件")
-                    print(f"        请根据你的项目需求修改这些示例")
-                else:
-                    print(f"[信息] 案例文件已存在，未覆盖")
             
-            # 创建 .gitignore（确保 .ai-review/ 不会被提交，或让用户自己决定）
+            # 创建 .gitignore（如果不存在）
             gitignore = review_dir / ".gitignore"
             if not gitignore.exists():
                 gitignore.write_text("#  Uncomment the line below if you DON'T want to share cases with team\n# *\n", encoding='utf-8')
             
-            print(f"\n[提示] 项目案例目录已初始化: {cases_dir}")
-            print(f"        编辑 .yaml 文件来自定义审核规则")
-            print(f"        共享给团队: git add .ai-review/ && git commit")
+            # 只在真正创建了新东西时才打印提示
+            if is_new and copied > 0:
+                print(f"\n[信息] 项目案例目录已创建: {cases_dir}")
+                print(f"        复制了 {copied} 个示例案例（请根据项目需求编辑）")
+                print(f"        共享给团队: git add .ai-review/ && git commit")
+            elif copied > 0:
+                print(f"[信息] 补充了 {copied} 个新示例案例到 {cases_dir}")
+            # else: 目录已存在且文件都已存在，安静跳过，不打印任何信息
             return True
             
         except OSError as e:
