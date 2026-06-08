@@ -51,7 +51,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["commit_ai_guardian"]
+packages = ["src/commit_ai_guardian"]
 
 [tool.black]
 line-length = 100
