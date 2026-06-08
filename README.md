@@ -1,229 +1,121 @@
-# 🛡️ Commit AI Guardian
+# Commit AI Guardian
 
-Git Pre-commit Hook AI 代码审核系统。在每次 `git commit` 之前自动触发 AI 对代码变更进行审核，帮助团队提升代码质量、发现潜在 Bug 和安全漏洞。
+Git 提交前的 AI 代码审核工具。
 
-> 本项目使用 [uv](https://github.com/astral-sh/uv) 进行包管理和运行，速度比传统 pip 快 10-100 倍。
+**两种用法：**
+- `install` + `git commit` —— 自动审核暂存区的代码变更
+- `review` —— 手动审核指定文件或目录的完整代码
 
-## ✨ 功能特性
+---
 
-- 🤖 **AI 智能审核** — 基于大语言模型，支持 GPT-4o-mini 等多种模型
-- 🔍 **多维度检查** — Bug 检测、安全漏洞、代码风格、性能问题、最佳实践、文档完整性
-- 🚦 **智能阻断** — 根据严重程度配置自动阻断不合规的提交
-- 🎨 **美观终端输出** — 使用 Rich 库提供彩色、结构化的审核报告
-- ⚙️ **灵活配置** — 支持自定义审核规则、模型选择、忽略文件等
-- 🔒 **安全友好** — 支持代理配置，兼容私有化部署和第三方 API
-- ⚡ **uv 原生支持** — 使用 uv 极速安装和运行
+## 安装
 
-## 📦 安装
-
-### 方式一：通过 uv 安装（推荐）
+依赖：Python 3.8+、[uv](https://github.com/astral-sh/uv)
 
 ```bash
-# 安装 uv（如尚未安装）
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 安装 commit-ai-guardian
-uv tool install commit-ai-guardian
-
-# 或使用 uv pip 安装到虚拟环境
-uv venv
-uv pip install commit-ai-guardian
-```
-
-### 方式二：从源码安装
-
-```bash
-# 克隆仓库
-git clone https://github.com/yourusername/commit-ai-guardian.git
-cd commit-ai-guardian
-
-# 使用 uv 创建虚拟环境并安装
-uv venv
+git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+cd ai-review
+uv sync
 uv pip install -e .
-
-# 或使用 uv 的 sync 命令安装依赖（含开发依赖）
-uv sync  # 生产依赖
-uv sync --group dev  # 含开发依赖
 ```
 
-### 方式三：传统 pip 安装
+以下命令中的 `<项目路径>` 指 `ai-review` 的绝对路径，例如 `/Users/awesome/work/ai/ai-review`。
+
+---
+
+## 配置 API Key
 
 ```bash
-pip install commit-ai-guardian
+uv run --project <项目路径> commit-ai-guardian configure
 ```
 
-## 🚀 快速开始
+按提示输入：
 
-### 1. 配置 API Key
+| 项 | 说明 | 默认 |
+|---|---|---|
+| `api_key` | 你的 API Key（必填） | — |
+| `api_base` | API 地址 | `https://api.openai.com/v1` |
+| `model` | 模型名 | `gpt-4o-mini` |
+| `severity_threshold` | 阻断级别：`info`/`warning`/`error`/`critical` | `warning` |
+| `timeout` | 请求超时（秒） | `60` |
+
+配置文件保存在 `~/.commit-ai-guardian/config.yaml`，可直接编辑。
+
+---
+
+## 用法一：git commit 自动审核
+
+在你要审核的代码仓库里执行：
 
 ```bash
-# 使用 uv run 运行配置命令（推荐）
-uv run commit-ai-guardian configure
-
-# 或如果已通过 uv tool install 安装
-commit-ai-guardian configure
+cd your-code-repo
+uv run --project <项目路径> commit-ai-guardian install
 ```
 
-或直接编辑配置文件 `~/.commit-ai-guardian/config.yaml`：
-
-```yaml
-api_key: "sk-your-api-key-here"
-api_base: "https://api.openai.com/v1"
-model: "gpt-4o-mini"
-language: "zh-CN"
-severity_threshold: "warning"
-max_file_size: 500
-timeout: 60
-```
-
-### 2. 在 Git 仓库安装 Hook
+之后每次 `git commit` 会自动触发 AI 审核。发现问题时 `commit` 会被阻断，按提示修复或加 `--no-verify` 跳过。
 
 ```bash
-cd your-git-repo
+# 卸载 hook
+uv run --project <项目路径> commit-ai-guardian uninstall
 
-# uv 方式
-uv run commit-ai-guardian install
-
-# 或已全局安装
-commit-ai-guardian install
+# 查看状态
+uv run --project <项目路径> commit-ai-guardian status
 ```
 
-### 3a. 自动模式：Git commit 触发审核（推荐）
+---
 
-```bash
-git add <files>
-git commit -m "your message"
-# 此时会自动触发 AI 代码审核！
-```
-
-### 3b. 手动模式：直接审核指定文件/目录
-
-无需 Git 提交，直接对代码文件进行审核（适合存量代码扫描）：
+## 用法二：手动审核文件/目录
 
 ```bash
 # 审核单个文件
-uv run commit-ai-guardian review -f src/auth.py
+uv run --project <项目路径> commit-ai-guardian review -f src/auth.py
 
-# 审核多个文件
-uv run commit-ai-guardian review -f src/auth.py -f src/utils.py
-
-# 审核整个目录（递归）
-uv run commit-ai-guardian review -d src/
+# 审核目录（递归）
+uv run --project <项目路径> commit-ai-guardian review -d src/
 
 # 审核多个目录
-uv run commit-ai-guardian review -d src/ -d tests/
+uv run --project <项目路径> commit-ai-guardian review -d src/ -d tests/
 
-# 使用 glob 模式
-uv run commit-ai-guardian review -p 'src/**/*.py'
-
-# 不递归子目录
-uv run commit-ai-guardian review -d src/ --no-recursive
+# glob 模式
+uv run --project <项目路径> commit-ai-guardian review -p 'src/**/*.py'
 
 # 组合使用
-uv run commit-ai-guardian review -d src/ -f README.md -p 'tests/*.py'
+uv run --project <项目路径> commit-ai-guardian review -d src/ -f config.yaml
 ```
 
-## 📋 命令说明
+| 选项 | 说明 |
+|---|---|
+| `-f, --file` | 指定文件，可多次使用 |
+| `-d, --dir` | 指定目录，默认递归 |
+| `-p, --pattern` | glob 模式，如 `src/**/*.py` |
+| `--no-recursive` | 不递归子目录 |
+| `--max-files` | 最大审核文件数，默认 50 |
 
-| 命令 | 说明 |
-|------|------|
-| `uv run commit-ai-guardian install` | 在当前仓库安装 pre-commit hook |
-| `uv run commit-ai-guardian install --force` | 强制覆盖已存在的 hook |
-| `uv run commit-ai-guardian uninstall` | 卸载 pre-commit hook |
-| `uv run commit-ai-guardian audit` | 手动运行 Git staged diff 审核 |
-| **`uv run commit-ai-guardian review`** | **直接审核指定文件/目录（完整代码）** |
-| `uv run commit-ai-guardian review -f file.py` | 审核单个文件 |
-| `uv run commit-ai-guardian review -d src/` | 递归审核目录 |
-| `uv run commit-ai-guardian review -p 'src/**/*.py'` | 用 glob 模式匹配文件 |
-| `uv run commit-ai-guardian configure` | 交互式配置管理 |
-| `uv run commit-ai-guardian status` | 查看配置和安装状态 |
+---
 
-> 如果通过 `uv tool install` 全局安装，可省略 `uv run` 前缀。
+## 全局安装（可选）
 
-## ⚙️ 配置项说明
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `api_key` | AI API 密钥 | — |
-| `api_base` | API 基础地址 | `https://api.openai.com/v1` |
-| `model` | 使用的模型 | `gpt-4o-mini` |
-| `language` | 审核报告语言 | `zh-CN` |
-| `severity_threshold` | 阻止提交的最低严重级别 | `warning` |
-| `max_file_size` | 最大审核文件大小 (KB) | `500` |
-| `ignore_patterns` | 忽略文件模式列表 | `*.lock, *.json, ...` |
-| `timeout` | API 超时时间 (秒) | `60` |
-| `proxy` | 代理地址 | — |
-
-## 🔌 兼容的 API 提供商
-
-- [OpenAI](https://platform.openai.com/)
-- [Azure OpenAI](https://azure.microsoft.com/products/ai-services/openai-service)
-- [Google Gemini (OpenAI compatible)](https://ai.google.dev/)
-- [Anthropic Claude (via proxy)](https://www.anthropic.com/)
-- [本地部署模型 (Ollama, vLLM 等)](https://ollama.com/)
-
-## 🧩 审核维度
-
-1. **🐛 Bug 检测** — 逻辑错误、空指针、边界条件、资源泄漏
-2. **🔒 安全漏洞** — SQL注入、XSS、敏感信息泄露、硬编码密码
-3. **🎨 代码风格** — 命名规范、代码格式、注释质量
-4. **⚡ 性能问题** — 算法复杂度、内存泄漏、不必要计算
-5. **📋 最佳实践** — 设计模式、代码复用、错误处理
-6. **📝 文档完整** — 函数文档、参数说明、返回值说明
-
-## 📊 审核报告示例
-
-```
-🔍 AI 代码审核报告
-共审核 2 个文件
-
-❌ src/auth.py
-   发现 2 个问题
-   
-  级别    类别       行号  描述                            建议
-  错误    🔒 安全    25   使用明文存储密码                使用 bcrypt/argon2 哈希密码
-  警告    📋 实践    42   未处理异常可能导致信息泄露        添加 try-except 错误处理
-
-✅ src/utils.py
-   代码质量良好，未发现明显问题
-
-📊 审核汇总
-文件总数: 2  |  通过: 1  未通过: 1  问题总数: 2
-
-问题严重级别分布
-  错误: 1
-  警告: 1
-
-❌ 审核未通过 - 1 个文件存在问题
-使用 git commit --no-verify 可跳过审核（不推荐）
-```
-
-## 🛠️ 开发指南
+不想每次写 `--project` 可以全局安装：
 
 ```bash
-# 克隆仓库
-git clone https://github.com/yourusername/commit-ai-guardian.git
-cd commit-ai-guardian
-
-# 使用 uv 创建虚拟环境并安装开发依赖
-uv venv
-uv sync --group dev
-
-# 运行测试
-uv run pytest
-
-# 代码格式化
-uv run black src
-uv run ruff check src
-
-# 类型检查
-uv run mypy src
+cd ai-review
+uv tool install -e .
 ```
 
-## 🤝 贡献指南
+之后直接：
 
-欢迎提交 Issue 和 Pull Request！
+```bash
+commit-ai-guardian install
+commit-ai-guardian review -d src/
+```
 
-## 📄 License
+---
 
-MIT License
+## 审核维度
+
+- **Bug 检测** — 逻辑错误、空指针、边界条件
+- **安全漏洞** — SQL 注入、XSS、敏感信息泄露
+- **代码风格** — 命名规范、格式、注释
+- **性能问题** — 复杂度、内存泄漏
+- **最佳实践** — 设计模式、错误处理
+- **文档完整** — 函数文档、参数说明
