@@ -143,7 +143,7 @@ class AIEngine:
     
     def _build_prompt(self, file_diff: Any) -> str:
         """
-        构建审核提示词
+        构建 diff 审核提示词（用于 Git pre-commit 场景）
         
         Args:
             file_diff: FileDiff 对象
@@ -353,3 +353,144 @@ class AIEngine:
                     result.issues.append(issue)
         
         return result
+    
+    def review_source(self, source_file: Any) -> ReviewResult:
+        """
+        对完整文件内容进行 AI 审核（非 diff 模式）
+        
+        适用于直接审核指定文件/目录的场景，不依赖 Git diff。
+        
+        Args:
+            source_file: SourceFile 对象或类似对象，需包含 filename, language, content 字段
+            
+        Returns:
+            ReviewResult 审核结果
+        """
+        # 先检查 API Key（更友好的错误提示）
+        if not getattr(self.config, 'api_key', None):
+            return ReviewResult(
+                filename=getattr(source_file, 'filename', 'unknown'),
+                summary="未配置 API Key，跳过审核",
+                passed=True,
+                raw_response="",
+            )
+        
+        if self.client is None:
+            return ReviewResult(
+                filename=getattr(source_file, 'filename', 'unknown'),
+                summary="AI 客户端未初始化，无法审核",
+                passed=True,
+                raw_response="",
+            )
+        
+        prompt = self._build_full_file_prompt(source_file)
+        
+        try:
+            response = self._call_api(prompt)
+            return self._parse_response(response, getattr(source_file, 'filename', 'unknown'))
+        except Exception as e:
+            print(f"[错误] 审核文件 {getattr(source_file, 'filename', 'unknown')} 失败: {e}")
+            return ReviewResult(
+                filename=getattr(source_file, 'filename', 'unknown'),
+                summary=f"审核失败: {str(e)}",
+                passed=True,
+                raw_response=str(e),
+            )
+    
+    def review_source_batch(self, source_files: List[Any]) -> List[ReviewResult]:
+        """
+        批量审核完整文件
+        
+        Args:
+            source_files: SourceFile 对象列表
+            
+        Returns:
+            ReviewResult 列表
+        """
+        results = []
+        for source_file in source_files:
+            result = self.review_source(source_file)
+            results.append(result)
+        return results
+    
+    def _build_full_file_prompt(self, source_file: Any) -> str:
+        """
+        构建完整文件审核的提示词
+        
+        Args:
+            source_file: SourceFile 对象
+            
+        Returns:
+            完整的 prompt 字符串
+        """
+        filename = getattr(source_file, 'filename', 'unknown')
+        language = getattr(source_file, 'language', 'unknown')
+        content = getattr(source_file, 'content', '')
+        line_count = getattr(source_file, 'line_count', 0)
+        
+        # 截断过长的文件（保留文件头部，通常包含重要逻辑）
+        max_content_length = 8000
+        truncated = False
+        if len(content) > max_content_length:
+            content = content[:max_content_length]
+            truncated = True
+        
+        language_display = {
+            'python': 'Python', 'javascript': 'JavaScript', 'typescript': 'TypeScript',
+            'java': 'Java', 'go': 'Go', 'rust': 'Rust', 'cpp': 'C++',
+            'c': 'C', 'csharp': 'C#', 'ruby': 'Ruby', 'php': 'PHP',
+        }.get(language, language)
+        
+        prompt = f"""你是一位资深代码审核专家。请对以下完整代码文件进行全面审核。
+
+## 审核维度
+1. **Bug 检测**: 逻辑错误、空指针、边界条件、资源泄漏、并发问题等
+2. **安全漏洞**: SQL注入、XSS、敏感信息泄露、硬编码密码、不安全的反序列化等
+3. **代码风格**: 命名规范、代码格式、注释质量、代码组织
+4. **性能问题**: 算法复杂度、内存泄漏、不必要的计算、大数据量处理
+5. **最佳实践**: 设计模式、代码复用、错误处理、日志规范
+6. **文档完整**: 函数文档、参数说明、返回值说明、复杂逻辑注释
+
+## 严重级别定义
+- **critical**: 必须修复，会导致系统崩溃或严重安全漏洞
+- **error**: 应该修复，明确的 Bug 或安全问题
+- **warning**: 建议修复，风格或最佳实践问题
+- **info**: 仅供参考，轻微改进建议
+
+## 代码信息
+- 文件: {filename}
+- 语言: {language_display}
+- 总行数: {line_count}
+{f"- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符" if truncated else ""}
+
+## 完整代码内容
+```{language}
+{content}
+```
+
+## 输出格式
+请以 JSON 格式输出，不要包含任何其他文字:
+```json
+{{
+  "summary": "总体评价（2-3句话）",
+  "passed": true/false,
+  "issues": [
+    {{
+      "severity": "warning",
+      "category": "style",
+      "line_number": 15,
+      "message": "问题描述",
+      "suggestion": "修复建议",
+      "code_snippet": "相关代码"
+    }}
+  ]
+}}
+```
+
+注意:
+- 如无问题，issues 为空数组，passed 为 true
+- line_number 为问题所在的行号
+- 对整个文件进行全面审核，不限于变更部分
+- 尽量给出具体的修复建议，不要泛泛而谈"""
+        
+        return prompt

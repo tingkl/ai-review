@@ -117,6 +117,82 @@ def audit(repo, output, config_path):
 
 
 @main.command()
+@click.option('--file', '-f', multiple=True, help='指定要审核的文件路径（可多次使用）')
+@click.option('--dir', '-d', multiple=True, help='指定要审核的目录（可多次使用）')
+@click.option('--pattern', '-p', multiple=True, help='Glob 模式匹配文件（如 "src/**/*.py"）')
+@click.option('--recursive/--no-recursive', default=True, help='目录是否递归扫描（默认递归）')
+@click.option('--max-files', default=50, help='最大审核文件数（默认 50）')
+@click.option('--output', type=click.Choice(['terminal', 'json']), default='terminal')
+@click.option('--config', 'config_path', help='指定配置文件路径')
+def review(file, dir, pattern, recursive, max_files, output, config_path):
+    """直接审核指定文件/目录的完整代码内容（不依赖 Git diff）"""
+    try:
+        # 加载配置
+        config_manager = ConfigManager(config_path)
+        config = config_manager.load()
+        
+        # 检查 API Key
+        if not config.api_key:
+            click.echo("❌ 未配置 API Key。请运行 'commit-ai-guardian configure' 进行配置。")
+            sys.exit(2)
+        
+        # 校验至少提供一个输入源
+        if not file and not dir and not pattern:
+            click.echo("❌ 请至少指定一个文件/目录/模式。")
+            click.echo("   示例:")
+            click.echo("     commit-ai-guardian review -f src/main.py")
+            click.echo("     commit-ai-guardian review -d src/ -d tests/")
+            click.echo("     commit-ai-guardian review -p 'src/**/*.py'")
+            click.echo("     commit-ai-guardian review -d src/ --no-recursive")
+            sys.exit(2)
+        
+        # 导入文件采集器
+        from .file_collector import FileCollector
+        
+        collector = FileCollector(
+            ignore_patterns=config.ignore_patterns,
+            max_file_size=config.max_file_size
+        )
+        
+        # 采集文件
+        source_files = collector.collect(
+            files=list(file) if file else None,
+            dirs=list(dir) if dir else None,
+            patterns=list(pattern) if pattern else None,
+            recursive=recursive
+        )
+        
+        if not source_files:
+            click.echo("📭 没有找到符合条件的代码文件。")
+            sys.exit(0)
+        
+        # 限制最大文件数
+        if len(source_files) > max_files:
+            click.echo(f"⚠️ 发现 {len(source_files)} 个文件，超过最大限制 {max_files}，只审核前 {max_files} 个。")
+            source_files = source_files[:max_files]
+        
+        click.echo(f"🔍 发现 {len(source_files)} 个代码文件，正在审核中...\n")
+        
+        # AI 审核
+        engine = AIEngine(config)
+        results = engine.review_source_batch(source_files)
+        
+        # 展示结果
+        formatter = ResultFormatter(config)
+        all_passed = formatter.format_and_display(results)
+        
+        # 非阻塞模式（review 命令不阻断任何东西，exit 0 即可）
+        sys.exit(0)
+        
+    except RuntimeError as e:
+        click.echo(f"❌ 错误: {e}")
+        sys.exit(2)
+    except KeyboardInterrupt:
+        click.echo("\n⚠️ 审核已取消")
+        sys.exit(130)
+
+
+@main.command()
 @click.option('--config', 'config_path', help='指定配置文件路径')
 def configure(config_path):
     """交互式配置管理"""

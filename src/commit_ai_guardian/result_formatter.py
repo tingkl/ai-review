@@ -75,7 +75,7 @@ class ResultFormatter:
         """
         if not results:
             self.console.print(Panel(
-                "[green]暂存区没有需要审核的文件[/green]",
+                "[green]没有找到需要审核的代码文件[/green]",
                 title="🔍 AI 代码审核报告",
                 border_style="green"
             ))
