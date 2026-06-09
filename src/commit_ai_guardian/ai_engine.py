@@ -219,7 +219,7 @@ class AIEngine:
         prompt = self._build_prompt(file_diff)
         
         try:
-            response = self._call_api(prompt)
+            response = self._call_api(prompt, filename=getattr(file_diff, 'filename', 'unknown'))
             return self._parse_response(response, getattr(file_diff, 'filename', 'unknown'))
         except Exception as e:
             # 任何异常都返回降级结果，不阻断用户
@@ -298,7 +298,7 @@ class AIEngine:
         return prompt
     
     def _write_debug_log(self, filename: str, content: str, append: bool = False) -> None:
-        """将 debug 信息写入 .ai-review/prompts/debug.log
+        """将 prompt 写入 .ai-review/prompts/prompt.log
         
         默认覆盖写入（保留最近一次审查的 prompt）。
         append=True 时追加到文件末尾（用于记录解析错误等信息）。
@@ -311,30 +311,56 @@ class AIEngine:
         if not self.repo_path:
             return
         
-        debug_log = Path(self.repo_path) / ".ai-review" / "prompts" / "debug.log"
+        prompt_log = Path(self.repo_path) / ".ai-review" / "prompts" / "prompt.log"
         try:
             from datetime import datetime
             
             if append:
                 # 追加模式：添加分隔线和内容
                 separator = f"\n\n# --- [{datetime.now().strftime('%H:%M:%S')}] {filename} ---\n\n"
-                existing = debug_log.read_text(encoding='utf-8') if debug_log.exists() else ""
-                debug_log.write_text(existing + separator + content, encoding='utf-8')
+                existing = prompt_log.read_text(encoding='utf-8') if prompt_log.exists() else ""
+                prompt_log.write_text(existing + separator + content, encoding='utf-8')
             else:
-                # 覆盖模式：标准 prompt debug 头部
+                # 覆盖模式：标准 prompt log 头部
                 header = f"""# ================================================
-# Prompt Debug Log
+# Prompt Log
 # 文件: {filename}
 # 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # ================================================
 
 """
-                debug_log.write_text(header + content, encoding='utf-8')
+                prompt_log.write_text(header + content, encoding='utf-8')
         except Exception:
             # 写入失败不报错，不影响正常审核流程
             pass
     
-    def _call_api(self, prompt: str) -> str:
+    def _write_ai_response_log(self, filename: str, response: str) -> None:
+        """将 AI 审核返回的原始响应写入 .ai-review/prompts/ai.log
+        
+        覆盖写入，只保留最近一次。
+        
+        Args:
+            filename: 被审核的文件名
+            response: AI 返回的原始响应文本
+        """
+        if not self.repo_path:
+            return
+        
+        ai_log = Path(self.repo_path) / ".ai-review" / "prompts" / "ai.log"
+        try:
+            from datetime import datetime
+            header = f"""# ================================================
+# AI Response Log
+# 文件: {filename}
+# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# ================================================
+
+"""
+            ai_log.write_text(header + response, encoding='utf-8')
+        except Exception:
+            pass
+    
+    def _call_api(self, prompt: str, filename: str = "unknown") -> str:
         """调用 AI API，含指数退避重试
         
         重试策略（最多3次）：
@@ -350,6 +376,7 @@ class AIEngine:
         
         Args:
             prompt: 完整的审核 Prompt（含代码 + 审核维度说明）
+            filename: 被审核的文件名（用于 ai.log 标识）
             
         Returns:
             AI 的文本响应（JSON 格式，markdown 包裹）
@@ -374,8 +401,8 @@ class AIEngine:
                     max_tokens=2048,     # 限制响应长度（防止超长输出）
                 )
                 raw_content = response.choices[0].message.content or ""
-                # 打印 AI 返回的原始内容（调试用，方便排查 JSON 解析问题）
-                print(f"\n[AI 原始响应]\n{raw_content}\n")
+                # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
+                self._write_ai_response_log(filename, raw_content)
                 return raw_content
             
             except openai.RateLimitError:  # API 限流（429）
@@ -523,7 +550,7 @@ class AIEngine:
         prompt = self._build_full_file_prompt(source_file)
         
         try:
-            response = self._call_api(prompt)
+            response = self._call_api(prompt, filename=getattr(source_file, 'filename', 'unknown'))
             return self._parse_response(response, getattr(source_file, 'filename', 'unknown'))
         except Exception as e:
             print(f"[错误] 审核文件 {getattr(source_file, 'filename', 'unknown')} 失败: {e}")
