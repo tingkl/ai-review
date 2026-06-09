@@ -8,12 +8,16 @@ import sys
 from pathlib import Path
 
 import click
+from rich.console import Console
 
 from .config import ConfigManager
 from .hook_installer import HookInstaller
 from .diff_collector import DiffCollector
 from .ai_engine import AIEngine
 from .result_formatter import ResultFormatter
+
+# Rich 控制台实例（用于 loading 动画和彩色输出）
+console = Console()
 
 
 def _find_repo_path(start_path: str = ".") -> str:
@@ -111,12 +115,13 @@ def audit(repo, output, config_path):
             click.echo("📭 暂存区没有需要审核的代码变更。")
             sys.exit(0)
         
-        click.echo(f"🔍 发现 {len(file_diffs)} 个文件变更，正在审核中...\n")
+        click.echo(f"🔍 发现 {len(file_diffs)} 个文件变更\n")
         
         # Step 3: AI 审核（逐个文件调用 AI API，获取审核结果）
-        # 传入 repo_path，让 AIEngine 能加载 .ai-review/cases/ 项目级别案例
+        # 用 Rich 的 status 显示旋转 loading 动画，让用户知道正在进行
         engine = AIEngine(config, repo_path=repo)
-        results = engine.review_batch(file_diffs)
+        with console.status("[bold cyan]🤖 AI 正在审核代码，请稍候..."):
+            results = engine.review_batch(file_diffs)
         
         # Step 4: 终端展示（用 Rich 库美化输出审核报告）
         formatter = ResultFormatter(config)
@@ -208,16 +213,16 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
             click.echo(f"⚠️ 发现 {len(source_files)} 个文件，超过最大限制 {max_files}，只审核前 {max_files} 个。")
             source_files = source_files[:max_files]
         
-        click.echo(f"🔍 发现 {len(source_files)} 个代码文件，正在审核中...\n")
+        click.echo(f"🔍 发现 {len(source_files)} 个代码文件\n")
         
         # Step 4: AI 审核（调用完整文件审核模式，不是 diff 模式）
-        # 尝试找到 Git 仓库根目录，加载 .ai-review/cases/ 项目级别案例
-        # 优先级：第一个文件的目录 > 第一个目录
+        # 用 Rich 的 status 显示旋转 loading 动画
         search_path = file[0] if file else (dir[0] if dir else ".")
         repo_path = _find_repo_path(search_path)
         
         engine = AIEngine(config, repo_path=repo_path)
-        results = engine.review_source_batch(source_files)
+        with console.status("[bold cyan]🤖 AI 正在审核代码，请稍候..."):
+            results = engine.review_source_batch(source_files)
         
         # Step 5: 终端展示
         formatter = ResultFormatter(config)
