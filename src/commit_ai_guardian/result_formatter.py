@@ -193,7 +193,11 @@ class ResultFormatter:
                 
                 # 问题描述（主信息，加粗）
                 issue_lines.append(f"\n  {severity_icon} ", style="")
-                issue_lines.append(f"[{line_display}]", style=f"bold {severity_style} underline", link=line_link)
+                # 行号用 Rich markup 做成可点击链接
+                issue_lines.append(Text.from_markup(
+                    f"[link={line_link}][{line_display}][/link]",
+                    style=f"bold {severity_style} underline"
+                ))
                 issue_lines.append(f"  {issue.message or '-'}\n", style=f"bold {severity_style}")
                 
                 # 建议（缩进显示）
