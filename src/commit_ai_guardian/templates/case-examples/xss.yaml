@@ -1,21 +1,39 @@
 title: "XSS 跨站脚本攻击"
-description: "用户输入未经转义直接输出到 HTML 页面"
-severity: "critical"
+summary: "用户输入未经转义直接输出到 HTML 页面"
+severity: 9
+level: "critical"
 category: "security"
+tags: ["XSS", "HTML", "前端"]
+
+why: |
+  攻击者可以注入恶意脚本，当其他用户浏览页面时执行，
+  窃取 Cookie、伪造请求等。
+
+impact: |
+  - 用户 Cookie 被盗，账号被劫持
+  - 页面内容被篡改
+  - 钓鱼攻击
+
+references:
+  - "https://owasp.org/www-community/attacks/xss/"
+
 languages: ["javascript", "python", "java", "php"]
-bad_example: |
-  // 危险：直接插入用户输入
-  element.innerHTML = userInput;
-  
-  // 危险：模板中不转义
-  <div>{{ user_comment }}</div>  // Django/Jinja 未加 |safe
-good_example: |
-  // 安全：使用 textContent 代替 innerHTML
-  element.textContent = userInput;
-  
-  // 安全：自动转义（默认行为）
-  <div>{{ user_comment }}</div>  // Django/Jinja 默认转义
+applies_to:
+  - "**/views/**/*.py"
+  - "**/templates/**/*.html"
+
+bad_examples:
+  - label: "innerHTML 插入用户输入"
+    code: |
+      element.innerHTML = userInput;
+
+good_examples:
+  - label: "textContent 代替 innerHTML"
+    code: |
+      element.textContent = userInput;
+
 check_points:
-  - "innerHTML、document.write 是否插入用户输入"
-  - "模板渲染是否使用了 |safe 或类似标记"
-  - "用户输入是否在 URL/JS 事件中直接使用"
+  - question: "innerHTML、document.write 是否插入用户输入？"
+    hint: "搜索 innerHTML = 和 document.write"
+  - question: "模板渲染是否使用了 |safe 或类似标记？"
+    hint: "检查是否绕过自动转义"

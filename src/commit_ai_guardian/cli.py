@@ -312,7 +312,7 @@ def status():
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
-        click.echo(f"  - 案例库: {config.cases_repo or '使用内置案例（未配置远程仓库）'}")
+        click.echo(f"  - 案例库: {config.cases_repo or '使用项目案例（.ai-review/cases/）'}")
         
         click.echo()
         if installer.is_git_repo():
@@ -325,6 +325,23 @@ def status():
             
     except Exception as e:
         click.echo(f"❌ 错误: {e}")
+        sys.exit(1)
+
+
+@main.command('validate-cases')
+@click.option('--repo', default='.', help='目标代码仓库路径', type=click.Path(exists=True))
+def validate_cases(repo):
+    """校验 .ai-review/cases/ 下的案例文件格式是否正确"""
+    from .case_validator import validate_all_cases, print_summary
+    
+    cases_dir = Path(repo) / ".ai-review" / "cases"
+    results = validate_all_cases(cases_dir)
+    
+    if results:
+        all_passed = print_summary(results)
+        if not all_passed:
+            sys.exit(1)
+    else:
         sys.exit(1)
 
 

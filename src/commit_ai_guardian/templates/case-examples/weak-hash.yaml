@@ -1,25 +1,37 @@
 title: "弱哈希算法"
-description: "使用 MD5/SHA1 等不安全的哈希算法"
-severity: "error"
+summary: "使用 MD5/SHA1 等不安全的哈希算法"
+severity: 8
+level: "error"
 category: "security"
+tags: ["哈希", "密码", "加密"]
+
+why: |
+  MD5 和 SHA1 已经被证明不安全，可以通过彩虹表或暴力破解。
+  密码哈希必须使用带盐的慢哈希算法。
+
+impact: |
+  - 密码被破解，用户账号被盗
+  - 数据库泄露后密码直接被还原
+
+references:
+  - "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"
+
 languages: ["python", "java", "javascript", "go", "php"]
-bad_example: |
-  import hashlib
-  
-  # 危险：MD5 已不安全
-  password_hash = hashlib.md5(password.encode()).hexdigest()
-  
-  # 危险：SHA1 已不安全  
-  checksum = hashlib.sha1(data).hexdigest()
-good_example: |
-  import bcrypt
-  
-  # 安全：bcrypt 带盐哈希
-  password_hash = bcrypt.hashpw(password, bcrypt.gensalt())
-  
-  # 安全：SHA-256 用于校验
-  checksum = hashlib.sha256(data).hexdigest()
+
+bad_examples:
+  - label: "MD5 哈希密码"
+    code: |
+      import hashlib
+      password_hash = hashlib.md5(password.encode()).hexdigest()
+
+good_examples:
+  - label: "bcrypt 带盐哈希"
+    code: |
+      import bcrypt
+      password_hash = bcrypt.hashpw(password, bcrypt.gensalt())
+
 check_points:
-  - "是否使用了 md5() 或 sha1()"
-  - "密码是否用了 bcrypt/argon2/scrypt"
-  - "哈希是否加了随机盐"
+  - question: "是否使用了 md5() 或 sha1()？"
+    hint: "搜索 md5、sha1、hashlib.md5"
+  - question: "密码是否用了 bcrypt/argon2/scrypt？"
+    hint: "确认是慢哈希算法，不是快速哈希"
