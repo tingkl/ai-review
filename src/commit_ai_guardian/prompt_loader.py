@@ -143,7 +143,6 @@ class PromptLoader:
         """
         self.repo_path = repo_path
         self.prompts_dir = self._resolve_prompts_dir()
-        self._log_source()
     
     def _resolve_prompts_dir(self) -> Optional[Path]:
         """查找项目模板目录"""
@@ -153,15 +152,10 @@ class PromptLoader:
                 return prompts_dir
         return None
     
-    def _log_source(self) -> None:
-        """打印当前使用的模板来源"""
-        if self.prompts_dir:
-            print(f"[信息] 使用项目 prompt 模板: {self.prompts_dir}")
-        else:
-            print("[信息] 使用内置默认 prompt 模板")
-    
     def _load_file(self, filename: str, default_content: str) -> str:
         """加载模板文件，找不到返回默认内容
+        
+        加载成功时打印具体文件路径，使用内置默认时也打印提示。
         
         Args:
             filename: 模板文件名（如 "diff_review.md"）
@@ -174,9 +168,15 @@ class PromptLoader:
             file_path = self.prompts_dir / filename
             if file_path.exists():
                 try:
-                    return file_path.read_text(encoding='utf-8')
+                    content = file_path.read_text(encoding='utf-8')
+                    print(f"[信息] 加载 prompt 模板: {file_path}")
+                    return content
                 except Exception as e:
-                    print(f"[警告] 读取模板 {filename} 失败: {e}，使用内置默认")
+                    print(f"[警告] 读取模板 {file_path} 失败: {e}，使用内置默认")
+            else:
+                print(f"[信息] 模板文件不存在: {file_path}，使用内置默认")
+        else:
+            print(f"[信息] 未找到 .ai-review/prompts/，使用内置默认 {filename}")
         
         return default_content
     
