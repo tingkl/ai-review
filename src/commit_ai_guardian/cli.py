@@ -280,7 +280,7 @@ def configure(config_path):
     
     # Save
     config_manager.save(config)
-    click.echo(f"\n✅ 配置已保存到: {config_manager.get_default_config_path()}")
+    click.echo(f"\n✅ 配置已保存到: {config_manager.get_global_path()}")
 
 
 @main.command()
