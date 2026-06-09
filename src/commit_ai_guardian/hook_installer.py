@@ -174,6 +174,7 @@ class HookInstaller:
         review_dir = self.repo_path / ".ai-review"
         cases_dir = review_dir / "cases"      # ← 用户把需要启用的案例放这里
         example_dir = review_dir / "example"  # ← 工具自带的示例模板放这里
+        prompts_dir = review_dir / "prompts"  # ← prompt 模板（用户可以自定义审核行为）
         
         try:
             # 创建 cases/（空目录，用户自己添加案例）
@@ -182,6 +183,9 @@ class HookInstaller:
             # 创建 example/（放示例模板，不参与审核）
             is_new_example = not example_dir.exists()
             example_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 创建 prompts/（放 prompt 模板，install 时写入默认模板）
+            prompts_dir.mkdir(parents=True, exist_ok=True)
             
             # 复制示例案例文件到 example/（Markdown 格式，.md）
             examples_source = Path(__file__).parent / "templates" / "case-examples"
@@ -193,6 +197,14 @@ class HookInstaller:
                         import shutil
                         shutil.copy2(example_file, target)
                         copied += 1
+            
+            # 写入默认 prompt 模板（用户可以修改来自定义审核行为）
+            from .prompt_loader import PromptLoader
+            template_files = PromptLoader.get_default_template_files()
+            for template_name, template_content in template_files.items():
+                template_path = prompts_dir / template_name
+                if not template_path.exists():
+                    template_path.write_text(template_content, encoding='utf-8')
             
             # 创建项目配置文件 config.yaml（所有 key 值留空/为0，按需填写）
             config_file = review_dir / "config.yaml"

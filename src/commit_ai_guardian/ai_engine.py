@@ -30,6 +30,8 @@ except ImportError:
     openai = None
     httpx = None
 
+from .prompt_loader import PromptLoader
+
 
 @dataclass
 class ReviewIssue:
@@ -91,6 +93,9 @@ class AIEngine:
         # 初始化案例加载器（传入 repo_path，加载 .ai-review/cases/）
         from .case_loader import CaseLoader
         self.case_loader = CaseLoader(repo_path=repo_path)
+        
+        # 初始化 prompt 模板加载器（传入 repo_path，加载 .ai-review/prompts/）
+        self.prompt_loader = PromptLoader(repo_path=repo_path)
         
         # 检查 openai 包是否安装
         if openai is None:
@@ -180,6 +185,9 @@ class AIEngine:
         """
         构建 diff 审核提示词（用于 Git pre-commit 场景）
         
+        从 .ai-review/prompts/diff_review.md 加载模板，
+        找不到就用内置默认模板。
+        
         Args:
             file_diff: FileDiff 对象
             
@@ -205,58 +213,18 @@ class AIEngine:
         # 加载与当前编程语言匹配的案例
         cases = self.case_loader.get_cases_for_language(language)
         cases_text = self.case_loader.format_cases_for_prompt(cases)
-
-        prompt = f"""你是一位资深代码审核专家。请对以下代码变更进行严格审核。
-
-## 审核维度（通用规则）
-1. **Bug 检测**: 逻辑错误、空指针、边界条件、资源泄漏、并发问题等
-2. **安全漏洞**: SQL注入、XSS、敏感信息泄露、硬编码密码、不安全的反序列化等
-3. **代码风格**: 命名规范、代码格式、注释质量、代码组织
-4. **性能问题**: 算法复杂度、内存泄漏、不必要的计算、大数据量处理
-5. **最佳实践**: 设计模式、代码复用、错误处理、日志规范
-6. **文档完整**: 函数文档、参数说明、返回值说明、复杂逻辑注释
-
-## 严重级别定义
-- **critical**: 必须修复，会导致系统崩溃或严重安全漏洞
-- **error**: 应该修复，明确的 Bug 或安全问题
-- **warning**: 建议修复，风格或最佳实践问题
-- **info**: 仅供参考，轻微改进建议
-
-## 代码信息
-- 文件: {filename}
-- 语言: {language_display}
-- 变更类型: {status}
-
-## 代码变更内容
-```{language}
-{diff_content}
-```
-{cases_text}
-## 输出格式
-请以 JSON 格式输出，不要包含任何其他文字:
-```json
-{{
-  "summary": "总体评价（2-3句话）",
-  "passed": true/false,
-  "issues": [
-    {{
-      "severity": "warning",
-      "category": "style",
-      "line_number": 15,
-      "message": "问题描述",
-      "suggestion": "修复建议",
-      "code_snippet": "相关代码"
-    }}
-  ]
-}}
-```
-
-注意:
-- 如无问题，issues 为空数组，passed 为 true
-- line_number 为变更代码中的行号
-- 只关注本次变更引入的问题，不要审核已有代码
-{f'- **重点参照上面的"问题模式"案例进行对比检查**' if cases_text else '- 按通用审核维度进行检查'}
-- 尽量给出具体的修复建议，不要泛泛而谈"""
+        
+        # 加载模板并渲染
+        template = self.prompt_loader.load_diff_review_template()
+        prompt = template.replace("{{filename}}", filename)
+        prompt = prompt.replace("{{language}}", language)
+        prompt = prompt.replace("{{language_display}}", language_display)
+        prompt = prompt.replace("{{status}}", status)
+        prompt = prompt.replace("{{diff_content}}", diff_content)
+        prompt = prompt.replace("{{cases_text}}", cases_text)
+        prompt = prompt.replace("{{cases_note}}",
+            "- **重点参照上面的\"问题模式\"案例进行对比检查**" if cases_text
+            else "- 按通用审核维度进行检查")
         
         return prompt
     
@@ -291,9 +259,9 @@ class AIEngine:
                 response = self.client.chat.completions.create(
                     model=model,
                     messages=[
-                        # system 消息设定 AI 的角色和行为约束
-                        {"role": "system", "content": "你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。请严格按照要求的 JSON 格式输出。"},
-                        # user 消息是真正的审核请求
+                        # system 消息从模板加载（.ai-review/prompts/system_message.txt）
+                        {"role": "system", "content": self.prompt_loader.load_system_message()},
+                        # user 消息是真正的审核请求（从模板渲染）
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3,     # 低温度 = 输出更确定、更可预测
@@ -471,6 +439,9 @@ class AIEngine:
         """
         构建完整文件审核的提示词
         
+        从 .ai-review/prompts/full_file_review.md 加载模板，
+        找不到就用内置默认模板。
+        
         Args:
             source_file: SourceFile 对象
             
@@ -498,58 +469,20 @@ class AIEngine:
         # 加载与当前编程语言匹配的案例
         cases = self.case_loader.get_cases_for_language(language)
         cases_text = self.case_loader.format_cases_for_prompt(cases)
-
-        prompt = f"""你是一位资深代码审核专家。请对以下完整代码文件进行全面审核。
-
-## 审核维度（通用规则）
-1. **Bug 检测**: 逻辑错误、空指针、边界条件、资源泄漏、并发问题等
-2. **安全漏洞**: SQL注入、XSS、敏感信息泄露、硬编码密码、不安全的反序列化等
-3. **代码风格**: 命名规范、代码格式、注释质量、代码组织
-4. **性能问题**: 算法复杂度、内存泄漏、不必要的计算、大数据量处理
-5. **最佳实践**: 设计模式、代码复用、错误处理、日志规范
-6. **文档完整**: 函数文档、参数说明、返回值说明、复杂逻辑注释
-
-## 严重级别定义
-- **critical**: 必须修复，会导致系统崩溃或严重安全漏洞
-- **error**: 应该修复，明确的 Bug 或安全问题
-- **warning**: 建议修复，风格或最佳实践问题
-- **info**: 仅供参考，轻微改进建议
-
-## 代码信息
-- 文件: {filename}
-- 语言: {language_display}
-- 总行数: {line_count}
-{f"- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符" if truncated else ""}
-
-## 完整代码内容
-```{language}
-{content}
-```
-{cases_text}
-## 输出格式
-请以 JSON 格式输出，不要包含任何其他文字:
-```json
-{{
-  "summary": "总体评价（2-3句话）",
-  "passed": true/false,
-  "issues": [
-    {{
-      "severity": "warning",
-      "category": "style",
-      "line_number": 15,
-      "message": "问题描述",
-      "suggestion": "修复建议",
-      "code_snippet": "相关代码"
-    }}
-  ]
-}}
-```
-
-注意:
-- 如无问题，issues 为空数组，passed 为 true
-- line_number 为问题所在的行号
-- 对整个文件进行全面审核，不限于变更部分
-- **重点参照上面的"问题模式"案例进行对比检查**
-- 尽量给出具体的修复建议，不要泛泛而谈"""
+        
+        # 加载模板并渲染
+        template = self.prompt_loader.load_full_file_template()
+        prompt = template.replace("{{filename}}", filename)
+        prompt = prompt.replace("{{language}}", language)
+        prompt = prompt.replace("{{language_display}}", language_display)
+        prompt = prompt.replace("{{line_count}}", str(line_count))
+        prompt = prompt.replace("{{content}}", content)
+        prompt = prompt.replace("{{cases_text}}", cases_text)
+        prompt = prompt.replace("{{truncation_note}}",
+            f"- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符" if truncated
+            else "")
+        prompt = prompt.replace("{{cases_note}}",
+            "- **重点参照上面的\"问题模式\"案例进行对比检查**" if cases_text
+            else "- 按通用审核维度进行检查")
         
         return prompt
