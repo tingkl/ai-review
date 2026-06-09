@@ -194,6 +194,43 @@ class HookInstaller:
                         shutil.copy2(example_file, target)
                         copied += 1
             
+            # 创建项目配置文件 config.yaml（所有 key 值留空/为0，按需填写）
+            config_file = review_dir / "config.yaml"
+            if not config_file.exists():
+                config_file.write_text(
+                    "# 项目级别配置文件\n"
+                    "# 只填写需要覆盖全局配置的项，留空则使用全局配置\n"
+                    "# 全局配置位置: ~/.commit-ai-guardian/config.yaml\n"
+                    "\n"
+                    "# AI API 密钥\n"
+                    "api_key: \"\"\n"
+                    "\n"
+                    "# API 地址\n"
+                    "api_base: \"\"\n"
+                    "\n"
+                    "# 模型名称\n"
+                    "model: \"\"\n"
+                    "\n"
+                    "# 审核报告语言\n"
+                    "language: \"\"\n"
+                    "\n"
+                    "# 阻断级别 (info/warning/error/critical)\n"
+                    "severity_threshold: \"\"\n"
+                    "\n"
+                    "# 最大审核文件大小 (KB)\n"
+                    "max_file_size: 0\n"
+                    "\n"
+                    "# API 超时 (秒)\n"
+                    "timeout: 0\n"
+                    "\n"
+                    "# HTTP 代理地址\n"
+                    "proxy: \"\"\n"
+                    "\n"
+                    "# 远程案例库 Git 地址\n"
+                    "cases_repo: \"\"\n",
+                    encoding='utf-8'
+                )
+            
             # 只在第一次创建时打印提示
             if is_new_example:
                 print(f"\n[信息] 案例目录已初始化: {review_dir}")
