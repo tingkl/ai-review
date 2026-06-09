@@ -238,8 +238,10 @@ class CaseLoader:
                     "bad_examples": bad_examples,
                     "good_examples": good_examples,
                     "check_points": check_points,
-                    # 从正文中提取描述
+                    # 从正文中提取各部分内容
                     "description": self._extract_description(body),
+                    "why_it_matters": self._extract_why_it_matters(body),
+                    "consequences": self._extract_consequences(body),
                 }
                 cases.append(case)
             except Exception as e:
@@ -252,6 +254,20 @@ class CaseLoader:
         """从 Markdown 正文中提取问题描述"""
         # 匹配 ## 问题描述 后面的内容
         match = re.search(r'##\s*问题描述\s*\n(.+?)(?=\n##|\Z)', body, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return ""
+    
+    def _extract_why_it_matters(self, body: str) -> str:
+        """从 Markdown 正文中提取'为什么这是个问题'"""
+        match = re.search(r'##\s*为什么这是个问题\s*\n(.+?)(?=\n##|\Z)', body, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return ""
+    
+    def _extract_consequences(self, body: str) -> str:
+        """从 Markdown 正文中提取'不修复的后果'"""
+        match = re.search(r'##\s*不修复的后果\s*\n(.+?)(?=\n##|\Z)', body, re.DOTALL)
         if match:
             return match.group(1).strip()
         return ""
@@ -299,6 +315,24 @@ class CaseLoader:
             for ge in case.get("good_examples", []):
                 lines.append(f"\n好代码 - {ge.get('label', '')}:")
                 lines.append(f"```\n{ge.get('code', '')}\n```")
+            
+            # 为什么是个问题
+            why = case.get("why_it_matters", "")
+            if why:
+                lines.append(f"\n为什么这是个问题:")
+                for line in why.split('\n'):
+                    line = line.strip()
+                    if line:
+                        lines.append(f"  {line}")
+            
+            # 不修复的后果
+            consequences = case.get("consequences", "")
+            if consequences:
+                lines.append(f"\n不修复的后果:")
+                for line in consequences.split('\n'):
+                    line = line.strip()
+                    if line:
+                        lines.append(f"  {line}")
             
             # 检查清单
             for cp in case.get("check_points", []):

@@ -34,6 +34,20 @@ except ImportError:
 from .prompt_loader import PromptLoader
 
 
+def _build_cases_check_instruction() -> str:
+    """构建案例检查指令 — 要求 AI 逐条对照检查清单
+    
+    当 prompt 中注入了案例时，用这个强指令替代原来的一句话提示，
+    确保 AI 真正逐条检查每个检查清单项。
+    """
+    return (
+        "- 【重要】上方提供了具体的\"问题模式\"案例，包含坏代码示例、好代码示例和检查清单\n"
+        "- 你必须逐条对照每个检查清单项（☐ 标记），在代码中逐一寻找匹配的问题\n"
+        "- 发现坏代码示例中的模式时，必须报告问题，并给出对应的好代码作为修复建议\n"
+        "- 不要遗漏任何检查清单项，这是审核的核心要求"
+    )
+
+
 @dataclass
 class ReviewIssue:
     """单个审核问题"""
@@ -225,7 +239,7 @@ class AIEngine:
         prompt = prompt.replace("{{diff_content}}", diff_content)
         prompt = prompt.replace("{{cases_text}}", cases_text)
         prompt = prompt.replace("{{cases_note}}",
-            "- **重点参照上面的\"问题模式\"案例进行对比检查**" if cases_text
+            _build_cases_check_instruction() if cases_text
             else "- 按通用审核维度进行检查")
         
         # 将生成的 prompt 写入 debug.log，方便用户调试
@@ -515,7 +529,7 @@ class AIEngine:
             f"- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符" if truncated
             else "")
         prompt = prompt.replace("{{cases_note}}",
-            "- **重点参照上面的\"问题模式\"案例进行对比检查**" if cases_text
+            _build_cases_check_instruction() if cases_text
             else "- 按通用审核维度进行检查")
         
         # 将生成的 prompt 写入 debug.log，方便用户调试
