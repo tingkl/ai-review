@@ -373,7 +373,10 @@ class AIEngine:
                     temperature=0.3,     # 低温度 = 输出更确定、更可预测
                     max_tokens=2048,     # 限制响应长度（防止超长输出）
                 )
-                return response.choices[0].message.content or ""
+                raw_content = response.choices[0].message.content or ""
+                # 打印 AI 返回的原始内容（调试用，方便排查 JSON 解析问题）
+                print(f"\n[AI 原始响应]\n{raw_content}\n")
+                return raw_content
             
             except openai.RateLimitError:  # API 限流（429）
                 if attempt < max_retries - 1:
