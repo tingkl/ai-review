@@ -242,7 +242,7 @@ def configure(config_path):
     config = config_manager.load()
     
     click.echo("🛠️ AI 代码审核系统 - 配置管理\n")
-    click.echo(f"当前配置文件: {config_manager.get_default_config_path()}\n")
+    click.echo(f"当前配置文件: {config_manager.get_global_path()}\n")
     
     # API Key
     if config.api_key:
