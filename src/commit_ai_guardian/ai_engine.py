@@ -81,6 +81,25 @@ def _try_parse_json(json_str: str) -> Optional[Dict]:
         except (json.JSONDecodeError, ValueError):
             continue
     
+    # 最后策略：JSON 可能被截断，尝试补全闭合括号
+    stripped = json_str.strip()
+    if stripped.startswith('{'):
+        # 统计未闭合的 {, [, ", '
+        open_braces = stripped.count('{') - stripped.count('}')
+        open_brackets = stripped.count('[') - stripped.count(']')
+        # 简单补全（从末尾开始尝试逐步补全）
+        fixed = stripped
+        for _ in range(open_brackets):
+            fixed += ']'
+        for _ in range(open_braces):
+            fixed += '}'
+        try:
+            parsed = json.loads(fixed)
+            if isinstance(parsed, dict):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+    
     return None
 
 
@@ -398,7 +417,7 @@ class AIEngine:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3,     # 低温度 = 输出更确定、更可预测
-                    max_tokens=2048,     # 限制响应长度（防止超长输出）
+                    max_tokens=4096,     # 限制响应长度（防止超长输出，4096 足够覆盖长文件的多 issue 场景）
                 )
                 raw_content = response.choices[0].message.content or ""
                 # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
