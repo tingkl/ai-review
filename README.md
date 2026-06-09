@@ -6,6 +6,18 @@ Git commit 前的 AI 代码审核工具。
 
 ### 1. 安装工具（全局，一次）
 
+**方式一：从 Git 仓库直接安装（推荐）**
+
+```bash
+# SSH
+uv tool install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+
+# 或 HTTP（如果 SSH 不可用）
+uv tool install git+http://124.223.189.152:7080/tingkl/ai-review.git
+```
+
+**方式二：先 clone 再安装（开发调试）**
+
 ```bash
 git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git ~/ai-review
 cd ~/ai-review
