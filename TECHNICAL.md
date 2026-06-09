@@ -218,14 +218,13 @@ Step 3b: 匹配 - [ ] 问题 + 缩进提示
   check_points = [{"question": "...", "hint": "..."}, ...]
 ```
 
-### 三级优先级
+### 两级优先级
 
 ```
 加载案例时按优先级选择来源：
 
 1. 项目级别: <repo>/.ai-review/cases/*.md  （最高）
-2. 全局级别: ~/.commit-ai-guardian/cases-repo/ （远程 Git 拉取）
-3. 无内置默认！找不到就退回通用规则
+2. 无内置默认！找不到就退回通用规则
 ```
 
 ## Git Hook 机制
@@ -257,6 +256,22 @@ Git 发现 .git/hooks/pre-commit 存在
 - 脚本内含 `HOOK_MARKER` 标识，区分"本工具生成"和"用户自定义"
 - 覆盖用户 hook 前自动备份为 `.backup`
 - 卸载时恢复备份
+
+### 跳过审核
+
+`--no-verify` 是 Git 原生选项，跳过所有 pre-commit hook：
+
+```bash
+git commit --no-verify -m "xxx"   # 绕过 AI 审核，直接提交
+```
+
+我们的 hook 脚本在审核失败时会提示这个命令：
+
+```
+提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）
+```
+
+适用场景：紧急修复、已知误报、hook 本身出问题时使用。
 
 ## API 调用与容错
 
@@ -322,6 +337,22 @@ load()
                        ↑
                   解析失败 ──→ 打印警告 ──→ 使用默认配置
 ```
+
+### severity_threshold（阻断级别）
+
+控制"什么级别的问题会阻断 git commit"：
+
+| 级别 | 含义 | 阻断条件 |
+|------|------|---------|
+| `info` | 任何问题都提示 | error/critical 阻断 commit |
+| `warning` | warning 及以上提示 | error/critical 阻断 commit |
+| `error` | **默认** error 及以上提示 | error/critical 阻断 commit |
+| `critical` | 只有 critical 提示 | 只有 critical 阻断 commit |
+
+注意：实际阻断 commit 的只有 `error` 和 `critical` 级别的问题。
+`info` 和 `warning` 只会在报告中显示，不会阻止提交。
+
+`critical` 最宽松（只有最严重的问题才阻断），`error` 是默认设置。
 
 ## 目录结构
 

@@ -29,7 +29,6 @@ class Config:
     api_key: str = ""                         # AI API 密钥
     api_base: str = "https://api.openai.com/v1"  # API 地址
     model: str = "gpt-4o-mini"               # 模型名称
-    language: str = "zh-CN"                  # 审核报告语言
     auto_fix: bool = True                    # 自动修复建议
     severity_threshold: str = "warning"      # 阻断级别
     max_file_size: int = 500                 # 最大文件大小（KB）
@@ -46,7 +45,6 @@ class Config:
     ])
     timeout: int = 60                        # API 超时（秒）
     proxy: Optional[str] = None              # HTTP 代理
-    cases_repo: str = ""                     # 案例库 Git 地址
 
     def __post_init__(self):
         """校验配置值"""

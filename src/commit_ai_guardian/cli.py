@@ -258,9 +258,6 @@ def configure(config_path):
     # Model
     config.model = click.prompt("请输入模型名称", default=config.model)
     
-    # Language
-    config.language = click.prompt("请输入审核语言 (zh-CN/en)", default=config.language)
-    
     # Severity Threshold
     config.severity_threshold = click.prompt(
         "请输入阻止提交的最低严重级别 (info/warning/error/critical)",
@@ -277,18 +274,6 @@ def configure(config_path):
     # Proxy
     proxy = click.prompt("请输入代理地址 (留空表示不使用)", default=config.proxy or "", show_default=False)
     config.proxy = proxy if proxy else None
-    
-    # Cases Repo（案例库 Git 仓库地址）
-    click.echo("\n📚 案例库配置（可选）")
-    click.echo("   可以配置一个 Git 仓库地址，存放审核案例 YAML 文件")
-    click.echo("   每次审核前会自动拉取最新案例")
-    click.echo("   示例: git@github.com:yourteam/review-cases.git")
-    cases_repo = click.prompt(
-        "请输入案例库 Git 仓库地址 (留空使用内置案例)",
-        default=config.cases_repo or "",
-        show_default=False
-    )
-    config.cases_repo = cases_repo if cases_repo else ""
     
     # Save
     config_manager.save(config)
@@ -322,12 +307,10 @@ def status(repo):
         click.echo(f"  - API Key: {'已配置 ✅' if config.api_key else '未配置 ❌'}")
         click.echo(f"  - API Base: {config.api_base}")
         click.echo(f"  - Model: {config.model}")
-        click.echo(f"  - Language: {config.language}")
         click.echo(f"  - Severity Threshold: {config.severity_threshold}")
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
-        click.echo(f"  - 案例库: {config.cases_repo or '未配置'}")
         
         click.echo()
         if installer.is_git_repo():

@@ -9,11 +9,10 @@
 - review_file()     → 审核 Git diff（只关注变更部分）
 - review_source()   → 审核完整文件（扫描存量代码）
 
-案例系统（两级优先级）：
-- 项目级别：目标仓库的 .ai-review/cases/（每个项目自己的规则，最高优先级）
-- 全局级别：远程 Git 仓库拉取的案例（团队共享，通过 cases_repo 配置）
-- 没有内置默认！首次使用请运行 'commit-ai-guardian init' 初始化
-- 审核时把匹配编程语言的案例注入 Prompt，没有案例则按通用规则检查
+案例系统：
+- 从目标仓库的 .ai-review/cases/ 加载案例（项目自己的规则）
+- 没有内置默认案例！找不到就退回通用规则检查
+- 审核时把匹配编程语言的案例注入 Prompt
 
 容错原则：任何环节失败都返回 passed=True，绝不阻断用户提交。
 """
@@ -89,22 +88,9 @@ class AIEngine:
         self.config = config
         self.client = None
         
-        # === 案例系统初始化（三级优先级） ===
-        # 1. 先检查远程案例仓库配置（cases_repo）
-        remote_cases_dir = None
-        if getattr(config, 'cases_repo', ''):
-            from .cases_updater import CasesUpdater
-            updater = CasesUpdater(config.cases_repo)
-            updater.update()  # git clone / git pull
-            remote_cases_dir = updater.get_cases_dir()
-        
-        # 2. 初始化案例加载器（传入 repo_path 和 remote_cases_dir）
-        #    CaseLoader 内部按优先级选择：项目 > 远程 > 内置
+        # 初始化案例加载器（传入 repo_path，加载 .ai-review/cases/）
         from .case_loader import CaseLoader
-        self.case_loader = CaseLoader(
-            repo_path=repo_path,
-            remote_cases_dir=remote_cases_dir,
-        )
+        self.case_loader = CaseLoader(repo_path=repo_path)
         
         # 检查 openai 包是否安装
         if openai is None:

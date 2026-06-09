@@ -211,9 +211,6 @@ class HookInstaller:
                     "# 模型名称\n"
                     "model: \"\"\n"
                     "\n"
-                    "# 审核报告语言\n"
-                    "language: \"\"\n"
-                    "\n"
                     "# 阻断级别 (info/warning/error/critical)\n"
                     "severity_threshold: \"\"\n"
                     "\n"
@@ -224,10 +221,7 @@ class HookInstaller:
                     "timeout: 0\n"
                     "\n"
                     "# HTTP 代理地址\n"
-                    "proxy: \"\"\n"
-                    "\n"
-                    "# 远程案例库 Git 地址\n"
-                    "cases_repo: \"\"\n",
+                    "proxy: \"\"\n",
                     encoding='utf-8'
                 )
             

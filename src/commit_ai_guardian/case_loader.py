@@ -1,8 +1,7 @@
 """案例加载器
 
-支持两种来源：
-1. 目标仓库的 .ai-review/cases/    ← 项目级别（优先级最高）
-2. 远程 Git 仓库拉取的案例         ← 全局共享
+从目标仓库的 .ai-review/cases/ 加载案例。
+没有内置默认案例！找不到就退回通用规则检查。
 
 案例文件格式：Markdown + YAML frontmatter
 
@@ -177,22 +176,17 @@ def extract_check_points(body: str) -> List[Dict[str, str]]:
 class CaseLoader:
     """加载和管理审核案例
     
-    两级优先级（从高到低）：
-    1. 目标仓库的 .ai-review/cases/  — 项目自己的规则
-    2. 远程 Git 仓库拉取的案例       — 团队共享
+    只从目标仓库的 .ai-review/cases/ 加载案例。
+    没有内置默认案例！找不到就退回通用规则检查。
     """
     
-    def __init__(self,
-                 repo_path: Optional[str] = None,
-                 remote_cases_dir: Optional[Path] = None):
+    def __init__(self, repo_path: Optional[str] = None):
         """初始化
         
         Args:
             repo_path: 目标代码仓库路径（用于查找 .ai-review/cases/）
-            remote_cases_dir: 远程 Git 仓库拉取的案例目录路径
         """
         self.repo_path = repo_path
-        self.remote_cases_dir = remote_cases_dir
         
         self.cases_dir = self._resolve_cases_dir()
         self._cases: List[Dict[str, Any]] = []
@@ -200,14 +194,11 @@ class CaseLoader:
         self._log_source()
     
     def _resolve_cases_dir(self) -> Optional[Path]:
-        """按两级优先级确定案例目录"""
+        """查找项目案例目录"""
         if self.repo_path:
             local_cases = Path(self.repo_path) / REPO_CASES_DIR
             if local_cases.exists():
                 return local_cases
-        
-        if self.remote_cases_dir and self.remote_cases_dir.exists():
-            return self.remote_cases_dir
         
         return None
     
@@ -215,10 +206,8 @@ class CaseLoader:
         """打印当前使用的案例来源"""
         if self.cases_dir is None:
             print("[信息] 未找到案例库（运行 'commit-ai-guardian install' 初始化）")
-        elif self.repo_path and str(self.cases_dir).startswith(str(self.repo_path)):
-            print(f"[信息] 使用项目案例: {self.cases_dir}")
         else:
-            print(f"[信息] 使用远程案例: {self.cases_dir}")
+            print(f"[信息] 使用项目案例: {self.cases_dir}")
     
     def load_all(self) -> List[Dict[str, Any]]:
         """加载所有案例文件（.md 格式）"""
