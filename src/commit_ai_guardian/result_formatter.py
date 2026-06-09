@@ -167,42 +167,44 @@ class ResultFormatter:
         if hasattr(result, 'summary') and result.summary:
             header.append(f"\n{result.summary}", style="dim")
         
-        # 如果有问题，创建表格
+        # 如果有问题，用列表形式展示（每个问题一行，比表格更直观）
         if result.issues:
-            table = Table(
-                box=box.SIMPLE_HEAVY,
-                show_header=True,
-                header_style="bold",
-                padding=(0, 1),
-            )
-            table.add_column("级别", style="bold", width=6)
-            table.add_column("类别", width=8)
-            table.add_column("行号", style="cyan", width=5)
-            table.add_column("描述", style="white", min_width=30)
-            table.add_column("建议", style="green", min_width=25)
+            issue_lines = Text()
+            issue_lines.append("\n")  # 空行分隔文件头和问题列表
             
-            for issue in result.issues:
+            for i, issue in enumerate(result.issues, 1):
                 severity_style = self.SEVERITY_STYLES.get(issue.severity, "white")
                 severity_label = self.SEVERITY_LABELS.get(issue.severity, issue.severity)
-                category_icon = self.CATEGORY_ICONS.get(issue.category, "📌")
-                category_label = self.CATEGORY_LABELS.get(issue.category, issue.category)
                 
-                # 行号做成可点击链接（点击跳转到文件对应行）
+                # 严重级别图标
+                severity_icon = {"critical": "🔴", "error": "🟠", "warning": "🟡", "info": "🔵"}.get(issue.severity, "⚪")
+                
+                # 行号做成可点击链接
                 if issue.line_number:
                     line_link = f"{file_link}:{issue.line_number}"
-                    line_text = Text(str(issue.line_number), style="cyan underline", link=line_link)
+                    line_display = f"第 {issue.line_number} 行"
                 else:
-                    line_text = Text("-", style="dim")
+                    line_link = file_link
+                    line_display = "全局"
                 
-                table.add_row(
-                    Text(severity_label, style=severity_style),
-                    f"{category_icon} {category_label}",
-                    line_text,
-                    issue.message or "-",
-                    issue.suggestion or "-",
-                )
+                # 问题描述（主信息，加粗）
+                issue_lines.append(f"\n  {severity_icon} ", style="")
+                issue_lines.append(f"[{line_display}]", style=f"bold {severity_style} underline", link=line_link)
+                issue_lines.append(f"  {issue.message or '-'}\n", style=f"bold {severity_style}")
+                
+                # 建议（缩进显示）
+                if issue.suggestion:
+                    issue_lines.append(f"     → {issue.suggestion}\n", style="dim green")
+                
+                # 代码片段（缩进显示，灰色）
+                if issue.code_snippet:
+                    # 截断过长的代码片段
+                    snippet = issue.code_snippet.strip()
+                    if len(snippet) > 80:
+                        snippet = snippet[:77] + "..."
+                    issue_lines.append(f"     {snippet}\n", style="dim")
             
-            content = Group(header, table)
+            content = Group(header, issue_lines)
         else:
             content = header
         
