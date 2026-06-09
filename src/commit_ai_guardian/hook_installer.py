@@ -170,38 +170,37 @@ class HookInstaller:
             print(f"[错误] '{self.repo_path}' 不是 Git 仓库")
             return False
         
-        # 创建 .ai-review/cases/ 目录
+        # 创建 .ai-review/ 下的目录结构
         review_dir = self.repo_path / ".ai-review"
-        cases_dir = review_dir / "cases"
+        cases_dir = review_dir / "cases"      # ← 用户把需要启用的案例放这里
+        example_dir = review_dir / "example"  # ← 工具自带的示例模板放这里
         
         try:
-            is_new = not cases_dir.exists()
+            # 创建 cases/（空目录，用户自己添加案例）
             cases_dir.mkdir(parents=True, exist_ok=True)
             
-            # 复制示例案例文件（只复制不存在的，不覆盖已有）
+            # 创建 example/（放示例模板，不参与审核）
+            is_new_example = not example_dir.exists()
+            example_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 复制示例案例文件到 example/（不复制到 cases/）
             examples_source = Path(__file__).parent / "templates" / "case-examples"
             copied = 0
             if examples_source.exists():
                 for example_file in sorted(examples_source.glob("*.yaml")):
-                    target = cases_dir / example_file.name
+                    target = example_dir / example_file.name
                     if not target.exists():
                         import shutil
                         shutil.copy2(example_file, target)
                         copied += 1
             
-            # 创建 .gitignore（如果不存在）
-            gitignore = review_dir / ".gitignore"
-            if not gitignore.exists():
-                gitignore.write_text("#  Uncomment the line below if you DON'T want to share cases with team\n# *\n", encoding='utf-8')
-            
-            # 只在真正创建了新东西时才打印提示
-            if is_new and copied > 0:
-                print(f"\n[信息] 项目案例目录已创建: {cases_dir}")
-                print(f"        复制了 {copied} 个示例案例（请根据项目需求编辑）")
+            # 只在第一次创建时打印提示
+            if is_new_example:
+                print(f"\n[信息] 案例目录已初始化: {review_dir}")
+                if copied > 0:
+                    print(f"        {copied} 个示例模板已放到 example/（不参与审核）")
+                print(f"        启用案例: 从 example/ 复制 .yaml 文件到 cases/")
                 print(f"        共享给团队: git add .ai-review/ && git commit")
-            elif copied > 0:
-                print(f"[信息] 补充了 {copied} 个新示例案例到 {cases_dir}")
-            # else: 目录已存在且文件都已存在，安静跳过，不打印任何信息
             return True
             
         except OSError as e:
