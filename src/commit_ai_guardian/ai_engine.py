@@ -420,6 +420,15 @@ class AIEngine:
                     max_tokens=getattr(self.config, 'max_tokens', 4096),  # 从配置读取，默认 4096
                 )
                 raw_content = response.choices[0].message.content or ""
+                
+                # 检测 AI 响应是否可能被截断（JSON 不完整）
+                stripped = raw_content.strip()
+                if stripped and not stripped.endswith('}'):
+                    current_max = getattr(self.config, 'max_tokens', 4096)
+                    print(f"\n⚠️  AI 返回内容可能被截断（当前 max_tokens={current_max}）")
+                    print(f"    建议: 运行 'commit-ai-guardian configure' 增加 max_tokens 值")
+                    print(f"    或:   直接修改 .ai-review/config.yaml 中的 max_tokens\n")
+                
                 # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
                 self._write_ai_response_log(filename, raw_content)
                 return raw_content

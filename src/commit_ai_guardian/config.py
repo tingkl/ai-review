@@ -86,6 +86,36 @@ class Config:
         return Config(**result_dict)
 
 
+def _parse_token_size(value: str) -> int:
+    """解析 token 大小字符串，支持单位写法
+    
+    支持的格式:
+        "4K" → 4096
+        "8k" → 8192
+        "4096" → 4096
+        "1.5k" → 1536
+    
+    不支持或解析失败返回 0（Config 校验会 fallback 到 4096）
+    
+    Args:
+        value: 用户输入的字符串，如 "4K"
+        
+    Returns:
+        解析后的整数 token 数
+    """
+    value = value.strip().lower()
+    if not value:
+        return 0
+    
+    try:
+        if value.endswith('k'):
+            num = float(value[:-1])
+            return int(num * 1024)
+        return int(value)
+    except (ValueError, TypeError):
+        return 0
+
+
 class ConfigManager:
     """配置管理器
     
@@ -148,6 +178,10 @@ class ConfigManager:
             # 过滤非法字段
             valid_fields = {f.name for f in fields(Config)}
             filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+            
+            # 处理 max_tokens 单位写法：4K = 4096, 8K = 8192
+            if 'max_tokens' in filtered_data and isinstance(filtered_data['max_tokens'], str):
+                filtered_data['max_tokens'] = _parse_token_size(filtered_data['max_tokens'])
             
             return Config(**filtered_data)
         except Exception:
