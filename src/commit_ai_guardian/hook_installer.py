@@ -175,6 +175,7 @@ class HookInstaller:
         cases_dir = review_dir / "cases"      # ← 用户把需要启用的案例放这里
         example_dir = review_dir / "example"  # ← 工具自带的示例模板放这里
         prompts_dir = review_dir / "prompts"  # ← prompt 模板（用户可以自定义审核行为）
+        cache_dir = review_dir / "cache"      # ← 审核结果缓存（MD5 → 结果）
         
         try:
             # 创建 cases/（空目录，用户自己添加案例）
@@ -186,6 +187,9 @@ class HookInstaller:
             
             # 创建 prompts/（放 prompt 模板，install 时写入默认模板）
             prompts_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 创建 cache/（审核结果缓存，MD5 → 结果）
+            cache_dir.mkdir(parents=True, exist_ok=True)
             
             # 复制示例案例文件到 example/（Markdown 格式，.md）
             examples_source = Path(__file__).parent / "templates" / "case-examples"

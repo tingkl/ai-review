@@ -17,6 +17,7 @@
 容错原则：任何环节失败都返回 passed=True，绝不阻断用户提交。
 """
 
+import hashlib
 import json
 import re
 import time
@@ -182,6 +183,11 @@ class AIEngine:
         # 初始化 prompt 模板加载器（传入 repo_path，加载 .ai-review/prompts/）
         self.prompt_loader = PromptLoader(repo_path=repo_path)
         
+        # 初始化缓存目录（.ai-review/cache/）
+        self._cache_dir = Path(repo_path) / ".ai-review" / "cache" if repo_path else None
+        if self._cache_dir:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+        
         # 检查 openai 包是否安装
         if openai is None:
             raise RuntimeError("openai 包未安装，请运行: pip install openai")
@@ -234,17 +240,31 @@ class AIEngine:
                 raw_response="",
             )
         
+        filename = getattr(file_diff, 'filename', 'unknown')
+        diff_content = getattr(file_diff, 'diff_content', '')
+        
+        # 检查缓存：用 diff_content 的 MD5 做 key
+        content_md5 = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+        cached = self._check_cache(content_md5)
+        if cached:
+            cached.filename = filename  # 更新文件名（可能相同内容不同文件名）
+            print(f"[信息] 缓存命中: {filename}（diff MD5: {content_md5[:8]}...），跳过 AI 审核")
+            return cached
+        
         # 构建 Prompt 并调用 AI
         prompt = self._build_prompt(file_diff)
         
         try:
-            response = self._call_api(prompt, filename=getattr(file_diff, 'filename', 'unknown'))
-            return self._parse_response(response, getattr(file_diff, 'filename', 'unknown'))
+            response = self._call_api(prompt, filename=filename)
+            result = self._parse_response(response, filename)
+            # 审核成功，保存到缓存
+            self._save_cache(content_md5, result)
+            return result
         except Exception as e:
             # 任何异常都返回降级结果，不阻断用户
-            print(f"[错误] 审核文件 {getattr(file_diff, 'filename', 'unknown')} 失败: {e}")
+            print(f"[错误] 审核文件 {filename} 失败: {e}")
             return ReviewResult(
-                filename=getattr(file_diff, 'filename', 'unknown'),
+                filename=filename,
                 summary=f"审核失败: {str(e)}",
                 passed=True,  # ← 审核失败也不阻止提交
                 raw_response=str(e),
@@ -377,6 +397,88 @@ class AIEngine:
 """
             ai_log.write_text(header + response, encoding='utf-8')
         except Exception:
+            pass
+    
+    def _check_cache(self, content_md5: str) -> Optional[ReviewResult]:
+        """检查缓存是否存在
+        
+        缓存文件路径: .ai-review/cache/{md5}.json
+        
+        Args:
+            content_md5: 文件内容（diff 或完整内容）的 MD5 哈希
+            
+        Returns:
+            ReviewResult（缓存命中），或 None（缓存未命中）
+        """
+        if not self._cache_dir:
+            return None
+        
+        cache_file = self._cache_dir / f"{content_md5}.json"
+        if not cache_file.exists():
+            return None
+        
+        try:
+            data = json.loads(cache_file.read_text(encoding='utf-8'))
+            issues = []
+            for issue_data in data.get('issues', []):
+                if isinstance(issue_data, dict):
+                    issues.append(ReviewIssue(
+                        severity=issue_data.get('severity', 'info'),
+                        category=issue_data.get('category', 'best-practice'),
+                        line_number=issue_data.get('line_number'),
+                        message=issue_data.get('message', ''),
+                        suggestion=issue_data.get('suggestion', ''),
+                        code_snippet=issue_data.get('code_snippet', ''),
+                    ))
+            return ReviewResult(
+                filename=data.get('filename', ''),
+                issues=issues,
+                summary=data.get('summary', ''),
+                passed=data.get('passed', True),
+                raw_response=data.get('raw_response', ''),
+            )
+        except Exception:
+            # 缓存文件损坏，删除它
+            try:
+                cache_file.unlink()
+            except Exception:
+                pass
+            return None
+    
+    def _save_cache(self, content_md5: str, result: ReviewResult) -> None:
+        """将审核结果保存到缓存
+        
+        缓存文件路径: .ai-review/cache/{md5}.json
+        
+        Args:
+            content_md5: 文件内容（diff 或完整内容）的 MD5 哈希
+            result: ReviewResult 审核结果
+        """
+        if not self._cache_dir:
+            return
+        
+        cache_file = self._cache_dir / f"{content_md5}.json"
+        try:
+            data = {
+                'filename': result.filename,
+                'summary': result.summary,
+                'passed': result.passed,
+                'raw_response': result.raw_response,
+                'issues': [
+                    {
+                        'severity': issue.severity,
+                        'category': issue.category,
+                        'line_number': issue.line_number,
+                        'message': issue.message,
+                        'suggestion': issue.suggestion,
+                        'code_snippet': issue.code_snippet,
+                    }
+                    for issue in result.issues
+                ],
+            }
+            cache_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        except Exception:
+            # 缓存写入失败不报错
             pass
     
     def _call_api(self, prompt: str, filename: str = "unknown") -> str:
@@ -575,15 +677,29 @@ class AIEngine:
                 raw_response="",
             )
         
+        filename = getattr(source_file, 'filename', 'unknown')
+        content = getattr(source_file, 'content', '')
+        
+        # 检查缓存：用 content 的 MD5 做 key
+        content_md5 = hashlib.md5(content.encode('utf-8')).hexdigest()
+        cached = self._check_cache(content_md5)
+        if cached:
+            cached.filename = filename
+            print(f"[信息] 缓存命中: {filename}（MD5: {content_md5[:8]}...），跳过 AI 审核")
+            return cached
+        
         prompt = self._build_full_file_prompt(source_file)
         
         try:
-            response = self._call_api(prompt, filename=getattr(source_file, 'filename', 'unknown'))
-            return self._parse_response(response, getattr(source_file, 'filename', 'unknown'))
+            response = self._call_api(prompt, filename=filename)
+            result = self._parse_response(response, filename)
+            # 审核成功，保存到缓存
+            self._save_cache(content_md5, result)
+            return result
         except Exception as e:
-            print(f"[错误] 审核文件 {getattr(source_file, 'filename', 'unknown')} 失败: {e}")
+            print(f"[错误] 审核文件 {filename} 失败: {e}")
             return ReviewResult(
-                filename=getattr(source_file, 'filename', 'unknown'),
+                filename=filename,
                 summary=f"审核失败: {str(e)}",
                 passed=True,
                 raw_response=str(e),
