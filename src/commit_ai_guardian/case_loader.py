@@ -4,14 +4,46 @@
 1. 目标仓库的 .ai-review/cases/    ← 项目级别（优先级最高）
 2. 远程 Git 仓库拉取的案例         ← 全局共享
 
-没有内置默认案例！如果两个都没有，审核退化为通用规则检查。
+案例文件格式：Markdown + YAML frontmatter
 
-初始化命令：
-    commit-ai-guardian init    ← 在目标仓库创建 .ai-review/cases/ + 示例
+```markdown
+---
+title: SQL 注入
+severity: 9
+level: critical
+category: 安全漏洞
+tags: [SQL, 注入]
+languages: [python, java]
+---
+
+## 问题描述
+...
+
+## 坏代码
+
+### 场景1
+```python
+# 坏代码
+```
+
+## 好代码
+
+### 场景1
+```python
+# 好代码
+```
+
+## 检查清单
+- [ ] 问题1
+  - 提示
+```
+
+没有内置默认案例！如果两个都没有，审核退化为通用规则检查。
 """
 
+import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import yaml
@@ -23,14 +55,131 @@ except ImportError:
 REPO_CASES_DIR = Path(".ai-review") / "cases"
 
 
+def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
+    """解析 Markdown 文件的 YAML frontmatter
+    
+    格式:
+        ---
+        title: xxx
+        severity: 9
+        ---
+        ## 正文...
+    
+    Returns:
+        (frontmatter_dict, markdown_body)
+    """
+    if not content.startswith("---"):
+        return {}, content
+    
+    # 找到第二个 ---
+    match = re.search(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
+    if not match:
+        return {}, content
+    
+    frontmatter_text = match.group(1)
+    body = content[match.end():]
+    
+    if yaml is None:
+        return {}, body
+    
+    try:
+        frontmatter = yaml.safe_load(frontmatter_text) or {}
+    except Exception:
+        frontmatter = {}
+    
+    return frontmatter, body
+
+
+def extract_examples(body: str) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """从 Markdown 正文中提取坏代码和好代码示例
+    
+    匹配格式:
+        ## 坏代码
+        
+        ### 场景名
+        ```python
+        代码
+        ```
+    
+    Returns:
+        (bad_examples, good_examples)
+    """
+    bad_examples = []
+    good_examples = []
+    
+    # 提取 ## 坏代码 到下一个 ## 好代码/## 检查清单 之间的内容
+    bad_match = re.search(r'##\s*坏代码.*?\n(.*?)##\s*(好代码|检查清单)', body, re.DOTALL | re.IGNORECASE)
+    if bad_match:
+        bad_section = bad_match.group(1)
+        bad_examples = _extract_labeled_code_blocks(bad_section)
+    
+    # 提取 ## 好代码 到 ## 检查清单 之间的内容
+    good_match = re.search(r'##\s*好代码.*?\n(.*?)##\s*检查清单', body, re.DOTALL | re.IGNORECASE)
+    if good_match:
+        good_section = good_match.group(1)
+        good_examples = _extract_labeled_code_blocks(good_section)
+    
+    return bad_examples, good_examples
+
+
+def _extract_labeled_code_blocks(section: str) -> List[Dict[str, str]]:
+    """从 Markdown 节中提取带标签的代码块
+    
+    ### 标签名
+    ```python
+    代码
+    ```
+    
+    Returns:
+        [{"label": "标签名", "code": "代码"}, ...]
+    """
+    examples = []
+    
+    # 匹配 ### 标签 + ```...``` 代码块
+    pattern = r'###\s*(.+?)\n\s*```\w*\n(.*?)\n\s*```'
+    for match in re.finditer(pattern, section, re.DOTALL):
+        label = match.group(1).strip()
+        code = match.group(2).strip()
+        examples.append({"label": label, "code": code})
+    
+    return examples
+
+
+def extract_check_points(body: str) -> List[Dict[str, str]]:
+    """从检查清单中提取问题 + 提示
+    
+    - [ ] 问题？
+      - 提示内容
+    
+    Returns:
+        [{"question": "问题", "hint": "提示"}, ...]
+    """
+    check_points = []
+    
+    # 找到 ## 检查清单 部分
+    checklist_match = re.search(r'##\s*检查清单\s*\n(.*)', body, re.DOTALL | re.IGNORECASE)
+    if not checklist_match:
+        return check_points
+    
+    checklist_section = checklist_match.group(1)
+    
+    # 匹配 - [ ] 问题
+    #        - 提示
+    pattern = r'-\s*\[\s*\]\s*(.+?)(?:\n\s+-\s*(.+?))?(?=\n\s*-\s*\[|$)'
+    for match in re.finditer(pattern, checklist_section, re.DOTALL):
+        question = match.group(1).strip()
+        hint = match.group(2).strip() if match.group(2) else ""
+        check_points.append({"question": question, "hint": hint})
+    
+    return check_points
+
+
 class CaseLoader:
     """加载和管理审核案例
     
     两级优先级（从高到低）：
     1. 目标仓库的 .ai-review/cases/  — 项目自己的规则
     2. 远程 Git 仓库拉取的案例       — 团队共享
-    
-    没有内置默认！找不到案例时返回空列表。
     """
     
     def __init__(self,
@@ -45,47 +194,34 @@ class CaseLoader:
         self.repo_path = repo_path
         self.remote_cases_dir = remote_cases_dir
         
-        # 按优先级确定最终使用哪个目录
         self.cases_dir = self._resolve_cases_dir()
         self._cases: List[Dict[str, Any]] = []
         
-        # 打印信息，让用户知道用的是哪套案例
         self._log_source()
     
     def _resolve_cases_dir(self) -> Optional[Path]:
-        """按两级优先级确定案例目录
-        
-        Returns:
-            案例目录 Path，或 None（两个来源都没有）
-        """
-        # === 优先级 1：目标仓库的 .ai-review/cases/ ===
+        """按两级优先级确定案例目录"""
         if self.repo_path:
             local_cases = Path(self.repo_path) / REPO_CASES_DIR
             if local_cases.exists():
                 return local_cases
         
-        # === 优先级 2：远程 Git 仓库拉取的案例 ===
         if self.remote_cases_dir and self.remote_cases_dir.exists():
             return self.remote_cases_dir
         
-        # === 没有案例 ===
         return None
     
     def _log_source(self) -> None:
         """打印当前使用的案例来源"""
         if self.cases_dir is None:
-            print("[信息] 未找到案例库（运行 'commit-ai-guardian init' 初始化项目案例）")
+            print("[信息] 未找到案例库（运行 'commit-ai-guardian install' 初始化）")
         elif self.repo_path and str(self.cases_dir).startswith(str(self.repo_path)):
             print(f"[信息] 使用项目案例: {self.cases_dir}")
         else:
             print(f"[信息] 使用远程案例: {self.cases_dir}")
     
     def load_all(self) -> List[Dict[str, Any]]:
-        """加载所有案例文件
-        
-        Returns:
-            案例字典列表（没有则返回空列表）
-        """
+        """加载所有案例文件（.md 格式）"""
         if self._cases:
             return self._cases
         
@@ -97,29 +233,42 @@ class CaseLoader:
             return []
         
         cases = []
-        # 遍历 cases/ 目录下所有 .yaml/.yml 文件
-        for case_file in sorted(self.cases_dir.glob("*.yaml")):
+        for case_file in sorted(self.cases_dir.glob("*.md")):
             try:
                 with open(case_file, 'r', encoding='utf-8') as f:
-                    case = yaml.safe_load(f)
-                if case and isinstance(case, dict):
-                    case["_source"] = case_file.stem  # 记录文件名，用于调试
-                    cases.append(case)
+                    content = f.read()
+                
+                frontmatter, body = parse_frontmatter(content)
+                bad_examples, good_examples = extract_examples(body)
+                check_points = extract_check_points(body)
+                
+                # 组合成旧格式的结构（兼容 AI prompt）
+                case = {
+                    **frontmatter,
+                    "_source": case_file.stem,
+                    "bad_examples": bad_examples,
+                    "good_examples": good_examples,
+                    "check_points": check_points,
+                    # 从正文中提取描述
+                    "description": self._extract_description(body),
+                }
+                cases.append(case)
             except Exception as e:
                 print(f"[警告] 加载案例 {case_file.name} 失败: {e}")
         
         self._cases = cases
         return cases
     
+    def _extract_description(self, body: str) -> str:
+        """从 Markdown 正文中提取问题描述"""
+        # 匹配 ## 问题描述 后面的内容
+        match = re.search(r'##\s*问题描述\s*\n(.+?)(?=\n##|\Z)', body, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return ""
+    
     def get_cases_for_language(self, language: str) -> List[Dict[str, Any]]:
-        """获取指定编程语言相关的案例
-        
-        Args:
-            language: 编程语言，如 "python"
-            
-        Returns:
-            匹配的案例列表（可能为空）
-        """
+        """获取指定编程语言相关的案例"""
         all_cases = self.load_all()
         if not language or language == "unknown":
             return all_cases
@@ -133,14 +282,7 @@ class CaseLoader:
         return matched
     
     def format_cases_for_prompt(self, cases: List[Dict[str, Any]]) -> str:
-        """将案例列表格式化为 Prompt 文本
-        
-        Args:
-            cases: 案例字典列表
-            
-        Returns:
-            适合插入 Prompt 的文本（空列表则返回空字符串）
-        """
+        """将案例列表格式化为 Prompt 文本"""
         if not cases:
             return ""
         
@@ -149,28 +291,34 @@ class CaseLoader:
         for i, case in enumerate(cases, 1):
             title = case.get("title", "未知")
             desc = case.get("description", "")
-            bad = case.get("bad_example", "").strip()
-            good = case.get("good_example", "").strip()
-            checks = case.get("check_points", [])
-            severity = case.get("severity", "warning")
+            severity = case.get("severity", "")
+            level = case.get("level", "warning")
             
-            lines.append(f"### {i}. {title} [{severity}]")
+            # severity 可能是数字或字符串
+            severity_label = f"{severity}/{level}" if isinstance(severity, int) else level
+            
+            lines.append(f"### {i}. {title} [{severity_label}]")
             if desc:
                 lines.append(f"说明: {desc}")
             
-            if bad:
-                lines.append("坏代码:")
-                lines.append(f"```\n{bad}\n```")
+            # 坏代码示例
+            for be in case.get("bad_examples", []):
+                lines.append(f"\n坏代码 - {be.get('label', '')}:")
+                lines.append(f"```\n{be.get('code', '')}\n```")
             
-            if good:
-                lines.append("好代码:")
-                lines.append(f"```\n{good}\n```")
+            # 好代码示例
+            for ge in case.get("good_examples", []):
+                lines.append(f"\n好代码 - {ge.get('label', '')}:")
+                lines.append(f"```\n{ge.get('code', '')}\n```")
             
-            if checks:
-                lines.append("检查要点:")
-                for cp in checks:
-                    lines.append(f"  - {cp}")
+            # 检查清单
+            for cp in case.get("check_points", []):
+                question = cp.get("question", "")
+                hint = cp.get("hint", "")
+                lines.append(f"\n☐ {question}")
+                if hint:
+                    lines.append(f"  提示: {hint}")
             
-            lines.append("")  # 空行分隔
+            lines.append("")
         
         return "\n".join(lines)

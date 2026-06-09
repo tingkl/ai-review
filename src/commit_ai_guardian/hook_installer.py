@@ -183,11 +183,11 @@ class HookInstaller:
             is_new_example = not example_dir.exists()
             example_dir.mkdir(parents=True, exist_ok=True)
             
-            # 复制示例案例文件到 example/（不复制到 cases/）
+            # 复制示例案例文件到 example/（Markdown 格式，.md）
             examples_source = Path(__file__).parent / "templates" / "case-examples"
             copied = 0
             if examples_source.exists():
-                for example_file in sorted(examples_source.glob("*.yaml")):
+                for example_file in sorted(examples_source.glob("*.md")):
                     target = example_dir / example_file.name
                     if not target.exists():
                         import shutil

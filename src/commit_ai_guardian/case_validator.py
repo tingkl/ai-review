@@ -3,8 +3,8 @@
 用法：
     commit-ai-guardian validate-cases
 
-检查 .ai-review/cases/ 下的所有 .yaml 文件，验证格式是否正确。
-输出每个文件的状态，以及具体的错误信息。
+检查 .ai-review/cases/ 下的所有 .md 文件，验证格式是否正确。
+支持 Markdown + YAML frontmatter 格式。
 """
 
 from pathlib import Path
@@ -15,114 +15,98 @@ try:
 except ImportError:
     yaml = None
 
+from .case_loader import parse_frontmatter, extract_examples, extract_check_points
 
-# 合法的枚举值
-VALID_SEVERITIES = {"critical", "error", "warning", "info"}
-VALID_CATEGORIES = {"bug", "security", "style", "performance", "best-practice", "documentation"}
 
-# 必填字段
-REQUIRED_FIELDS = ["title", "description", "severity", "category", "bad_examples", "good_examples"]
+VALID_LEVELS = {"critical", "error", "warning", "info"}
+VALID_CATEGORIES = {"安全漏洞", "bug", "style", "性能", "最佳实践", "文档"}
+
+# frontmatter 必填字段
+REQUIRED_FIELDS = ["title", "severity", "level", "category"]
 
 
 def validate_case_file(filepath: Path) -> Tuple[bool, List[str]]:
-    """校验单个案例文件
+    """校验单个案例文件（Markdown 格式）
     
-    Args:
-        filepath: .yaml 文件路径
-        
     Returns:
         (是否通过, 错误信息列表)
     """
     errors = []
     
-    # 1. 检查文件能否解析
+    # 1. 读取并解析
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-        data = yaml.safe_load(content)
-    except yaml.YAMLError as e:
-        errors.append(f"YAML 解析失败: {e}")
-        return False, errors
     except Exception as e:
         errors.append(f"文件读取失败: {e}")
         return False, errors
     
-    if data is None:
+    if not content.strip():
         errors.append("文件为空")
         return False, errors
     
-    if not isinstance(data, dict):
-        errors.append("根节点必须是字典（key: value 格式）")
+    # 2. 检查是否有 frontmatter
+    if not content.startswith("---"):
+        errors.append("缺少 YAML frontmatter（文件开头必须是 ---）")
         return False, errors
     
-    # 2. 检查必填字段
+    # 3. 解析 frontmatter
+    frontmatter, body = parse_frontmatter(content)
+    
+    if not frontmatter:
+        errors.append("frontmatter 解析失败或为空")
+        return False, errors
+    
+    # 4. 检查必填字段
     for field in REQUIRED_FIELDS:
-        if field not in data:
+        if field not in frontmatter:
             errors.append(f"缺少必填字段: '{field}'")
     
-    # 3. 检查 severity 值
-    if "severity" in data:
-        sev = data["severity"]
+    # 5. 检查字段值
+    if "severity" in frontmatter:
+        sev = frontmatter["severity"]
         if isinstance(sev, int):
             if not (1 <= sev <= 10):
                 errors.append(f"severity 数值必须在 1-10 之间，当前: {sev}")
-        elif sev not in VALID_SEVERITIES:
-            errors.append(f"severity 必须是 1-10 的数字或 {VALID_SEVERITIES} 之一，当前: '{sev}'")
+        else:
+            errors.append(f"severity 必须是 1-10 的数字，当前: '{sev}'")
     
-    # 4. 检查 category 值
-    if "category" in data:
-        cat = data["category"]
+    if "level" in frontmatter:
+        level = frontmatter["level"]
+        if level not in VALID_LEVELS:
+            errors.append(f"level 必须是 {VALID_LEVELS} 之一，当前: '{level}'")
+    
+    if "category" in frontmatter:
+        cat = frontmatter["category"]
         if cat not in VALID_CATEGORIES:
             errors.append(f"category 必须是 {VALID_CATEGORIES} 之一，当前: '{cat}'")
     
-    # 5. 检查 bad_examples 格式
-    if "bad_examples" in data:
-        be = data["bad_examples"]
-        if isinstance(be, list):
-            for i, item in enumerate(be):
-                if not isinstance(item, dict):
-                    errors.append(f"bad_examples[{i}] 必须是字典（有 label 和 code）")
-                elif "code" not in item:
-                    errors.append(f"bad_examples[{i}] 缺少 'code' 字段")
-        elif isinstance(be, str):
-            # 兼容旧格式（字符串）
-            pass
-        else:
-            errors.append("bad_examples 必须是列表或字符串")
+    # 6. 检查正文结构
+    if "## 问题描述" not in body:
+        errors.append("缺少 '## 问题描述' 章节")
     
-    # 6. 检查 good_examples 格式
-    if "good_examples" in data:
-        ge = data["good_examples"]
-        if isinstance(ge, list):
-            for i, item in enumerate(ge):
-                if not isinstance(item, dict):
-                    errors.append(f"good_examples[{i}] 必须是字典（有 label 和 code）")
-                elif "code" not in item:
-                    errors.append(f"good_examples[{i}] 缺少 'code' 字段")
-        elif isinstance(ge, str):
-            # 兼容旧格式
-            pass
-        else:
-            errors.append("good_examples 必须是列表或字符串")
+    if "## 坏代码" not in body and "## 坏代码 ❌" not in body:
+        errors.append("缺少 '## 坏代码' 章节")
     
-    # 7. 检查 languages
-    if "languages" in data:
-        langs = data["languages"]
-        if not isinstance(langs, list):
-            errors.append("languages 必须是列表（如 [python, java]）")
+    if "## 好代码" not in body and "## 好代码 ✅" not in body:
+        errors.append("缺少 '## 好代码' 章节")
+    
+    if "## 检查清单" not in body:
+        errors.append("缺少 '## 检查清单' 章节")
+    
+    # 7. 检查是否能提取到示例
+    bad_examples, good_examples = extract_examples(body)
+    if not bad_examples:
+        errors.append("未提取到坏代码示例（需要 ### 标签 + ``` 代码块）")
+    
+    if not good_examples:
+        errors.append("未提取到好代码示例（需要 ### 标签 + ``` 代码块）")
     
     return len(errors) == 0, errors
 
 
 def validate_all_cases(cases_dir: Optional[Path] = None) -> Dict[str, Tuple[bool, List[str]]]:
-    """校验目录下所有案例文件
-    
-    Args:
-        cases_dir: 案例目录，默认 .ai-review/cases/
-        
-    Returns:
-        {文件名: (是否通过, 错误列表)}
-    """
+    """校验目录下所有案例文件"""
     if cases_dir is None:
         cases_dir = Path(".ai-review") / "cases"
     
@@ -133,11 +117,11 @@ def validate_all_cases(cases_dir: Optional[Path] = None) -> Dict[str, Tuple[bool
         print(f"   先运行: commit-ai-guardian install")
         return results
     
-    case_files = sorted(cases_dir.glob("*.yaml"))
+    case_files = sorted(cases_dir.glob("*.md"))
     
     if not case_files:
         print(f"⚠️ 案例目录为空: {cases_dir}")
-        print(f"   从 example/ 复制案例: cp .ai-review/example/*.yaml .ai-review/cases/")
+        print(f"   从 example/ 复制案例: cp .ai-review/example/*.md .ai-review/cases/")
         return results
     
     print(f"检查 {len(case_files)} 个案例文件...\n")
@@ -157,11 +141,7 @@ def validate_all_cases(cases_dir: Optional[Path] = None) -> Dict[str, Tuple[bool
 
 
 def print_summary(results: Dict[str, Tuple[bool, List[str]]]) -> bool:
-    """打印汇总信息
-    
-    Returns:
-        True = 全部通过
-    """
+    """打印汇总信息"""
     if not results:
         return False
     
