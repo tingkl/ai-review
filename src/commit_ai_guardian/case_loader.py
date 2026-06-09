@@ -20,7 +20,7 @@ except ImportError:
 
 
 # 目标仓库中存放案例的目录名
-REPO_CASES_DIR = ".ai-review" / "cases"
+REPO_CASES_DIR = Path(".ai-review") / "cases"
 
 
 class CaseLoader:
