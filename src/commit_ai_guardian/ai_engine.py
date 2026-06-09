@@ -34,6 +34,56 @@ except ImportError:
 from .prompt_loader import PromptLoader
 
 
+def _try_parse_json(json_str: str) -> Optional[Dict]:
+    """尝试多种策略解析 JSON，返回 dict 或 None
+    
+    策略（按顺序）：
+    1. 直接解析
+    2. 去除 BOM 头
+    3. 将单引号替换为双引号
+    4. 去除 trailing commas
+    5. 去除注释（// 和 /* */）
+    
+    Args:
+        json_str: 可能不规范的 JSON 字符串
+        
+    Returns:
+        解析后的 dict，或 None（所有策略都失败）
+    """
+    if not json_str or not json_str.strip():
+        return None
+    
+    candidates = [
+        json_str.strip(),
+        json_str.strip().lstrip('\ufeff'),  # 去 BOM
+    ]
+    
+    # 单引号变双引号（注意不替换引号内的单引号，这里做简单处理）
+    single_quoted = json_str.strip().replace("'", '"')
+    if single_quoted != json_str.strip():
+        candidates.append(single_quoted)
+    
+    # 去除 trailing commas（}, 和 ], ）
+    no_trailing = re.sub(r',(\s*[}\]])', r'\1', json_str.strip())
+    if no_trailing != json_str.strip():
+        candidates.append(no_trailing)
+    
+    # 去除 // 注释
+    no_comment = re.sub(r'//.*?\n', '\n', json_str.strip())
+    if no_comment != json_str.strip():
+        candidates.append(no_comment)
+    
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            continue
+    
+    return None
+
+
 def _build_cases_check_instruction() -> str:
     """构建案例检查指令 — 要求 AI 逐条对照检查清单
     
@@ -247,15 +297,16 @@ class AIEngine:
         
         return prompt
     
-    def _write_debug_log(self, filename: str, prompt: str) -> None:
-        """将生成的 prompt 写入 .ai-review/prompts/debug.log
+    def _write_debug_log(self, filename: str, content: str, append: bool = False) -> None:
+        """将 debug 信息写入 .ai-review/prompts/debug.log
         
-        每次覆盖写入，只保留最近一次审查的 prompt。
-        用户可以通过这个文件查看实际发给 AI 的完整 prompt 内容。
+        默认覆盖写入（保留最近一次审查的 prompt）。
+        append=True 时追加到文件末尾（用于记录解析错误等信息）。
         
         Args:
             filename: 被审核的文件名（用于日志头部标识）
-            prompt: 完整的 prompt 字符串
+            content: 要写入的内容
+            append: True=追加，False=覆盖
         """
         if not self.repo_path:
             return
@@ -263,14 +314,22 @@ class AIEngine:
         debug_log = Path(self.repo_path) / ".ai-review" / "prompts" / "debug.log"
         try:
             from datetime import datetime
-            header = f"""# ================================================
+            
+            if append:
+                # 追加模式：添加分隔线和内容
+                separator = f"\n\n# --- [{datetime.now().strftime('%H:%M:%S')}] {filename} ---\n\n"
+                existing = debug_log.read_text(encoding='utf-8') if debug_log.exists() else ""
+                debug_log.write_text(existing + separator + content, encoding='utf-8')
+            else:
+                # 覆盖模式：标准 prompt debug 头部
+                header = f"""# ================================================
 # Prompt Debug Log
 # 文件: {filename}
 # 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 # ================================================
 
 """
-            debug_log.write_text(header + prompt, encoding='utf-8')
+                debug_log.write_text(header + content, encoding='utf-8')
         except Exception:
             # 写入失败不报错，不影响正常审核流程
             pass
@@ -389,18 +448,24 @@ class AIEngine:
             return result
         
         # 策略 3：正常 JSON 解析
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError:
-            # 策略 4：尝试修复常见 JSON 问题
-            json_str = json_str.lstrip('\ufeff')  # 去除 BOM 头
-            try:
-                data = json.loads(json_str)
-            except json.JSONDecodeError:
-                # 所有策略都失败了 → 返回空结果
-                result.summary = "JSON 解析失败"
-                result.passed = True
-                return result
+        data = _try_parse_json(json_str)
+        
+        if data is None:
+            # 策略 4：尝试从响应中提取最外层 {...} 之间的内容
+            brace_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if brace_match:
+                data = _try_parse_json(brace_match.group(0))
+        
+        if data is None:
+            result.summary = "JSON 解析失败"
+            result.passed = True
+            # 把失败的响应追加到 debug.log 方便排查
+            self._write_debug_log(
+                f"{filename}.PARSE_ERROR",
+                f"AI 返回的内容无法解析为 JSON:\n\n{response}\n\n提示: 请检查 .ai-review/prompts/ 下的模板是否正确要求 JSON 输出",
+                append=True
+            )
+            return result
         
         # 提取各字段（用 .get() 防止字段缺失时报错）
         result.summary = data.get('summary', '审核完成')
