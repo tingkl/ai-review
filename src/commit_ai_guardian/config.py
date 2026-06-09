@@ -208,12 +208,14 @@ class ConfigManager:
         
         # 2. 如果没有项目路径，直接返回全局配置
         if not self.project_path:
+            self._log_final_config(global_config, "全局")
             return global_config
         
         # 3. 加载项目配置
         project_config = self._load_single(self.project_path)
         if project_config is None:
             # 项目配置不存在，只用全局配置
+            self._log_final_config(global_config, "全局")
             return global_config
         
         # 4. 合并：项目配置覆盖全局配置
@@ -221,6 +223,7 @@ class ConfigManager:
         
         # 打印提示，让用户知道哪些配置来自项目
         self._log_merge_info(global_config, project_config)
+        self._log_final_config(merged, "合并后")
         
         return merged
     
@@ -240,6 +243,35 @@ class ConfigManager:
         
         if overridden:
             print(f"[信息] 使用项目配置覆盖: {', '.join(overridden)}")
+    
+    def _log_final_config(self, config: Config, source: str) -> None:
+        """打印最终生效的配置信息（每次审核时显示）
+        
+        Args:
+            config: 最终生效的 Config 对象
+            source: 配置来源说明（"全局"/"合并后"）
+        """
+        lines = [f"[配置] {source}配置:"]
+        
+        # API Key（脱敏）
+        if config.api_key:
+            masked = config.api_key[:4] + "****" + config.api_key[-4:] if len(config.api_key) > 8 else "****"
+            lines.append(f"  api_key: {masked}")
+        else:
+            lines.append(f"  api_key: (未配置)")
+        
+        # 其他关键配置
+        lines.append(f"  api_base: {config.api_base}")
+        lines.append(f"  model: {config.model}")
+        lines.append(f"  language: {config.language}")
+        lines.append(f"  severity_threshold: {config.severity_threshold}")
+        lines.append(f"  max_file_size: {config.max_file_size} KB")
+        lines.append(f"  timeout: {config.timeout} 秒")
+        lines.append(f"  max_tokens: {config.max_tokens}")
+        lines.append(f"  proxy: {config.proxy or '(未配置)'}")
+        lines.append(f"  auto_fix: {config.auto_fix}")
+        
+        print("\n".join(lines) + "\n")
     
     def save(self, config: Config, level: str = "global") -> None:
         """保存配置
