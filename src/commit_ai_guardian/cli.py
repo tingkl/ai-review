@@ -91,8 +91,8 @@ def uninstall(repo):
 def audit(repo, output, config_path):
     """手动运行代码审核（被 hook 调用）"""
     try:
-        # Step 1: 加载配置（从 ~/.commit-ai-guardian/config.yaml 读取）
-        config_manager = ConfigManager(config_path)
+        # Step 1: 加载配置（优先加载项目级别 .ai-review/config.yaml，覆盖全局配置）
+        config_manager = ConfigManager(config_path, repo_path=repo)
         config = config_manager.load()
         
         # 检查 API Key 是否已配置（没有这个就无法调用 AI）
@@ -162,8 +162,10 @@ def audit(repo, output, config_path):
 def review(file, dir, pattern, recursive, max_files, output, config_path):
     """直接审核指定文件/目录的完整代码内容（不依赖 Git diff）"""
     try:
-        # Step 1: 加载配置
-        config_manager = ConfigManager(config_path)
+        # Step 1: 加载配置（尝试从被审核文件所在的 Git 仓库加载项目配置）
+        search_path = file[0] if file else (dir[0] if dir else ".")
+        repo_path = _find_repo_path(search_path)
+        config_manager = ConfigManager(config_path, repo_path=repo_path)
         config = config_manager.load()
         
         # 检查 API Key
@@ -294,16 +296,29 @@ def configure(config_path):
 
 
 @main.command()
-def status():
+@click.option('--repo', default='.', help='目标代码仓库路径', type=click.Path(exists=True))
+def status(repo):
     """查看当前配置和安装状态"""
     try:
-        config_manager = ConfigManager()
+        # 加载两级配置（显示合并后的最终值）
+        config_manager = ConfigManager(repo_path=repo)
         config = config_manager.load()
         
-        installer = HookInstaller('.')
+        installer = HookInstaller(repo)
         
         click.echo("📊 系统状态\n")
-        click.echo(f"配置文件: {config_manager.get_default_config_path()}")
+        
+        # 显示两级配置路径
+        click.echo(f"全局配置: {config_manager.get_global_path()}")
+        project_path = config_manager.get_project_path()
+        if project_path:
+            if Path(project_path).exists():
+                click.echo(f"项目配置: {project_path} ✅")
+            else:
+                click.echo(f"项目配置: {project_path} ❌ 不存在")
+                click.echo(f"          (创建 .ai-review/config.yaml 可覆盖全局配置)")
+        
+        click.echo()
         click.echo(f"  - API Key: {'已配置 ✅' if config.api_key else '未配置 ❌'}")
         click.echo(f"  - API Base: {config.api_base}")
         click.echo(f"  - Model: {config.model}")
@@ -312,7 +327,7 @@ def status():
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
-        click.echo(f"  - 案例库: {config.cases_repo or '使用项目案例（.ai-review/cases/）'}")
+        click.echo(f"  - 案例库: {config.cases_repo or '未配置'}")
         
         click.echo()
         if installer.is_git_repo():
@@ -320,6 +335,13 @@ def status():
                 click.echo(f"Git Hook: ✅ 已安装 ({installer.get_hook_path()})")
             else:
                 click.echo(f"Git Hook: ❌ 未安装 (运行 'commit-ai-guardian install' 安装)")
+            
+            # 检查 .ai-review/ 目录
+            review_dir = Path(repo) / ".ai-review"
+            if review_dir.exists():
+                cases_dir = review_dir / "cases"
+                case_files = list(cases_dir.glob("*.md")) if cases_dir.exists() else []
+                click.echo(f"案例目录: ✅ {cases_dir} ({len(case_files)} 个案例)")
         else:
             click.echo("Git Hook: ⚠️ 当前目录不是 Git 仓库")
             

@@ -1,35 +1,39 @@
 """配置管理模块
 
-负责：
-- 定义 Config 数据类（所有可配置项）
-- 加载 ~/.commit-ai-guardian/config.yaml
-- 保存配置到 YAML 文件
-- 自动创建默认配置（第一次使用时）
+支持两级配置（优先级从高到低）：
+1. 项目级别: <repo>/.ai-review/config.yaml  （项目特定配置）
+2. 全局级别: ~/.commit-ai-guardian/config.yaml  （默认配置）
+
+项目配置覆盖全局配置。例如全局配置了 api_key，项目里可以覆盖用不同的 key。
+
+用法：
+    # audit/review 场景（传入 repo_path）
+    manager = ConfigManager(repo_path="/path/to/repo")
+    config = manager.load()  # 自动合并两级配置
+    
+    # configure 命令（只操作全局配置）
+    manager = ConfigManager()
+    config = manager.load()
 """
 
 import os
 import yaml
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
 class Config:
-    """AI 代码审核系统的配置项
-    
-    所有字段都有默认值，第一次使用时会自动创建。
-    用户通过 `configure` 命令或编辑 ~/.commit-ai-guardian/config.yaml 修改。
-    """
-    api_key: str = ""                         # AI API 密钥（必须配置）
-    api_base: str = "https://api.openai.com/v1"  # API 地址（支持第三方）
+    """AI 代码审核系统的配置项"""
+    api_key: str = ""                         # AI API 密钥
+    api_base: str = "https://api.openai.com/v1"  # API 地址
     model: str = "gpt-4o-mini"               # 模型名称
     language: str = "zh-CN"                  # 审核报告语言
-    auto_fix: bool = True                    # 是否启用自动修复建议
-    severity_threshold: str = "warning"      # 阻断级别: info/warning/error/critical
-    max_file_size: int = 500                 # 最大审核文件大小（KB）
+    auto_fix: bool = True                    # 自动修复建议
+    severity_threshold: str = "warning"      # 阻断级别
+    max_file_size: int = 500                 # 最大文件大小（KB）
     ignore_patterns: List[str] = field(default_factory=lambda: [
-        # 默认忽略的文件类型（这些文件通常不需要代码审核）
         "*.lock", "*.json", "*.md", "*.yaml", "*.yml",
         "*.txt", "*.svg", "*.png", "*.jpg", "*.jpeg",
         "*.gif", "*.ico", "*.woff", "*.woff2", "*.ttf",
@@ -40,12 +44,12 @@ class Config:
         "*.ear", "*.egg", "*.whl", "*.parquet", "*.pkl",
         "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb",
     ])
-    timeout: int = 60                        # API 请求超时（秒）
-    proxy: Optional[str] = None              # HTTP 代理地址
-    cases_repo: str = ""                     # 案例库 Git 仓库地址（为空则使用内置案例）
+    timeout: int = 60                        # API 超时（秒）
+    proxy: Optional[str] = None              # HTTP 代理
+    cases_repo: str = ""                     # 案例库 Git 地址
 
     def __post_init__(self):
-        """校验配置值，非法值回退到默认值（防止用户手误改坏配置）"""
+        """校验配置值"""
         valid_thresholds = ["info", "warning", "error", "critical"]
         if self.severity_threshold not in valid_thresholds:
             self.severity_threshold = "warning"
@@ -53,76 +57,167 @@ class Config:
             self.max_file_size = 500
         if self.timeout < 1:
             self.timeout = 60
+    
+    def merge(self, other: 'Config') -> 'Config':
+        """合并另一个配置，非空字段覆盖当前配置
+        
+        用于：项目配置覆盖全局配置。
+        other 中非空/非默认的字段会覆盖 self 中的对应字段。
+        
+        Args:
+            other: 另一个 Config 对象（项目配置）
+            
+        Returns:
+            新的 Config 对象（合并后的结果）
+        """
+        # 获取当前配置的字典
+        result_dict = asdict(self)
+        other_dict = asdict(other)
+        
+        # other 中非空的字段覆盖 result
+        for key, value in other_dict.items():
+            if value:  # 非空字符串、非空列表、非 False
+                result_dict[key] = value
+        
+        return Config(**result_dict)
 
 
 class ConfigManager:
     """配置管理器
     
-    管理 ~/.commit-ai-guardian/config.yaml 的读写。
-    第一次使用时会自动创建默认配置文件。
+    支持两级配置加载：
+    - 全局：~/.commit-ai-guardian/config.yaml
+    - 项目：<repo>/.ai-review/config.yaml（优先级更高）
     """
     
-    DEFAULT_CONFIG_DIR = ".commit-ai-guardian"   # 配置文件夹名
-    DEFAULT_CONFIG_FILE = "config.yaml"            # 配置文件名
+    GLOBAL_CONFIG_DIR = ".commit-ai-guardian"
+    GLOBAL_CONFIG_FILE = "config.yaml"
+    PROJECT_CONFIG_DIR = ".ai-review"
+    PROJECT_CONFIG_FILE = "config.yaml"
     
-    def __init__(self, config_path: Optional[str] = None):
-        """初始化配置管理器
+    def __init__(self, config_path: Optional[str] = None, repo_path: Optional[str] = None):
+        """初始化
         
         Args:
-            config_path: 自定义配置文件路径。None 则使用默认值 ~/.commit-ai-guardian/config.yaml
+            config_path: 自定义配置文件路径（优先级最高，一般用于测试）
+            repo_path: 代码仓库路径（用于加载项目级别配置）
         """
+        self.custom_path = Path(config_path) if config_path else None
+        self.repo_path = Path(repo_path) if repo_path else None
+        
+        # 确定各级配置路径
         if config_path:
-            self.config_path = Path(config_path)
+            self.global_path = Path(config_path)
+            self.project_path = None
         else:
             home = Path.home()
-            self.config_path = home / self.DEFAULT_CONFIG_DIR / self.DEFAULT_CONFIG_FILE
+            self.global_path = home / self.GLOBAL_CONFIG_DIR / self.GLOBAL_CONFIG_FILE
+            if repo_path:
+                self.project_path = Path(repo_path) / self.PROJECT_CONFIG_DIR / self.PROJECT_CONFIG_FILE
+            else:
+                self.project_path = None
     
-    def get_default_config_path(self) -> str:
-        """获取配置文件完整路径"""
-        return str(self.config_path)
+    def get_global_path(self) -> str:
+        """获取全局配置文件路径"""
+        return str(self.global_path)
     
-    def load(self) -> Config:
-        """加载配置
+    def get_project_path(self) -> Optional[str]:
+        """获取项目配置文件路径（可能为 None）"""
+        return str(self.project_path) if self.project_path else None
+    
+    def _load_single(self, path: Path) -> Optional[Config]:
+        """从单个文件加载配置
         
-        逻辑：
-        1. 如果配置文件不存在 → 创建默认配置并保存
-        2. 如果配置文件存在但解析失败 → 打印警告，使用默认配置
-        3. 正常情况 → 从 YAML 读取并转为 Config 对象
-        
-        过滤机制：YAML 中 Config 不认识的字段会被自动忽略（防止旧配置兼容问题）
+        Args:
+            path: 配置文件路径
+            
+        Returns:
+            Config 对象，或 None（文件不存在或解析失败）
         """
-        # 第一次使用：配置文件不存在，创建默认的
-        if not self.config_path.exists():
-            default_config = Config()
-            self.save(default_config)
-            return default_config
+        if not path.exists():
+            return None
         
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
             
-            # 过滤：只保留 Config 中存在的字段（防止 YAML 里有废字段导致报错）
-            valid_fields = {f.name for f in Config.__dataclass_fields__.values()}
+            # 过滤非法字段
+            valid_fields = {f.name for f in fields(Config)}
             filtered_data = {k: v for k, v in data.items() if k in valid_fields}
             
             return Config(**filtered_data)
-        except (yaml.YAMLError, TypeError, ValueError) as e:
-            print(f"[警告] 配置文件解析失败 ({e})，使用默认配置")
-            default_config = Config()
-            self.save(default_config)
-            return default_config
+        except Exception:
+            return None
     
-    def save(self, config: Config) -> None:
-        """保存配置到 YAML 文件
+    def load(self) -> Config:
+        """加载配置（自动合并两级配置）
+        
+        逻辑：
+        1. 加载全局配置（不存在则创建默认）
+        2. 如果指定了 repo_path，加载项目配置
+        3. 项目配置非空字段覆盖全局配置
+        4. 返回合并后的配置
+        
+        Returns:
+            Config 对象（合并后的最终配置）
+        """
+        # 1. 加载全局配置
+        global_config = self._load_single(self.global_path)
+        if global_config is None:
+            # 全局配置不存在，创建默认的
+            global_config = Config()
+            self.save(global_config, level="global")
+        
+        # 2. 如果没有项目路径，直接返回全局配置
+        if not self.project_path:
+            return global_config
+        
+        # 3. 加载项目配置
+        project_config = self._load_single(self.project_path)
+        if project_config is None:
+            # 项目配置不存在，只用全局配置
+            return global_config
+        
+        # 4. 合并：项目配置覆盖全局配置
+        merged = global_config.merge(project_config)
+        
+        # 打印提示，让用户知道哪些配置来自项目
+        self._log_merge_info(global_config, project_config)
+        
+        return merged
+    
+    def _log_merge_info(self, global_cfg: Config, project_cfg: Config) -> None:
+        """打印合并信息（哪些字段被项目配置覆盖了）"""
+        overridden = []
+        for f in fields(Config):
+            key = f.name
+            global_val = getattr(global_cfg, key)
+            project_val = getattr(project_cfg, key)
+            if project_val and project_val != global_val:
+                # 不打印敏感信息（api_key）
+                if key == "api_key":
+                    overridden.append(f"{key}: ***覆盖***")
+                else:
+                    overridden.append(f"{key}: {global_val} → {project_val}")
+        
+        if overridden:
+            print(f"[信息] 使用项目配置覆盖: {', '.join(overridden)}")
+    
+    def save(self, config: Config, level: str = "global") -> None:
+        """保存配置
         
         Args:
-            config: Config 数据对象
+            config: Config 对象
+            level: "global" 或 "project"，决定保存到哪个位置
         """
+        if level == "project" and self.project_path:
+            path = self.project_path
+        else:
+            path = self.global_path
+        
         try:
-            # mkdir(parents=True) = 如果父目录不存在也一起创建
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                # asdict() 把 dataclass 转字典，再 dump 成 YAML
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
                 yaml.dump(asdict(config), f, default_flow_style=False, allow_unicode=True, sort_keys=False)
         except OSError as e:
             raise RuntimeError(f"无法保存配置文件: {e}") from e
