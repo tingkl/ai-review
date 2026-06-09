@@ -206,44 +206,8 @@ class HookInstaller:
                 if not template_path.exists():
                     template_path.write_text(template_content, encoding='utf-8')
             
-            # 创建项目配置文件 config.yaml（所有 key 值留空/为0，按需填写）
-            config_file = review_dir / "config.yaml"
-            if not config_file.exists():
-                config_file.write_text(
-                    "# 项目级别配置文件\n"
-                    "# 只填写需要覆盖全局配置的项，留空则使用全局配置\n"
-                    "# 全局配置位置: ~/.commit-ai-guardian/config.yaml\n"
-                    "\n"
-                    "# AI API 密钥\n"
-                    "api_key: \"\"\n"
-                    "\n"
-                    "# API 地址\n"
-                    "api_base: \"\"\n"
-                    "\n"
-                    "# 模型名称\n"
-                    "model: \"\"\n"
-                    "\n"
-                    "# 审核报告语言 (zh-CN/en)\n"
-                    "language: \"\"\n"
-                    "\n"
-                    "# 阻断级别 (info/warning/error/critical)\n"
-                    "severity_threshold: \"\"\n"
-                    "\n"
-                    "# 最大审核文件大小 (KB)\n"
-                    "max_file_size: 0\n"
-                    "\n"
-                    "# API 超时 (秒)\n"
-                    "timeout: 0\n"
-                    "\n"
-                    "# AI 最大返回长度 (token 数)\n"
-                    "# 支持单位写法: 4K = 4096, 8K = 8192\n"
-                    "# 长文件审核被截断时调大此值\n"
-                    "max_tokens: 0\n"
-                    "\n"
-                    "# HTTP 代理地址\n"
-                    "proxy: \"\"\n",
-                    encoding='utf-8'
-                )
+            # 创建或补全项目配置文件 config.yaml
+            self._ensure_config_file(review_dir / "config.yaml")
             
             # 只在第一次创建时打印提示
             if is_new_example:
@@ -257,6 +221,68 @@ class HookInstaller:
         except OSError as e:
             print(f"[错误] 初始化失败: {e}")
             return False
+    
+    # config.yaml 的完整字段定义（key: (默认值, 注释)）
+    _CONFIG_FIELDS = {
+        'api_key': ('""', 'AI API 密钥'),
+        'api_base': ('""', 'API 地址'),
+        'model': ('""', '模型名称'),
+        'language': ('""', '审核报告语言 (zh-CN/en)'),
+        'severity_threshold': ('""', '阻断级别 (info/warning/error/critical)'),
+        'max_file_size': ('0', '最大审核文件大小 (KB)'),
+        'timeout': ('0', 'API 超时 (秒)'),
+        'max_tokens': ('0', 'AI 最大返回长度 (token 数，支持 4K/8K 写法)'),
+        'proxy': ('""', 'HTTP 代理地址'),
+    }
+    
+    def _ensure_config_file(self, config_file: Path) -> None:
+        """确保 config.yaml 存在且包含所有字段
+        
+        - 文件不存在：创建完整的新文件
+        - 文件存在：读取现有内容，补全缺失的字段
+        
+        Args:
+            config_file: config.yaml 的路径
+        """
+        try:
+            if config_file.exists():
+                # 文件已存在，读取并补全缺失字段
+                existing = config_file.read_text(encoding='utf-8')
+                
+                try:
+                    import yaml
+                    data = yaml.safe_load(existing) or {}
+                except Exception:
+                    data = {}
+                
+                # 找出缺失的字段
+                missing = []
+                for key, (default, comment) in self._CONFIG_FIELDS.items():
+                    if key not in data:
+                        missing.append((key, default, comment))
+                
+                if missing:
+                    # 追加缺失字段到文件
+                    lines = ["\n# === 以下字段由 install --force 自动补全 ===\n"]
+                    for key, default, comment in missing:
+                        lines.append(f"\n# {comment}\n{key}: {default}\n")
+                    
+                    config_file.write_text(existing + "\n".join(lines), encoding='utf-8')
+                    print(f"[信息] config.yaml 已补全 {len(missing)} 个缺失字段")
+            else:
+                # 文件不存在，创建完整的新文件
+                lines = [
+                    "# 项目级别配置文件\n",
+                    "# 只填写需要覆盖全局配置的项，留空则使用全局配置\n",
+                    "# 全局配置位置: ~/.commit-ai-guardian/config.yaml\n",
+                ]
+                for key, (default, comment) in self._CONFIG_FIELDS.items():
+                    lines.append(f"\n# {comment}\n{key}: {default}\n")
+                
+                config_file.write_text("".join(lines), encoding='utf-8')
+        
+        except OSError as e:
+            print(f"[警告] config.yaml 处理失败: {e}")
 
     def _get_hook_script(self) -> str:
         """获取 hook 脚本内容
