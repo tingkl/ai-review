@@ -310,12 +310,9 @@ class HookInstaller:
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# 检测 uv 是否可用，优先使用 uv run
-if command -v uv &> /dev/null; then
-    uv run --python-preference only-managed python -m commit_ai_guardian audit --repo "$REPO_ROOT"
-else
-    python -m commit_ai_guardian audit --repo "$REPO_ROOT"
-fi
+# 直接调用 commit-ai-guardian 命令（通过 uv tool install 已加入 PATH）
+# 不用 'python -m' 或 'uv run'，避免目标仓库的 Python 环境问题
+commit-ai-guardian audit --repo "$REPO_ROOT"
 
 # 获取退出码
 EXIT_CODE=$?

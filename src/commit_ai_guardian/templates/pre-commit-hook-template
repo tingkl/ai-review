@@ -9,13 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # === 运行 AI 代码审核 ===
-# 优先用 uv（如果有的话），否则回退到系统 python
-if command -v uv &> /dev/null; then
-    # uv run：在 ai-review 项目的虚拟环境中执行
-    uv run --python-preference only-managed python -m commit_ai_guardian audit --repo "$REPO_ROOT"
-else
-    python -m commit_ai_guardian audit --repo "$REPO_ROOT"
-fi
+# 直接调用 commit-ai-guardian 命令（通过 uv tool install 已全局安装到 PATH）
+# 不用 'python -m' 或 'uv run'，避免目标仓库的 Python 环境问题
+commit-ai-guardian audit --repo "$REPO_ROOT"
 
 # === 透传退出码 ===
 # Python 返回 0 → commit 放行
