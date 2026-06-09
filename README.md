@@ -26,13 +26,25 @@ cd your-code-repo
 commit-ai-guardian install
 ```
 
-`install` 会根据当前仓库的 hook 状态做不同处理：
+安装后自动创建 `.ai-review/` 目录结构：
 
-| 场景 | 行为 |
-|------|------|
-| 没有 pre-commit | **创建** hook 文件 |
-| 有 pre-commit，且是本工具安装的 | **替换**为最新版本 |
-| 有 pre-commit，是其他工具或手动创建的 | **拒绝操作**，提示用 `--force` 覆盖（覆盖前会自动备份为 `.backup`） |
+```
+your-code-repo/
+└── .ai-review/
+    ├── cases/      ← 启用审核的案例放这里（用户自己添加）
+    └── example/    ← 示例模板（不参与审核，仅参考）
+        ├── sql-injection.yaml
+        ├── xss.yaml
+        └── ...
+```
+
+**启用案例**：从 `example/` 复制需要的 `.yaml` 文件到 `cases/`：
+
+```bash
+cp .ai-review/example/sql-injection.yaml .ai-review/cases/
+cp .ai-review/example/xss.yaml .ai-review/cases/
+# 只复制你项目需要的
+```
 
 ### 4. 日常使用
 
@@ -42,30 +54,33 @@ git commit -m "xxx"
 # 自动触发 AI 审核，不通过会阻断提交
 ```
 
----
+## 案例文件格式
+
+`.ai-review/cases/` 下的 `.yaml` 文件：
+
+```yaml
+title: "SQL 注入"
+description: "直接拼接用户输入到 SQL 语句"
+severity: "critical"          # critical/error/warning/info
+category: "security"          # bug/security/style/performance/best-practice/documentation
+languages: ["python", "java"] # 适用语言，空数组表示通用
+bad_example: |
+  query = f"SELECT * FROM users WHERE id = {user_id}"
+good_example: |
+  cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+check_points:
+  - "是否有字符串拼接构建 SQL"
+  - "是否使用了参数化查询"
+```
 
 ## 其他用法
 
 ### 手动审核指定文件/目录（不经过 git）
 
 ```bash
-# 单个文件
-commit-ai-guardian review -f src/auth.py
-
-# 目录
+commit-ai-guardian review -f src/auth.ts
 commit-ai-guardian review -d src/
-
-# glob 模式
-commit-ai-guardian review -p 'src/**/*.py'
-```
-
-### 不想全局安装
-
-不执行 `uv tool install`，每次用 `--project` 指定 ai-review 的路径：
-
-```bash
-cd your-code-repo
-uv run --project ~/ai-review commit-ai-guardian install
+commit-ai-guardian review -p 'src/**/*.ts'
 ```
 
 ### 查看状态 / 卸载 Hook
