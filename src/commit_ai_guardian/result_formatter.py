@@ -163,7 +163,9 @@ class ResultFormatter:
         # 文件头信息（文件名做成可点击链接）
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        header.append(result.filename, style="bold white underline", link=file_link)
+        # 文件名用单独的 Text 对象带 link（append 不支持 link 参数）
+        filename_text = Text(result.filename, style="bold white underline", link=file_link)
+        header.append(filename_text)
         if hasattr(result, 'summary') and result.summary:
             header.append(f"\n{result.summary}", style="dim")
         
