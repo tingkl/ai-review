@@ -286,12 +286,88 @@ class AIEngine:
             results.append(result)
         return results
     
+    @staticmethod
+    def _annotate_diff_with_line_numbers(diff_content: str) -> str:
+        """给 diff 的每行加上正确的行号前缀
+        
+        解析 @@ hunk 头，给 + 行和上下文行标注新文件的行号，
+        让 AI 直接看到正确的行号，不受 prompt 前面说明文字的影响。
+        
+        格式:
+            + 145 | +const x = ...   ← 新增行，145 是新文件行号
+              146 |   context line    ← 上下文行
+              147 |   context line
+        
+        Args:
+            diff_content: git diff 原始文本
+            
+        Returns:
+            带行号前缀的 diff 文本
+        """
+        if not diff_content:
+            return ""
+        
+        lines = diff_content.split('\n')
+        result = []
+        current_line = 0  # 新文件的当前行号
+        
+        for line in lines:
+            if line.startswith('@@'):
+                # 解析 hunk 头: @@ -old_start,old_count +new_start,new_count @@
+                match = re.search(r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+                if match:
+                    current_line = int(match.group(1))
+                result.append(line)
+            elif line.startswith('+'):
+                # 新增行，使用新文件行号
+                result.append(f"+{current_line:4d} | {line}")
+                current_line += 1
+            elif line.startswith('-'):
+                # 删除行，不增加新文件行号
+                result.append(f"     | {line}")
+            elif line.startswith('\\'):
+                # "\ No newline at end of file"
+                result.append(f"     | {line}")
+            else:
+                # 上下文行，使用新文件行号
+                result.append(f" {current_line:4d} | {line}")
+                current_line += 1
+        
+        return '\n'.join(result)
+    
+    @staticmethod
+    def _annotate_content_with_line_numbers(content: str) -> str:
+        """给文件内容的每行加上行号前缀
+        
+        让 AI 直接看到正确的行号，不受 prompt 前面说明文字的影响。
+        
+        格式:
+            145 | let resourceId: number | null = null;
+            146 | const resource = ...
+        
+        Args:
+            content: 文件完整内容
+            
+        Returns:
+            带行号前缀的文件内容
+        """
+        if not content:
+            return ""
+        
+        lines = content.split('\n')
+        result = []
+        for i, line in enumerate(lines, 1):
+            result.append(f"{i:4d} | {line}")
+        return '\n'.join(result)
+    
     def _build_prompt(self, file_diff: Any) -> str:
         """
         构建 diff 审核提示词（用于 Git pre-commit 场景）
         
         从 .ai-review/prompts/diff_review.md 加载模板，
         找不到就用内置默认模板。
+        
+        diff 内容会加上行号前缀，AI 返回的 line_number 就是正确的文件行号。
         
         Args:
             file_diff: FileDiff 对象
@@ -303,6 +379,9 @@ class AIEngine:
         language = getattr(file_diff, 'language', 'unknown')
         status = getattr(file_diff, 'status', 'modified')
         diff_content = getattr(file_diff, 'diff_content', '')
+        
+        # 给 diff 加上行号前缀（关键：让 AI 看到正确的文件行号）
+        diff_content = self._annotate_diff_with_line_numbers(diff_content)
         
         # 截断过长的 diff
         max_diff_length = 8000
@@ -728,6 +807,9 @@ class AIEngine:
         从 .ai-review/prompts/full_file_review.md 加载模板，
         找不到就用内置默认模板。
         
+        文件内容会加上行号前缀（如 "145 | let x = ..."），
+        让 AI 返回正确的 line_number，不受 prompt 前面说明文字的影响。
+        
         Args:
             source_file: SourceFile 对象
             
@@ -745,6 +827,9 @@ class AIEngine:
         if len(content) > max_content_length:
             content = content[:max_content_length]
             truncated = True
+        
+        # 给文件内容加上行号前缀（关键：让 AI 看到正确的文件行号）
+        content = self._annotate_content_with_line_numbers(content)
         
         language_display = {
             'python': 'Python', 'javascript': 'JavaScript', 'typescript': 'TypeScript',
