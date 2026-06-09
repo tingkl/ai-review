@@ -89,6 +89,7 @@ class AIEngine:
         """
         self.config = config
         self.client = None
+        self.repo_path = repo_path
         
         # 初始化案例加载器（传入 repo_path，加载 .ai-review/cases/）
         from .case_loader import CaseLoader
@@ -226,7 +227,38 @@ class AIEngine:
             "- **重点参照上面的\"问题模式\"案例进行对比检查**" if cases_text
             else "- 按通用审核维度进行检查")
         
+        # 将生成的 prompt 写入 debug.log，方便用户调试
+        self._write_debug_log(filename, prompt)
+        
         return prompt
+    
+    def _write_debug_log(self, filename: str, prompt: str) -> None:
+        """将生成的 prompt 写入 .ai-review/prompts/debug.log
+        
+        每次覆盖写入，只保留最近一次审查的 prompt。
+        用户可以通过这个文件查看实际发给 AI 的完整 prompt 内容。
+        
+        Args:
+            filename: 被审核的文件名（用于日志头部标识）
+            prompt: 完整的 prompt 字符串
+        """
+        if not self.repo_path:
+            return
+        
+        debug_log = Path(self.repo_path) / ".ai-review" / "prompts" / "debug.log"
+        try:
+            from datetime import datetime
+            header = f"""# ================================================
+# Prompt Debug Log
+# 文件: {filename}
+# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# ================================================
+
+"""
+            debug_log.write_text(header + prompt, encoding='utf-8')
+        except Exception:
+            # 写入失败不报错，不影响正常审核流程
+            pass
     
     def _call_api(self, prompt: str) -> str:
         """调用 AI API，含指数退避重试
@@ -484,5 +516,8 @@ class AIEngine:
         prompt = prompt.replace("{{cases_note}}",
             "- **重点参照上面的\"问题模式\"案例进行对比检查**" if cases_text
             else "- 按通用审核维度进行检查")
+        
+        # 将生成的 prompt 写入 debug.log，方便用户调试
+        self._write_debug_log(filename, prompt)
         
         return prompt
