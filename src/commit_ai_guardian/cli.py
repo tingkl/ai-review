@@ -136,18 +136,22 @@ def audit(repo, output, config_path):
         threshold_map = {"info": 0, "warning": 1, "error": 2, "critical": 3}
         threshold_value = threshold_map.get(threshold_level, 1)
         
+        # 判断是否阻断 commit
+        # 逻辑：只要有一个 issue 的严重级别 >= threshold 就阻断
+        # severity_threshold=warning 时：warning/error/critical 都阻断
+        # severity_threshold=error 时：error/critical 阻断
         has_blocking_issue = False
         for result in results:
             for issue in result.issues:
                 issue_value = threshold_map.get(issue.severity, 0)
-                if issue_value >= threshold_value and issue.severity in ("error", "critical"):
+                if issue_value >= threshold_value:
                     has_blocking_issue = True
                     break
             if has_blocking_issue:
                 break
         
         # exit(0) = 放行，exit(1) = 阻断 commit
-        if not all_passed and has_blocking_issue:
+        if has_blocking_issue:
             sys.exit(1)
         sys.exit(0)
         
