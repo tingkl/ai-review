@@ -45,16 +45,16 @@ your-code-repo/
 └── .ai-review/
     ├── cases/      ← 启用审核的案例放这里（用户自己添加）
     └── example/    ← 示例模板（不参与审核，仅参考）
-        ├── sql-injection.yaml
-        ├── xss.yaml
+        ├── sql-injection.md
+        ├── xss.md
         └── ...
 ```
 
-**启用案例**：从 `example/` 复制需要的 `.yaml` 文件到 `cases/`：
+**启用案例**：从 `example/` 复制需要的 `.md` 文件到 `cases/`：
 
 ```bash
-cp .ai-review/example/sql-injection.yaml .ai-review/cases/
-cp .ai-review/example/xss.yaml .ai-review/cases/
+cp .ai-review/example/sql-injection.md .ai-review/cases/
+cp .ai-review/example/xss.md .ai-review/cases/
 # 只复制你项目需要的
 ```
 
@@ -68,21 +68,40 @@ git commit -m "xxx"
 
 ## 案例文件格式
 
-`.ai-review/cases/` 下的 `.yaml` 文件：
+`.ai-review/cases/` 下的 `.md` 文件，格式为 **Markdown + YAML frontmatter**：
 
-```yaml
+```markdown
+---
 title: "SQL 注入"
-description: "直接拼接用户输入到 SQL 语句"
-severity: "critical"          # critical/error/warning/info
-category: "security"          # bug/security/style/performance/best-practice/documentation
-languages: ["python", "java"] # 适用语言，空数组表示通用
-bad_example: |
-  query = f"SELECT * FROM users WHERE id = {user_id}"
-good_example: |
-  cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-check_points:
-  - "是否有字符串拼接构建 SQL"
-  - "是否使用了参数化查询"
+severity: 9
+level: critical
+category: "安全漏洞"
+tags: [SQL, 注入]
+languages: [python, java]
+---
+
+## 问题描述
+直接拼接用户输入到 SQL 语句，存在 SQL 注入风险。
+
+## 坏代码
+
+### 场景1
+```python
+query = f"SELECT * FROM users WHERE id = {user_id}"
+```
+
+## 好代码
+
+### 场景1
+```python
+cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+```
+
+## 检查清单
+- [ ] 是否有字符串拼接构建 SQL
+  - 使用参数化查询替代字符串拼接
+- [ ] 是否使用了参数化查询
+  - 确认所有用户输入都通过参数绑定
 ```
 
 ## 其他用法
