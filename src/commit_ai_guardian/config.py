@@ -29,6 +29,7 @@ class Config:
     api_key: str = ""                         # AI API 密钥
     api_base: str = "https://api.openai.com/v1"  # API 地址
     model: str = "gpt-4o-mini"               # 模型名称
+    language: str = "zh-CN"                  # 审核报告语言（默认中文）
     auto_fix: bool = True                    # 自动修复建议
     severity_threshold: str = "warning"      # 阻断级别
     max_file_size: int = 500                 # 最大文件大小（KB）

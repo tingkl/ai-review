@@ -258,6 +258,9 @@ def configure(config_path):
     # Model
     config.model = click.prompt("请输入模型名称", default=config.model)
     
+    # Language
+    config.language = click.prompt("请输入审核报告语言 (zh-CN/en)", default=config.language)
+    
     # Severity Threshold
     config.severity_threshold = click.prompt(
         "请输入阻止提交的最低严重级别 (info/warning/error/critical)",
@@ -307,6 +310,7 @@ def status(repo):
         click.echo(f"  - API Key: {'已配置 ✅' if config.api_key else '未配置 ❌'}")
         click.echo(f"  - API Base: {config.api_base}")
         click.echo(f"  - Model: {config.model}")
+        click.echo(f"  - Language: {config.language}")
         click.echo(f"  - Severity Threshold: {config.severity_threshold}")
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
