@@ -235,6 +235,9 @@ class HookInstaller:
                     "# API 超时 (秒)\n"
                     "timeout: 0\n"
                     "\n"
+                    "# AI 最大返回长度 (token 数，0 表示使用默认 4096)\n"
+                    "max_tokens: 0\n"
+                    "\n"
                     "# HTTP 代理地址\n"
                     "proxy: \"\"\n",
                     encoding='utf-8'

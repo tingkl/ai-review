@@ -45,6 +45,7 @@ class Config:
         "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb",
     ])
     timeout: int = 60                        # API 超时（秒）
+    max_tokens: int = 4096                   # AI 最大返回长度（token 数）
     proxy: Optional[str] = None              # HTTP 代理
 
     def __post_init__(self):
@@ -56,6 +57,10 @@ class Config:
             self.max_file_size = 500
         if self.timeout < 1:
             self.timeout = 60
+        if self.max_tokens < 256:
+            self.max_tokens = 4096
+        if self.max_tokens > 8192:
+            self.max_tokens = 8192
     
     def merge(self, other: 'Config') -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置

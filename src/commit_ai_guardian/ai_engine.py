@@ -417,7 +417,7 @@ class AIEngine:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.3,     # 低温度 = 输出更确定、更可预测
-                    max_tokens=4096,     # 限制响应长度（防止超长输出，4096 足够覆盖长文件的多 issue 场景）
+                    max_tokens=getattr(self.config, 'max_tokens', 4096),  # 从配置读取，默认 4096
                 )
                 raw_content = response.choices[0].message.content or ""
                 # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）

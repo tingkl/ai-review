@@ -279,6 +279,9 @@ def configure(config_path):
     # Timeout
     config.timeout = click.prompt("请输入 API 超时时间 (秒)", default=config.timeout, type=int)
     
+    # Max Tokens
+    config.max_tokens = click.prompt("请输入 AI 最大返回长度 (token 数)", default=config.max_tokens, type=int)
+    
     # Proxy
     proxy = click.prompt("请输入代理地址 (留空表示不使用)", default=config.proxy or "", show_default=False)
     config.proxy = proxy if proxy else None
@@ -319,6 +322,7 @@ def status(repo):
         click.echo(f"  - Severity Threshold: {config.severity_threshold}")
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
+        click.echo(f"  - Max Tokens: {config.max_tokens}")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
         
         click.echo()
