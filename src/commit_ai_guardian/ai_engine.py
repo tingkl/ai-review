@@ -318,18 +318,31 @@ class AIEngine:
                 if match:
                     current_line = int(match.group(1))
                 result.append(line)
+            elif line.startswith('diff --git'):
+                # diff 元信息行：不加行号
+                result.append(line)
+            elif line.startswith('index '):
+                # diff 元信息行：不加行号
+                result.append(line)
+            elif line.startswith('--- '):
+                # diff 元信息行（旧文件路径）：不加行号
+                result.append(line)
+            elif line.startswith('+++ '):
+                # diff 元信息行（新文件路径）：不加行号
+                # ⚠️ 必须以空格结尾，避免和 "+++ b/..." 被误判为新增代码行
+                result.append(line)
             elif line.startswith('+'):
-                # 新增行，使用新文件行号
+                # 新增代码行，使用新文件行号
                 result.append(f"+{current_line:4d} | {line}")
                 current_line += 1
             elif line.startswith('-'):
-                # 删除行，不增加新文件行号
+                # 删除代码行，不增加新文件行号
                 result.append(f"     | {line}")
             elif line.startswith('\\'):
                 # "\ No newline at end of file"
                 result.append(f"     | {line}")
             else:
-                # 上下文行，使用新文件行号
+                # 上下文代码行，使用新文件行号
                 result.append(f" {current_line:4d} | {line}")
                 current_line += 1
         
