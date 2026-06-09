@@ -156,10 +156,18 @@ class ResultFormatter:
             border_style = "green"
             status_icon = "✅"
         
-        # 文件头信息
+        # 生成绝对路径（用于 IDE 可点击链接）
+        abs_path = os.path.abspath(os.path.join(self.repo_path, result.filename))
+        file_link = f"file://{abs_path}"
+        
+        # 文件头信息（文件名做成 IDE 可点击链接）
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        header.append(result.filename, style="bold white underline")
+        # 用 Rich markup 语法 [link=...]...[/link] 实现可点击链接
+        header.append(Text.from_markup(
+            f"[link={file_link}]{result.filename}[/link]",
+            style="bold white underline"
+        ))
         if hasattr(result, 'summary') and result.summary:
             header.append(f"\n{result.summary}", style="dim")
         
