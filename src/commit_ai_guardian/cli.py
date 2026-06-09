@@ -127,7 +127,7 @@ def audit(repo, output, config_path):
             results = engine.review_batch(file_diffs)
         
         # Step 4: 终端展示（用 Rich 库美化输出审核报告）
-        formatter = ResultFormatter(config)
+        formatter = ResultFormatter(config, repo_path=repo)
         all_passed = formatter.format_and_display(results)
         
         # Step 5: 判断是否阻断 commit
@@ -231,7 +231,8 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
             results = engine.review_source_batch(source_files)
         
         # Step 5: 终端展示
-        formatter = ResultFormatter(config)
+        # 传入 repo_path 让文件名/行号变成可点击的 IDE 链接
+        formatter = ResultFormatter(config, repo_path=repo_path)
         all_passed = formatter.format_and_display(results)
         
         # review 命令永远不阻断（不像 audit 会 exit(1) 阻断 commit）

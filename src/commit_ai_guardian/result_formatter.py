@@ -10,6 +10,7 @@
 5. 结论 Panel（通过/未通过）
 """
 
+import os
 from typing import TYPE_CHECKING, List
 
 from rich.console import Console, Group
@@ -67,14 +68,16 @@ class ResultFormatter:
         "documentation": "文档",
     }
     
-    def __init__(self, config: "Config"):
+    def __init__(self, config: "Config", repo_path: str = "."):
         """
         初始化格式化器
         
         Args:
             config: 配置对象
+            repo_path: 代码仓库路径（用于生成可点击的文件链接）
         """
         self.config = config
+        self.repo_path = os.path.abspath(repo_path)
         self.console = Console()
     
     def format_and_display(self, results: List["ReviewResult"]) -> bool:
@@ -153,10 +156,14 @@ class ResultFormatter:
             border_style = "green"
             status_icon = "✅"
         
-        # 文件头信息
+        # 生成绝对路径（用于 IDE 可点击链接）
+        abs_path = os.path.abspath(os.path.join(self.repo_path, result.filename))
+        file_link = f"file://{abs_path}"
+        
+        # 文件头信息（文件名做成可点击链接）
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        header.append(result.filename, style="bold white")
+        header.append(result.filename, style="bold white underline", link=file_link)
         if hasattr(result, 'summary') and result.summary:
             header.append(f"\n{result.summary}", style="dim")
         
@@ -180,12 +187,17 @@ class ResultFormatter:
                 category_icon = self.CATEGORY_ICONS.get(issue.category, "📌")
                 category_label = self.CATEGORY_LABELS.get(issue.category, issue.category)
                 
-                line_str = str(issue.line_number) if issue.line_number else "-"
+                # 行号做成可点击链接（点击跳转到文件对应行）
+                if issue.line_number:
+                    line_link = f"{file_link}:{issue.line_number}"
+                    line_text = Text(str(issue.line_number), style="cyan underline", link=line_link)
+                else:
+                    line_text = Text("-", style="dim")
                 
                 table.add_row(
                     Text(severity_label, style=severity_style),
                     f"{category_icon} {category_label}",
-                    line_str,
+                    line_text,
                     issue.message or "-",
                     issue.suggestion or "-",
                 )
