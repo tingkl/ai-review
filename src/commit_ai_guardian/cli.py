@@ -101,7 +101,10 @@ def audit(repo, output, config_path):
         
         # 检查 API Key 是否已配置（没有这个就无法调用 AI）
         if not config.api_key:
-            click.echo("❌ 未配置 API Key。请运行 'commit-ai-guardian config' 进行配置。")
+            click.echo("❌ 未配置 API Key")
+            click.echo("   配置方式（二选一）:")
+            click.echo("   1. 项目级别: 编辑 .ai-review/config.yaml，设置 api_key: \"your-key\"")
+            click.echo("   2. 全局级别: 运行 'commit-ai-guardian configure' 交互式配置")
             sys.exit(2)
         
         # Step 2: 采集 diff（从 Git 暂存区获取变更内容）
@@ -175,7 +178,10 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
         
         # 检查 API Key
         if not config.api_key:
-            click.echo("❌ 未配置 API Key。请运行 'commit-ai-guardian configure' 进行配置。")
+            click.echo("❌ 未配置 API Key")
+            click.echo("   配置方式（二选一）:")
+            click.echo("   1. 项目级别: 编辑 .ai-review/config.yaml，设置 api_key: \"your-key\"")
+            click.echo("   2. 全局级别: 运行 'commit-ai-guardian configure' 交互式配置")
             sys.exit(2)
         
         # Step 2: 校验输入（至少提供一个文件/目录/模式）
