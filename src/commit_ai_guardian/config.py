@@ -31,7 +31,6 @@ class Config:
     model: str = "gpt-4o-mini"               # 模型名称
     language: str = "zh-CN"                  # 审核报告语言（默认中文）
     enabled: bool = True                     # 是否启用 AI 审核（false=跳过，直接通过）
-    auto_fix: bool = True                    # 自动修复建议
     severity_threshold: str = "warning"      # 阻断级别
     diff_mode: str = "full"                  # diff 审核模式: full=完整文件, diff=只审变更
     max_file_size: int = 500                 # 最大文件大小（KB）
@@ -284,7 +283,6 @@ class ConfigManager:
         lines.append(f"  max_tokens: {config.max_tokens}")
         lines.append(f"  diff_mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
         lines.append(f"  proxy: {config.proxy or '(未配置)'}")
-        lines.append(f"  auto_fix: {config.auto_fix}")
         
         print("\n".join(lines) + "\n")
     

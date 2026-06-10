@@ -282,7 +282,6 @@ class AIEngine:
                 raw_response="",
             )
         
-        filename = getattr(file_diff, 'filename', 'unknown')
         diff_content = getattr(file_diff, 'diff_content', '')
         
         # 根据 diff_mode 决定审核策略
