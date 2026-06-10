@@ -277,6 +277,7 @@ class ConfigManager:
         lines.append(f"  api_base: {config.api_base}")
         lines.append(f"  model: {config.model}")
         lines.append(f"  language: {config.language}")
+        lines.append(f"  enabled: {config.enabled} (false=跳过审核)")
         lines.append(f"  severity_threshold: {config.severity_threshold}")
         lines.append(f"  max_file_size: {config.max_file_size} KB")
         lines.append(f"  timeout: {config.timeout} 秒")
