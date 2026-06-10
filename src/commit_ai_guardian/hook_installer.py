@@ -195,6 +195,16 @@ class HookInstaller:
             # 创建 logs/（审核日志目录：{filename}.prompt.log / {filename}.ai.log）
             logs_dir.mkdir(parents=True, exist_ok=True)
             
+            # 创建 .ai-review/.gitignore（忽略自动生成的 cache/ 和 logs/）
+            gitignore_file = review_dir / ".gitignore"
+            if not gitignore_file.exists():
+                gitignore_file.write_text(
+                    "# 自动生成的文件，不需要提交到 Git\n"
+                    "cache/\n"
+                    "logs/\n",
+                    encoding='utf-8'
+                )
+            
             # 复制示例案例文件到 example/（Markdown 格式，.md）
             examples_source = Path(__file__).parent / "templates" / "case-examples"
             copied = 0
