@@ -168,9 +168,16 @@ class ReviewIssue:
             self.category = "best-practice"
         
         # 确保 line_number 是整数或 None
+        # AI 可能返回范围格式如 "80-81"，提取第一个数字
         if self.line_number is not None:
             try:
-                self.line_number = int(self.line_number)
+                line_str = str(self.line_number).strip()
+                # 提取第一个数字序列（如 "80-81" → "80"，"60" → "60"）
+                match = re.search(r'\d+', line_str)
+                if match:
+                    self.line_number = int(match.group())
+                else:
+                    self.line_number = None
             except (ValueError, TypeError):
                 self.line_number = None
 
