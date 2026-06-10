@@ -359,6 +359,8 @@ def status(repo):
         click.echo(f"  - Severity Threshold: {config.severity_threshold}")
         click.echo(f"  - Diff Mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
+        click.echo(f"  - Cache TTL: {config.cache_ttl}")
+        click.echo(f"  - Log TTL: {config.log_ttl}")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Max Tokens: {config.max_tokens}")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")

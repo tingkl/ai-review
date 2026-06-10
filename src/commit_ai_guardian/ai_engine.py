@@ -320,6 +320,11 @@ class AIEngine:
         if self._cache_dir:
             self._cache_dir.mkdir(parents=True, exist_ok=True)
         
+        # 初始化日志目录（.ai-review/logs/）
+        self._logs_dir = Path(repo_path) / ".ai-review" / "logs" if repo_path else None
+        if self._logs_dir:
+            self._logs_dir.mkdir(parents=True, exist_ok=True)
+        
         # 检查 openai 包是否安装
         if openai is None:
             raise RuntimeError("openai 包未安装，请运行: pip install openai")
@@ -489,6 +494,64 @@ class AIEngine:
         if cleaned > 0:
             print(f"[信息] 清理 {cleaned} 个过期缓存文件")
 
+    def _parse_log_ttl(self) -> Optional[float]:
+        """解析 log_ttl 配置为秒数
+
+        支持的格式:
+            "1h"  → 3600 秒
+            "30m" → 1800 秒
+            "0"   → None（不清理）
+
+        Returns:
+            秒数，或 None（不清理/解析失败）
+        """
+        ttl = getattr(self.config, 'log_ttl', '1h')
+        if not ttl or ttl == '0':
+            return None
+
+        ttl = str(ttl).strip().lower()
+        try:
+            if ttl.endswith('h'):
+                return float(ttl[:-1]) * 3600
+            elif ttl.endswith('m'):
+                return float(ttl[:-1]) * 60
+            elif ttl.endswith('d'):
+                return float(ttl[:-1]) * 86400
+            else:
+                return float(ttl)  # 纯数字视为秒
+        except (ValueError, TypeError):
+            return 3600  # 解析失败默认 1 小时
+
+    def _clean_old_logs(self) -> None:
+        """清理过期的日志文件
+
+        在批量审核前调用，删除超过 log_ttl 的 .ai-review/logs/ 下日志文件。
+        控制台打印清理数量和总大小。
+        """
+        if not self._logs_dir or not self._logs_dir.exists():
+            return
+
+        ttl_seconds = self._parse_log_ttl()
+        if ttl_seconds is None:
+            return  # 不清理
+
+        now = time.time()
+        cleaned = 0
+        total_size = 0
+        for log_file in self._logs_dir.glob('*.log'):
+            try:
+                stat = log_file.stat()
+                if now - stat.st_mtime > ttl_seconds:
+                    total_size += stat.st_size
+                    log_file.unlink()
+                    cleaned += 1
+            except Exception:
+                pass
+
+        if cleaned > 0:
+            size_kb = total_size / 1024
+            print(f"[信息] 清理 {cleaned} 个过期日志文件（{size_kb:.1f} KB）")
+
     def _get_cache_key_for_file(self, file_diff: Any) -> Optional[str]:
         """计算文件的缓存 key（用于批量缓存检查）
         
@@ -590,8 +653,9 @@ class AIEngine:
         
         results: List[Optional[ReviewResult]] = [None] * len(file_diffs)
         
-        # 先清理过期缓存
+        # 先清理过期缓存和日志
         self._clean_expired_cache()
+        self._clean_old_logs()
 
         # ===== 第一阶段：批量检查缓存 =====
         # 分离命中和未命中的文件索引
@@ -1338,8 +1402,9 @@ class AIEngine:
         
         results: List[Optional[ReviewResult]] = [None] * len(source_files)
         
-        # 先清理过期缓存
+        # 先清理过期缓存和日志
         self._clean_expired_cache()
+        self._clean_old_logs()
         
         # ===== 第一阶段：批量检查缓存 =====
         cache_hit_indices: List[int] = []
