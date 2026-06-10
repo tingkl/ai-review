@@ -502,15 +502,13 @@ class AIEngine:
         prompt = prompt.replace("{{diff_content}}", annotated_content)
         prompt = prompt.replace("{{cases_text}}", cases_text)
         
-        # 变更行号说明
+        # 变更行号说明（简洁版，避免和模板中其他"注意"重复）
         change_note = f"""
-## 本次变更的行号（重点检查这些行）
+## 本次变更的行号
 {change_lines_str}
 
-注意：
-- 以上是文件的完整内容（带行号），请对整个文件进行全面审核
-- **重点关注行号 {change_lines_str} 的变更部分**，检查是否引入了新问题
-- 也要检查变更对周围代码的影响（如变量作用域、接口兼容性等）
+- 以上是完整文件内容（带行号），**重点检查行号 {change_lines_str}**
+- 也要检查变更对周围代码的影响
 """
         cases_instruction = _build_cases_check_instruction() if cases_text else "- 按通用审核维度进行检查"
         prompt = prompt.replace("{{cases_note}}", cases_instruction + "\n" + change_note)
@@ -544,10 +542,16 @@ class AIEngine:
         # 给 diff 加上行号前缀（关键：让 AI 看到正确的文件行号）
         diff_content = self._annotate_diff_with_line_numbers(diff_content)
         
-        # 截断过长的 diff
+        # 截断过长的 diff，并记录最后可见行号
         max_diff_length = 8000
+        last_visible_line = None
         if len(diff_content) > max_diff_length:
-            diff_content = diff_content[:max_diff_length] + "\n... (内容已截断)"
+            # 找到截断位置前的最后一个行号
+            truncated_part = diff_content[:max_diff_length]
+            # 从末尾向前搜索行号（格式: " 123 |" 或 "+ 123 |"）
+            for match in re.finditer(r'\b(\d+)\s+\|', truncated_part):
+                last_visible_line = int(match.group(1))
+            diff_content = truncated_part + f"\n... (内容已截断，只显示到第 {last_visible_line or '?'} 行)"
         
         language_display = {
             'python': 'Python', 'javascript': 'JavaScript', 'typescript': 'TypeScript',

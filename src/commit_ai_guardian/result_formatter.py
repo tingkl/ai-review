@@ -91,10 +91,13 @@ class ResultFormatter:
         
         # === 文件头：文件名用 VS Code 可识别格式（文件名:行号）===
         # VS Code 终端自动识别 "path/to/file.ts:145" 为可点击链接
-        # diff 模式下用第一个变更行号，完整文件模式下用 1
+        # 有 issue 时用第一个 issue 的实际行号，否则用 first_line_number 或 1
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        line_num = result.first_line_number or 1
+        if result.issues and result.issues[0].line_number:
+            line_num = result.issues[0].line_number
+        else:
+            line_num = result.first_line_number or 1
         header.append(f"{result.filename}:{line_num}", style="bold white underline")
         if result.summary:
             header.append(f"\n{result.summary}", style="dim")
