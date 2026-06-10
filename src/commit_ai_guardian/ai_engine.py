@@ -284,7 +284,7 @@ class AIEngine:
         cached = self._check_cache(cache_key)
         if cached:
             cached.filename = filename
-            print(f"[信息] 缓存命中: {filename}（diff_mode={diff_mode}），跳过 AI 审核")
+            print(f"[信息] 缓存命中: {filename}（MD5: {cache_key[:8]}...），跳过 AI 审核")
             return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
@@ -297,7 +297,7 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename)
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_key=cache_key)
             # diff 模式下：把第一个变更行号赋给结果（文件名头显示用）
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
@@ -428,7 +428,7 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename)
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_key=cache_key)
             # diff 模式下：把第一个变更行号赋给结果
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
@@ -493,7 +493,9 @@ class AIEngine:
         if cache_hit_indices:
             for idx in cache_hit_indices:
                 filename = getattr(file_diffs[idx], 'filename', 'unknown')
-                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
+                md5_str = f"（MD5: {cache_key[:8]}...）" if cache_key else ""
+                print(f"[信息] 缓存命中: {filename}{md5_str}，跳过 AI 审核")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
         if cache_miss_indices:
@@ -997,7 +999,7 @@ class AIEngine:
         
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
-    def _parse_response(self, response: str, filename: str) -> ReviewResult:
+    def _parse_response(self, response: str, filename: str, cache_key: str = "") -> ReviewResult:
         """解析 AI 的响应文本为结构化的 ReviewResult
         
         解析策略（层层降级，保证不崩）：
@@ -1008,7 +1010,8 @@ class AIEngine:
         
         Args:
             response: AI 返回的原始文本（含 markdown 代码块）
-            filename: 被审核的文件名（用于 ReviewResult.filename）
+            filename: 被审核的文件名
+            cache_key: 缓存 MD5，解析失败时用于定位缓存文件
             
         Returns:
             ReviewResult。解析失败也返回 passed=True（不阻断提交）
@@ -1045,12 +1048,13 @@ class AIEngine:
                 data = _try_parse_json(brace_match.group(0))
         
         if data is None:
-            result.summary = "JSON 解析失败"
+            md5_str = f"[MD5: {cache_key[:8]}...] " if cache_key else ""
+            result.summary = f"JSON 解析失败 {md5_str}"
             result.passed = True
             # 把失败的响应追加到 debug.log 方便排查
             self._write_debug_log(
                 f"{filename}.PARSE_ERROR",
-                f"AI 返回的内容无法解析为 JSON:\n\n{response}\n\n提示: 请检查 .ai-review/prompts/ 下的模板是否正确要求 JSON 输出",
+                f"AI 返回的内容无法解析为 JSON {md5_str}:\n\n{response}\n\n提示: 请检查 prompt 模板是否正确要求 JSON 输出，或调大 max_tokens",
                 append=True
             )
             return result
@@ -1120,7 +1124,7 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename)
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_key=content_md5)
             # 审核成功，保存到缓存
             self._save_cache(content_md5, result)
             return result
@@ -1223,7 +1227,9 @@ class AIEngine:
         if cache_hit_indices:
             for idx in cache_hit_indices:
                 filename = getattr(source_files[idx], 'filename', 'unknown')
-                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                cache_key = self._get_cache_key_for_source(source_files[idx]) or ""
+                md5_str = f"（MD5: {cache_key[:8]}...）" if cache_key else ""
+                print(f"[信息] 缓存命中: {filename}{md5_str}，跳过 AI 审核")
         
         # ===== 第二阶段：并发调 AI =====
         if cache_miss_indices:
