@@ -408,6 +408,8 @@ class AIEngine:
             ReviewResult
         """
         filename = getattr(file_diff, 'filename', 'unknown')
+        print(f"[信息] AI 审核中: {filename}")
+        
         diff_content = getattr(file_diff, 'diff_content', '')
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
@@ -1157,6 +1159,8 @@ class AIEngine:
             ReviewResult
         """
         filename = getattr(source_file, 'filename', 'unknown')
+        print(f"[信息] AI 审核中: {filename}")
+        
         content = getattr(source_file, 'content', '')
         cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()
         
