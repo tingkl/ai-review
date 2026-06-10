@@ -14,7 +14,12 @@
 - 没有内置默认案例！找不到就退回通用规则检查
 - 审核时把匹配编程语言的案例注入 Prompt
 
-容错原则：任何环节失败都返回 passed=True，绝不阻断用户提交。
+结果状态：
+- AI 审核发现 issues → passed=False（阻断提交，由 severity_threshold 控制）
+- AI 审核无问题 → passed=True（放行）
+- JSON 解析失败 → passed=False（让用户知道出问题了，需检查配置）
+- 配置 enabled=false → passed=True（跳过审核，直接放行）
+- API 调用失败 → passed=False（网络/配置问题，需排查）
 """
 
 import hashlib
@@ -246,23 +251,34 @@ class AIEngine:
             file_diff: FileDiff 对象，需包含 filename, language, diff_content
             
         Returns:
-            ReviewResult。任何失败都返回 passed=True（不阻断提交）
+            ReviewResult。审核正常返回 AI 结果，异常返回 passed=False
         """
+        filename = getattr(file_diff, 'filename', 'unknown')
+        
+        # 检查 enabled 配置
+        if not getattr(self.config, 'enabled', True):
+            return ReviewResult(
+                filename=filename,
+                summary="AI 审核已禁用（enabled=false），跳过审核",
+                passed=True,  # 禁用时不阻断
+                raw_response="",
+            )
+        
         # 防御：客户端初始化失败
         if self.client is None:
             return ReviewResult(
-                filename=getattr(file_diff, 'filename', 'unknown'),
+                filename=filename,
                 summary="AI 客户端未初始化，无法审核",
-                passed=True,  # ← 不阻止提交
+                passed=False,  # ← 让用户知道出问题了
                 raw_response="",
             )
         
         # 防御：API Key 未配置
         if not getattr(self.config, 'api_key', None):
             return ReviewResult(
-                filename=getattr(file_diff, 'filename', 'unknown'),
+                filename=filename,
                 summary="未配置 API Key，跳过审核",
-                passed=True,
+                passed=False,
                 raw_response="",
             )
         
@@ -309,12 +325,12 @@ class AIEngine:
             self._save_cache(cache_key, result)
             return result
         except Exception as e:
-            # 任何异常都返回降级结果，不阻断用户
+            # API 调用异常 → 让用户知道出问题了
             print(f"[错误] 审核文件 {filename} 失败: {e}")
             return ReviewResult(
                 filename=filename,
                 summary=f"审核失败: {str(e)}",
-                passed=True,  # ← 审核失败也不阻止提交
+                passed=False,  # ← 异常时标记未通过，需排查
                 raw_response=str(e),
             )
     
@@ -445,7 +461,7 @@ class AIEngine:
             return ReviewResult(
                 filename=filename,
                 summary=f"审核失败: {str(e)}",
-                passed=True,
+                passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
             )
     
@@ -1216,7 +1232,7 @@ class AIEngine:
             return ReviewResult(
                 filename=filename,
                 summary=f"审核失败: {str(e)}",
-                passed=True,
+                passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
             )
     
@@ -1262,7 +1278,7 @@ class AIEngine:
             return ReviewResult(
                 filename=filename,
                 summary=f"审核失败: {str(e)}",
-                passed=True,
+                passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
             )
     

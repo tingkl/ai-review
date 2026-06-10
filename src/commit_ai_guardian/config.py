@@ -30,6 +30,7 @@ class Config:
     api_base: str = "https://api.openai.com/v1"  # API 地址
     model: str = "gpt-4o-mini"               # 模型名称
     language: str = "zh-CN"                  # 审核报告语言（默认中文）
+    enabled: bool = True                     # 是否启用 AI 审核（false=跳过，直接通过）
     auto_fix: bool = True                    # 自动修复建议
     severity_threshold: str = "warning"      # 阻断级别
     diff_mode: str = "full"                  # diff 审核模式: full=完整文件, diff=只审变更

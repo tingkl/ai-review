@@ -236,6 +236,7 @@ class HookInstaller:
         'api_base': ('""', 'API 地址'),
         'model': ('""', '模型名称'),
         'language': ('""', '审核报告语言 (zh-CN/en)'),
+        'enabled': ('true', '是否启用 AI 审核（false=跳过，直接通过）'),
         'severity_threshold': ('""', '阻断级别 (info/warning/error/critical)'),
         'diff_mode': ('""', 'diff 审核模式: full=完整文件(默认), diff=只审变更'),
         'max_file_size': ('0', '最大审核文件大小 (KB)'),
