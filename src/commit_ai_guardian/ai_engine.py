@@ -576,31 +576,54 @@ class AIEngine:
         
         return prompt
     
-    def _write_debug_log(self, filename: str, content: str, append: bool = False) -> None:
-        """将 prompt 写入 .ai-review/prompts/prompt.log
+    @staticmethod
+    def _sanitize_log_filename(filename: str) -> str:
+        """把文件路径转成安全的日志文件名
         
-        默认覆盖写入（保留最近一次审查的 prompt）。
-        append=True 时追加到文件末尾（用于记录解析错误等信息）。
+        把 / 替换为 _，去掉开头的 ./，去掉 .ai-review/prompts/ 前缀
+        
+        如:
+            src/auth.ts                 → src_auth_ts
+            ./src/auth.ts               → src_auth_ts
+            .ai-review/prompts/test.ts  → test_ts
         
         Args:
-            filename: 被审核的文件名（用于日志头部标识）
+            filename: 原始文件路径
+            
+        Returns:
+            安全的日志文件名（不含扩展名，不含路径分隔符）
+        """
+        # 去掉已知前缀
+        name = filename
+        for prefix in ['.ai-review/prompts/', './']:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+        # 替换路径分隔符和点为下划线
+        return name.replace('/', '_').replace('\\', '_').replace('.', '_')
+    
+    def _write_debug_log(self, filename: str, content: str, append: bool = False) -> None:
+        """将 prompt 写入 .ai-review/prompts/{filename}.prompt.log
+        
+        每个文件有独立的 prompt log，避免并发时互相覆盖。
+        
+        Args:
+            filename: 被审核的文件名（用于生成日志文件名和头部标识）
             content: 要写入的内容
             append: True=追加，False=覆盖
         """
         if not self.repo_path:
             return
         
-        prompt_log = Path(self.repo_path) / ".ai-review" / "prompts" / "prompt.log"
+        safe_name = self._sanitize_log_filename(filename)
+        prompt_log = Path(self.repo_path) / ".ai-review" / "prompts" / f"{safe_name}.prompt.log"
         try:
             from datetime import datetime
             
             if append:
-                # 追加模式：添加分隔线和内容
                 separator = f"\n\n# --- [{datetime.now().strftime('%H:%M:%S')}] {filename} ---\n\n"
                 existing = prompt_log.read_text(encoding='utf-8') if prompt_log.exists() else ""
                 prompt_log.write_text(existing + separator + content, encoding='utf-8')
             else:
-                # 覆盖模式：标准 prompt log 头部
                 header = f"""# ================================================
 # Prompt Log
 # 文件: {filename}
@@ -610,13 +633,12 @@ class AIEngine:
 """
                 prompt_log.write_text(header + content, encoding='utf-8')
         except Exception:
-            # 写入失败不报错，不影响正常审核流程
             pass
     
     def _write_ai_response_log(self, filename: str, response: str) -> None:
-        """将 AI 审核返回的原始响应写入 .ai-review/prompts/ai.log
+        """将 AI 审核返回的原始响应写入 .ai-review/prompts/{filename}.ai.log
         
-        覆盖写入，只保留最近一次。
+        每个文件有独立的 AI response log，避免并发时互相覆盖。
         
         Args:
             filename: 被审核的文件名
@@ -625,7 +647,8 @@ class AIEngine:
         if not self.repo_path:
             return
         
-        ai_log = Path(self.repo_path) / ".ai-review" / "prompts" / "ai.log"
+        safe_name = self._sanitize_log_filename(filename)
+        ai_log = Path(self.repo_path) / ".ai-review" / "prompts" / f"{safe_name}.ai.log"
         try:
             from datetime import datetime
             header = f"""# ================================================
