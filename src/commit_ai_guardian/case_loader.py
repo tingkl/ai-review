@@ -287,61 +287,73 @@ class CaseLoader:
         return matched
     
     def format_cases_for_prompt(self, cases: List[Dict[str, Any]]) -> str:
-        """将案例列表格式化为 Prompt 文本"""
+        """将案例列表格式化为结构化 Prompt 文本（非 Markdown）
+
+        原始案例文件仍是 Markdown（用户友好），发给 AI 前转为结构化文本：
+        - 去掉 ###、```、☐ 等 Markdown 符号
+        - 用 [案例N|标题|级别] 标识案例
+        - 用 ❌/✅ 标识坏/好代码
+        - 节省约 30-40% 的 token
+        """
         if not cases:
             return ""
-        
-        lines = ["\n## 重点检查以下问题模式（参照案例）\n"]
-        
+
+        lines = ["\n重点检查以下问题模式:\n"]
+
         for i, case in enumerate(cases, 1):
             title = case.get("title", "未知")
             desc = case.get("description", "")
             severity = case.get("severity", "")
             level = case.get("level", "warning")
-            
+
             # severity 可能是数字或字符串
             severity_label = f"{severity}/{level}" if isinstance(severity, int) else level
-            
-            lines.append(f"### {i}. {title} [{severity_label}]")
+
+            lines.append(f"[案例{i}|{title}|{severity_label}]")
             if desc:
                 lines.append(f"说明: {desc}")
-            
+
             # 坏代码示例
             for be in case.get("bad_examples", []):
-                lines.append(f"\n坏代码 - {be.get('label', '')}:")
-                lines.append(f"```\n{be.get('code', '')}\n```")
-            
+                label = be.get("label", "")
+                code = be.get("code", "")
+                if code:
+                    lines.append(f"❌ 坏代码{f'({label})' if label else ''}:")
+                    lines.append(code)
+
             # 好代码示例
             for ge in case.get("good_examples", []):
-                lines.append(f"\n好代码 - {ge.get('label', '')}:")
-                lines.append(f"```\n{ge.get('code', '')}\n```")
-            
-            # 为什么是个问题
+                label = ge.get("label", "")
+                code = ge.get("code", "")
+                if code:
+                    lines.append(f"✅ 好代码{f'({label})' if label else ''}:")
+                    lines.append(code)
+
+            # 原因
             why = case.get("why_it_matters", "")
             if why:
-                lines.append(f"\n为什么这是个问题:")
                 for line in why.split('\n'):
                     line = line.strip()
                     if line:
-                        lines.append(f"  {line}")
-            
-            # 不修复的后果
+                        lines.append(f"原因: {line}")
+
+            # 后果
             consequences = case.get("consequences", "")
             if consequences:
-                lines.append(f"\n不修复的后果:")
                 for line in consequences.split('\n'):
                     line = line.strip()
                     if line:
-                        lines.append(f"  {line}")
-            
-            # 检查清单
+                        lines.append(f"后果: {line}")
+
+            # 检查点
             for cp in case.get("check_points", []):
                 question = cp.get("question", "")
                 hint = cp.get("hint", "")
-                lines.append(f"\n☐ {question}")
-                if hint:
-                    lines.append(f"  提示: {hint}")
-            
+                if question:
+                    lines.append(f"检查: {question}")
+                    if hint:
+                        lines.append(f"提示: {hint}")
+
             lines.append("")
-        
+
         return "\n".join(lines)
