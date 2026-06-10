@@ -369,3 +369,25 @@ class TestIsHookInstalled:
         with patch.object(Path, "read_text", side_effect=OSError("permission denied")):
             # Use a fresh installer to trigger the read
             assert installer.is_hook_installed() is False
+
+
+# ---- _CONFIG_FIELDS ----
+
+class TestConfigFields:
+    """Tests for _CONFIG_FIELDS completeness."""
+
+    def test_config_fields_has_case_format(self):
+        """_CONFIG_FIELDS must include case_format."""
+        assert "case_format" in HookInstaller._CONFIG_FIELDS
+
+    def test_case_format_default_is_default_string(self):
+        """case_format default value must be the string 'default'."""
+        default, comment = HookInstaller._CONFIG_FIELDS["case_format"]
+        assert default == '"default"'
+
+    def test_case_format_comment_mentions_all_modes(self):
+        """case_format comment should mention all three modes."""
+        default, comment = HookInstaller._CONFIG_FIELDS["case_format"]
+        assert "default" in comment
+        assert "compact" in comment
+        assert "minimal" in comment

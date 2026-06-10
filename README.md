@@ -151,6 +151,7 @@ your-project/
 | `cache_ttl` | 缓存存活时间 | `1d` |
 | `include_patterns` | 指定要审核的目录/文件（glob 模式） | `["*"]` |
 | `ignore_patterns` | 忽略的文件模式 | 见默认列表 |
+| `case_format` | 案例格式化级别（`default`/`compact`/`minimal`） | `default` |
 
 ### 快速配置
 
@@ -258,6 +259,34 @@ include_patterns:
 include_patterns:
   - "src/main/**/*.java"
 ```
+
+---
+
+### 案例格式化级别（case_format）
+
+控制案例文件发给 AI 前的格式化级别，影响 prompt 长度和审核详细程度。
+
+| 级别 | 保留内容 | 去掉内容 | token 节省 |
+|------|---------|---------|-----------|
+| `default` | 全部（说明 + 坏代码 + 好代码 + 原因 + 后果 + 检查点） | — | 0% |
+| `compact` | 说明 + 坏代码 + 好代码 + 检查点 | 原因 + 后果 | ~35% |
+| `minimal` | 坏代码 + 检查点 | 说明 + 好代码 + 原因 + 后果 | ~55% |
+
+```yaml
+# .ai-review/config.yaml
+# 案例较多时建议 compact 或 minimal，减少 prompt 长度
+case_format: compact
+
+# 追求最高审核质量时用 default（默认）
+case_format: default
+```
+
+**选择建议：**
+- `default`（默认）：案例少（< 5 个）或追求详细审核时用
+- `compact`：案例较多（5-15 个）时的平衡选择
+- `minimal`：案例很多（> 15 个）或 prompt 接近 token 上限时用
+
+非法值自动 fallback 到 `default`。
 
 ---
 

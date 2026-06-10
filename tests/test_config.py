@@ -35,6 +35,7 @@ def config_with_custom_values():
         log_ttl="30m",
         include_patterns=["*.py"],
         ignore_patterns=["*.pyc"],
+        case_format="compact",
         timeout=30,
         max_tokens=8192,
         proxy="http://proxy:8080",
@@ -114,6 +115,10 @@ class TestConfigDefaults:
         cfg = Config()
         assert len(cfg.ignore_patterns) > 0
         assert "*.md" in cfg.ignore_patterns
+
+    def test_default_case_format_is_default(self):
+        cfg = Config()
+        assert cfg.case_format == "default"
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +291,18 @@ class TestConfigMerge:
         assert merged is not empty_config
         assert merged is not other
 
+    def test_merge_overrides_case_format(self):
+        base = Config(case_format="default")
+        other = Config(case_format="compact")
+        merged = base.merge(other)
+        assert merged.case_format == "compact"
+
+    def test_merge_empty_string_case_format_does_not_override(self):
+        base = Config(case_format="compact")
+        other = Config(case_format="")
+        merged = base.merge(other)
+        assert merged.case_format == "compact"
+
     def test_merge_all_fields_simultaneously(self, config_with_custom_values):
         base = Config()
         merged = base.merge(config_with_custom_values)
@@ -301,6 +318,7 @@ class TestConfigMerge:
         assert merged.log_ttl == "30m"
         assert merged.include_patterns == ["*.py"]
         assert merged.ignore_patterns == ["*.pyc"]
+        assert merged.case_format == "compact"
         assert merged.timeout == 30
         assert merged.max_tokens == 8192
         assert merged.proxy == "http://proxy:8080"
