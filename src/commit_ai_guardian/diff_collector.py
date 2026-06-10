@@ -335,15 +335,26 @@ class DiffCollector:
         - include: 不匹配任何模式 → 跳过
         - ignore: 匹配任何模式 → 跳过
         
+        匹配策略：
+        1. 完整路径匹配（如 "src/main.py" 匹配 "src/**"、"src/*.py"）
+        2. basename 匹配（如 "src/main.py" 匹配 "*.py"、"main.*"）
+        任一方式匹配即命中。
+        
         Args:
-            filename: 文件名
+            filename: 文件名（相对路径，如 "src/auth.py"）
             patterns: glob 模式列表
             
         Returns:
             True 如果匹配任何模式
         """
         from fnmatch import fnmatch
-        return any(fnmatch(filename, pattern) for pattern in patterns)
+        basename = filename.split('/')[-1] if '/' in filename else filename
+        for pattern in patterns:
+            if fnmatch(filename, pattern):
+                return True
+            if fnmatch(basename, pattern):
+                return True
+        return False
     
     def get_repo_root(self) -> str:
         """获取仓库根目录路径"""

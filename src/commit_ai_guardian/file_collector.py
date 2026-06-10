@@ -290,13 +290,35 @@ class FileCollector:
             return True
     
     def _matches_include_patterns(self, filename: str) -> bool:
-        """检查是否匹配 include 模式（白名单）"""
+        """检查是否匹配 include 模式（白名单）
+        
+        同时支持路径模式和后缀模式：
+        - "src/**" → 匹配 src/ 目录下所有文件
+        - "**/*.py" → 匹配所有 .py 文件
+        - "*.py" → 匹配任意目录下的 .py 文件（通过后缀匹配）
+        """
         from fnmatch import fnmatch
-        return any(fnmatch(filename, pattern) for pattern in self.include_patterns)
+        basename = filename.split('/')[-1] if '/' in filename else filename
+        for pattern in self.include_patterns:
+            if fnmatch(filename, pattern):
+                return True
+            if fnmatch(basename, pattern):
+                return True
+        return False
     
     def _matches_ignore_patterns(self, filename: str) -> bool:
-        """检查是否匹配忽略模式"""
-        return any(fnmatch(filename, pattern) for pattern in self.ignore_patterns)
+        """检查是否匹配忽略模式
+        
+        匹配策略与 include 一致：完整路径 + basename 双重匹配。
+        """
+        from fnmatch import fnmatch
+        basename = filename.split('/')[-1] if '/' in filename else filename
+        for pattern in self.ignore_patterns:
+            if fnmatch(filename, pattern):
+                return True
+            if fnmatch(basename, pattern):
+                return True
+        return False
     
     def collect_git_history(self, repo_path: str, commit_hash: str,
                            file_path: Optional[str] = None) -> List[SourceFile]:
@@ -330,6 +352,10 @@ class FileCollector:
                 
                 # 过滤二进制和大文件
                 if blob.size > self.max_file_size:
+                    continue
+                
+                # 过滤不在 include_patterns 内的文件
+                if not self._matches_include_patterns(blob.path):
                     continue
                 
                 # 过滤匹配 ignore_patterns 的文件
