@@ -60,22 +60,36 @@ class Config:
     proxy: Optional[str] = None              # HTTP 代理
 
     def __post_init__(self):
-        """校验配置值"""
+        """校验配置值（类型不安全时静默回退到默认值）
+        
+        注意：0 是合法值，只在 < 0（负值/类型错误）时回退。
+        timeout=0 表示"不超时"，max_file_size=0 在调用处兜底。
+        """
         valid_thresholds = ["info", "warning", "error", "critical"]
         if self.severity_threshold not in valid_thresholds:
             self.severity_threshold = "warning"
         valid_diff_modes = ["full", "diff"]
         if self.diff_mode not in valid_diff_modes:
             self.diff_mode = "full"
-        if self.max_file_size < 1:
+        # 数值校验：负值或类型错误时回退默认值（0 是合法值）
+        try:
+            if self.max_file_size < 0:
+                self.max_file_size = 500
+        except TypeError:
             self.max_file_size = 500
-        if self.timeout < 1:
+        try:
+            if self.timeout < 0:
+                self.timeout = 60
+        except TypeError:
             self.timeout = 60
-        if self.max_tokens < 256:
+        try:
+            if self.max_tokens < 0:
+                self.max_tokens = 4096
+            # 上限 128K
+            if self.max_tokens > 131072:
+                self.max_tokens = 131072
+        except TypeError:
             self.max_tokens = 4096
-        # 上限 128K，覆盖所有主流模型（GPT-4o 16K、Claude 128K 等）
-        if self.max_tokens > 131072:
-            self.max_tokens = 131072
     
     def merge(self, other: 'Config') -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置
@@ -103,7 +117,7 @@ class Config:
         return Config(**result_dict)
 
 
-def _parse_token_size(value: str) -> int:
+def _parse_token_size(value) -> int:
     """解析 token 大小字符串，支持单位写法
     
     支持的格式:
@@ -118,12 +132,16 @@ def _parse_token_size(value: str) -> int:
     不支持或解析失败返回 0（Config 校验会 fallback 到 4096）
     
     Args:
-        value: 用户输入的字符串，如 "4K"
+        value: 用户输入的字符串/数字，如 "4K"、8192
         
     Returns:
         解析后的整数 token 数
     """
-    value = value.strip().lower()
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    value = str(value).strip().lower()
     if not value:
         return 0
     

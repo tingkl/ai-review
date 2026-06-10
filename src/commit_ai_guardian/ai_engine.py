@@ -341,7 +341,11 @@ class AIEngine:
         if config.proxy:
             http_kwargs["proxies"] = config.proxy  # 设置代理（用于内网/翻墙）
         
-        http_kwargs["timeout"] = httpx.Timeout(config.timeout if hasattr(config, 'timeout') else 60)
+        # timeout <= 0 时用默认值 60（Config.__post_init__ 允许 0 通过 merge）
+        timeout_val = getattr(config, 'timeout', 60)
+        if timeout_val <= 0:
+            timeout_val = 60
+        http_kwargs["timeout"] = httpx.Timeout(timeout_val)
         
         # 初始化 OpenAI 客户端（兼容第三方 API：Azure、Gemini、本地部署等）
         try:
