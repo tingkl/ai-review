@@ -3,7 +3,7 @@
 使用 Rich 库将 ReviewResult 列表渲染为彩色、结构化的终端输出。
 
 文件名和行号采用 VS Code 终端可识别格式：
-  相对路径:行号  → 如 src/auth.ts:15
+  相对路径:行号  → 如 src/auth.ts:145（diff 模式下是第一个变更行号）
   VS Code 终端会自动识别为可点击链接（cmd/ctrl+click 跳转）
 """
 
@@ -89,12 +89,13 @@ class ResultFormatter:
         else:
             border_style, status_icon = "green", "✅"
         
-        # === 文件头：文件名用 VS Code 可识别格式（文件名:1 表示第1行）===
-        # VS Code 终端自动识别 "path/to/file.ts:1" 为可点击链接
+        # === 文件头：文件名用 VS Code 可识别格式（文件名:行号）===
+        # VS Code 终端自动识别 "path/to/file.ts:145" 为可点击链接
+        # diff 模式下用第一个变更行号，完整文件模式下用 1
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        # 用相对路径:1 格式，VS Code 终端可点击跳转
-        header.append(f"{result.filename}:1", style="bold white underline")
+        line_num = result.first_line_number or 1
+        header.append(f"{result.filename}:{line_num}", style="bold white underline")
         if result.summary:
             header.append(f"\n{result.summary}", style="dim")
         

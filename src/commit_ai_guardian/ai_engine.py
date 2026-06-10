@@ -154,6 +154,7 @@ class ReviewResult:
     summary: str = ""
     passed: bool = True
     raw_response: str = ""
+    first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号（文件名头显示用）
 
 
 class AIEngine:
@@ -257,6 +258,10 @@ class AIEngine:
         try:
             response = self._call_api(prompt, filename=filename)
             result = self._parse_response(response, filename)
+            # diff 模式下：把第一个变更行号赋给结果（文件名头显示用）
+            line_numbers = getattr(file_diff, 'line_numbers', [])
+            if line_numbers:
+                result.first_line_number = line_numbers[0]
             # 审核成功，保存到缓存
             self._save_cache(content_md5, result)
             return result
