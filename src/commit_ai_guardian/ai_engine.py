@@ -689,7 +689,7 @@ class AIEngine:
                 cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
                 print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                 if cache_key:
-                    cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
+                    cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
                     print(f"  💾 {cache_path}")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
