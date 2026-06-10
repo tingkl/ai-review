@@ -316,14 +316,19 @@ class CaseLoader:
         
         return matched
     
-    def format_cases_for_prompt(self, cases: List[Dict[str, Any]]) -> str:
+    def format_cases_for_prompt(
+        self,
+        cases: List[Dict[str, Any]],
+        case_format: str = "default"
+    ) -> str:
         """将案例列表格式化为结构化 Prompt 文本（非 Markdown）
 
-        原始案例文件仍是 Markdown（用户友好），发给 AI 前转为结构化文本：
-        - 去掉 ###、```、☐ 等 Markdown 符号
-        - 用 [案例N|标题|级别] 标识案例
-        - 用 ❌/✅ 标识坏/好代码
-        - 节省约 30-40% 的 token
+        支持三种格式级别，通过 case_format 参数控制：
+        - default:  全部内容（结构化文本，保留所有字段）
+        - compact:  精简（去掉 why + consequences，省 ~35% token）
+        - minimal:  最小（只留 title + bad_examples + check_points，省 ~55% token）
+
+        原始案例文件仍是 Markdown（用户友好），发给 AI 前转为结构化文本。
         """
         if not cases:
             return ""
@@ -340,10 +345,15 @@ class CaseLoader:
             severity_label = f"{severity}/{level}" if isinstance(severity, int) else level
 
             lines.append(f"[案例{i}|{title}|{severity_label}]")
-            if desc:
+
+            # 非法值 fallback 到 default
+            effective_format = case_format if case_format in ("default", "compact", "minimal") else "default"
+
+            # minimal 模式下跳过 description
+            if effective_format != "minimal" and desc:
                 lines.append(f"说明: {desc}")
 
-            # 坏代码示例
+            # 坏代码示例（所有模式都保留）
             for be in case.get("bad_examples", []):
                 label = be.get("label", "")
                 code = be.get("code", "")
@@ -351,25 +361,26 @@ class CaseLoader:
                     lines.append(f"❌ 坏代码{f'({label})' if label else ''}:")
                     lines.append(code)
 
-            # 好代码示例
-            for ge in case.get("good_examples", []):
-                label = ge.get("label", "")
-                code = ge.get("code", "")
-                if code:
-                    lines.append(f"✅ 好代码{f'({label})' if label else ''}:")
-                    lines.append(code)
+            # 好代码示例（minimal 模式去掉）
+            if effective_format != "minimal":
+                for ge in case.get("good_examples", []):
+                    label = ge.get("label", "")
+                    code = ge.get("code", "")
+                    if code:
+                        lines.append(f"✅ 好代码{f'({label})' if label else ''}:")
+                        lines.append(code)
 
-            # 原因
-            why = case.get("why_it_matters", "")
-            if why:
-                lines.append(f"原因: {self._collapse_list(why)}")
+            # 原因 + 后果（仅 default 模式保留）
+            if effective_format == "default":
+                why = case.get("why_it_matters", "")
+                if why:
+                    lines.append(f"原因: {self._collapse_list(why)}")
 
-            # 后果
-            consequences = case.get("consequences", "")
-            if consequences:
-                lines.append(f"后果: {self._collapse_list(consequences)}")
+                consequences = case.get("consequences", "")
+                if consequences:
+                    lines.append(f"后果: {self._collapse_list(consequences)}")
 
-            # 检查点
+            # 检查点（所有模式都保留）
             for cp in case.get("check_points", []):
                 question = cp.get("question", "")
                 hint = cp.get("hint", "")

@@ -476,3 +476,81 @@ class TestCompression:
 
         assert len(structured) < len(old_format), \
             f"结构化格式({len(structured)}) 应比 Markdown({len(old_format)}) 短"
+
+
+# ==================== 三种 case_format 模式 ====================
+
+class TestCaseFormatModes:
+    """测试三种 case_format 模式: default / compact / minimal"""
+
+    @pytest.fixture
+    def full_case(self):
+        """包含所有字段的完整案例"""
+        return {
+            "title": "SQL注入",
+            "description": "未对用户输入进行转义导致SQL注入",
+            "severity": 9,
+            "level": "critical",
+            "bad_examples": [
+                {"label": "直接拼接", "code": 'query = f"SELECT * FROM users WHERE id = {user_id}"'},
+            ],
+            "good_examples": [
+                {"label": "参数化查询", "code": 'cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))'},
+            ],
+            "why_it_matters": "恶意用户可注入任意SQL语句",
+            "consequences": "数据泄露、数据损坏",
+            "check_points": [
+                {"question": "是否使用了参数化查询", "hint": "检查所有SQL拼接点"},
+            ],
+        }
+
+    def test_default_mode_has_all_fields(self, loader, full_case):
+        """default 模式保留所有字段"""
+        result = loader.format_cases_for_prompt([full_case], case_format="default")
+        assert "说明:" in result
+        assert "❌" in result
+        assert "✅" in result
+        assert "原因:" in result
+        assert "后果:" in result
+        assert "检查:" in result
+
+    def test_compact_mode_removes_why_and_consequences(self, loader, full_case):
+        """compact 模式去掉原因和后果"""
+        result = loader.format_cases_for_prompt([full_case], case_format="compact")
+        assert "说明:" in result
+        assert "❌" in result
+        assert "✅" in result
+        assert "原因:" not in result
+        assert "后果:" not in result
+        assert "检查:" in result
+
+    def test_compact_mode_shorter_than_default(self, loader, full_case):
+        """compact 比 default 短"""
+        default = loader.format_cases_for_prompt([full_case], case_format="default")
+        compact = loader.format_cases_for_prompt([full_case], case_format="compact")
+        assert len(compact) < len(default)
+
+    def test_minimal_mode_removes_most_fields(self, loader, full_case):
+        """minimal 模式只保留坏代码和检查点"""
+        result = loader.format_cases_for_prompt([full_case], case_format="minimal")
+        assert "❌" in result
+        assert "检查:" in result
+        # 这些不应该出现
+        assert "说明:" not in result
+        assert "✅" not in result
+        assert "原因:" not in result
+        assert "后果:" not in result
+
+    def test_minimal_mode_shorter_than_compact(self, loader, full_case):
+        """minimal 比 compact 短"""
+        compact = loader.format_cases_for_prompt([full_case], case_format="compact")
+        minimal = loader.format_cases_for_prompt([full_case], case_format="minimal")
+        assert len(minimal) < len(compact)
+
+    def test_invalid_format_falls_back_to_default(self, loader, full_case):
+        """非法 case_format 值 → 按 default 处理"""
+        result = loader.format_cases_for_prompt([full_case], case_format="invalid")
+        # 按 default 处理，保留所有字段
+        assert "原因:" in result
+        assert "后果:" in result
+        assert "✅" in result

@@ -256,6 +256,7 @@ class HookInstaller:
         'log_ttl': ('"1h"', '日志存活时间（1h=1小时, 30m=30分钟, 0=不清理）'),
         'include_patterns': ('["*"]', '要审核的目录/文件模式（glob，如 ["src/**", "app/**"]）'),
         'ignore_patterns': (r'["*.lock", "*.md", "*.txt", "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf", "*.mp3", "*.mp4", "*.avi", "*.pdf", "*.doc", "*.docx", "*.zip", "*.tar", "*.gz", "*.rar", "*.7z", "*.exe", "*.dll", "*.so", "*.dylib", "*.class", "*.jar", "*.ear", "*.egg", "*.whl", "*.parquet", "*.pkl", "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb"]', '忽略的文件模式（glob 格式）'),
+        'case_format': ('"default"', '案例格式化级别: default=全部(默认), compact=精简, minimal=最小'),
         'timeout': ('0', 'API 超时 (秒)'),
         'max_tokens': ('0', 'AI 最大返回长度 (token 数，支持 4K/8K 写法)'),
         'proxy': ('""', 'HTTP 代理地址'),

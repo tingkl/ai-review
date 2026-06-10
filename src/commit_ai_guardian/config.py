@@ -55,6 +55,7 @@ class Config:
         "*.ear", "*.egg", "*.whl", "*.parquet", "*.pkl",
         "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb",
     ])
+    case_format: str = "default"            # 案例格式化级别: default=全部, compact=精简, minimal=最小
     timeout: int = 60                        # API 超时（秒）
     max_tokens: int = 4096                   # AI 最大返回长度（token 数）
     proxy: Optional[str] = None              # HTTP 代理

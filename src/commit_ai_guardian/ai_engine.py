@@ -922,7 +922,10 @@ class AIEngine:
         
         # 加载案例
         cases = self.case_loader.get_cases_for_language(language)
-        cases_text = self.case_loader.format_cases_for_prompt(cases)
+        cases_text = self.case_loader.format_cases_for_prompt(
+            cases,
+            case_format=getattr(self.config, 'case_format', 'default')
+        )
         
         # 加载模板
         template = self.prompt_loader.load_diff_review_template()
@@ -989,7 +992,10 @@ class AIEngine:
         
         # 加载与当前编程语言匹配的案例
         cases = self.case_loader.get_cases_for_language(language)
-        cases_text = self.case_loader.format_cases_for_prompt(cases)
+        cases_text = self.case_loader.format_cases_for_prompt(
+            cases,
+            case_format=getattr(self.config, 'case_format', 'default')
+        )
         
         # 加载模板并渲染
         template = self.prompt_loader.load_diff_review_template()
@@ -1514,7 +1520,10 @@ class AIEngine:
         
         # 加载与当前编程语言匹配的案例
         cases = self.case_loader.get_cases_for_language(language)
-        cases_text = self.case_loader.format_cases_for_prompt(cases)
+        cases_text = self.case_loader.format_cases_for_prompt(
+            cases,
+            case_format=getattr(self.config, 'case_format', 'default')
+        )
         
         # 加载模板并渲染
         template = self.prompt_loader.load_full_file_template()
