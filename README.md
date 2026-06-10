@@ -125,6 +125,7 @@ your-project/
 | `commit-ai-guardian configure` | 交互式配置向导 |
 | `commit-ai-guardian status` | 查看当前配置状态 |
 | `commit-ai-guardian validate-cases` | 校验案例文件格式 |
+| `commit-ai-guardian debug-log <ai.log>` | 调试 AI 响应日志（本地解析，不调用 AI） |
 
 ---
 
@@ -233,6 +234,35 @@ ignore_patterns:
   - "*.test.js"
   - "*.spec.py"
   - "**/__tests__/**"
+```
+
+---
+
+### 调试 AI 响应（debug-log）
+
+无需 API Key，不花钱，本地解析 AI 响应文件看结果。
+
+```bash
+# 基本用法
+commit-ai-guardian debug-log ai.log
+
+# 指定模拟的文件名（展示用）
+commit-ai-guardian debug-log ai.log --filename src/main.py
+```
+
+**使用场景：**
+- 线上 JSON 解析失败，本地排查 `<think>` 标签、截断、格式错误
+- 调整展示格式后验证效果
+- 开发新功能时mock AI响应
+
+**ai.log 获取方式：**
+
+```bash
+# 方式1：从日志目录复制
+cp .ai-review/logs/xxx.ai.log ~/debug.ai.log
+
+# 方式2：手动保存 AI 的原始响应到文件
+echo 'AI返回的原始文本...' > ai.log
 ```
 
 ---
