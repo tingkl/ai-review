@@ -1019,6 +1019,10 @@ class AIEngine:
         Returns:
             ReviewResult。解析失败也返回 passed=True（不阻断提交）
         """
+        # 过滤 DeepSeek 等模型的 <think>...</think> 推理标签
+        if '<think>' in response and '</think>' in response:
+            response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        
         result = ReviewResult(filename=filename, raw_response=response)
         
         # 防御：空响应
@@ -1056,10 +1060,7 @@ class AIEngine:
         if not json_str:
             result.summary = "无法从响应中解析 JSON"
             result.passed = True
-            # 控制台打印 AI 响应的前 200 字符，方便排查
-            preview = response[:200].replace('\n', ' ')
-            print(f"\n⚠️  JSON 解析失败 — AI 响应预览: {preview}...")
-            print(f"    完整响应已写入 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
+            print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
             return result
         
         # 策略 4：正常 JSON 解析（含多种修复尝试）
@@ -1068,10 +1069,7 @@ class AIEngine:
         if data is None:
             result.summary = "JSON 解析失败"
             result.passed = True
-            # 控制台打印 AI 响应的前 200 字符，方便排查
-            preview = response[:200].replace('\n', ' ')
-            print(f"\n⚠️  JSON 解析失败 — AI 响应预览: {preview}...")
-            print(f"    完整响应已写入 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
+            print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
             print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
             return result
         
