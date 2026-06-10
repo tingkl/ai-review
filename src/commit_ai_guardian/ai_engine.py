@@ -1020,8 +1020,11 @@ class AIEngine:
             ReviewResult。解析失败也返回 passed=True（不阻断提交）
         """
         # 过滤 DeepSeek 等模型的 <think>...</think> 推理标签
-        if '<think>' in response and '</think>' in response:
-            response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        # 用正则直接匹配，不依赖字符串包含判断（更健壮）
+        filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        if filtered_response != response:
+            response = filtered_response
+            print(f"[信息] 已过滤 <think> 推理标签")
         
         result = ReviewResult(filename=filename, raw_response=response)
         
