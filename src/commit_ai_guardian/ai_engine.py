@@ -355,6 +355,41 @@ class AIEngine:
             print(f"[警告] OpenAI 客户端初始化失败: {e}")
             self.client = None
     
+    def _check_prerequisites(self, filename: str) -> Optional[ReviewResult]:
+        """检查审核前置条件（enabled / client / api_key）
+        
+        三个条件任一不满足，返回对应的 ReviewResult（不再继续审核）。
+        全部通过返回 None，调用方继续正常审核流程。
+        
+        Args:
+            filename: 被审核的文件名（用于返回结果）
+            
+        Returns:
+            ReviewResult（条件不满足时）或 None（全部通过）
+        """
+        if not getattr(self.config, 'enabled', True):
+            return ReviewResult(
+                filename=filename,
+                summary="AI 审核已禁用（enabled=false），跳过审核",
+                passed=True,
+                raw_response="",
+            )
+        if self.client is None:
+            return ReviewResult(
+                filename=filename,
+                summary="AI 客户端未初始化，无法审核",
+                passed=False,
+                raw_response="",
+            )
+        if not getattr(self.config, 'api_key', None):
+            return ReviewResult(
+                filename=filename,
+                summary="未配置 API Key，跳过审核",
+                passed=False,
+                raw_response="",
+            )
+        return None
+    
     def review_file(self, file_diff: Any) -> ReviewResult:
         """审核单个文件的 diff（pre-commit 场景）
         
@@ -368,32 +403,10 @@ class AIEngine:
         """
         filename = getattr(file_diff, 'filename', 'unknown')
         
-        # 检查 enabled 配置
-        if not getattr(self.config, 'enabled', True):
-            return ReviewResult(
-                filename=filename,
-                summary="AI 审核已禁用（enabled=false），跳过审核",
-                passed=True,  # 禁用时不阻断
-                raw_response="",
-            )
-        
-        # 防御：客户端初始化失败
-        if self.client is None:
-            return ReviewResult(
-                filename=filename,
-                summary="AI 客户端未初始化，无法审核",
-                passed=False,  # ← 让用户知道出问题了
-                raw_response="",
-            )
-        
-        # 防御：API Key 未配置
-        if not getattr(self.config, 'api_key', None):
-            return ReviewResult(
-                filename=filename,
-                summary="未配置 API Key，跳过审核",
-                passed=False,
-                raw_response="",
-            )
+        # 检查前置条件
+        prereq = self._check_prerequisites(filename)
+        if prereq:
+            return prereq
         
         diff_content = getattr(file_diff, 'diff_content', '')
         
@@ -1298,33 +1311,11 @@ class AIEngine:
         """
         filename = getattr(source_file, 'filename', 'unknown')
         
-        # 检查 enabled 配置
-        if not getattr(self.config, 'enabled', True):
-            return ReviewResult(
-                filename=filename,
-                summary="AI 审核已禁用（enabled=false），跳过审核",
-                passed=True,  # 禁用时不阻断
-                raw_response="",
-            )
+        # 检查前置条件
+        prereq = self._check_prerequisites(filename)
+        if prereq:
+            return prereq
         
-        # 先检查 API Key（更友好的错误提示）
-        if not getattr(self.config, 'api_key', None):
-            return ReviewResult(
-                filename=filename,
-                summary="未配置 API Key，跳过审核",
-                passed=False,
-                raw_response="",
-            )
-        
-        if self.client is None:
-            return ReviewResult(
-                filename=getattr(source_file, 'filename', 'unknown'),
-                summary="AI 客户端未初始化，无法审核",
-                passed=False,
-                raw_response="",
-            )
-        
-        filename = getattr(source_file, 'filename', 'unknown')
         content = getattr(source_file, 'content', '')
         
         # 检查缓存：用 content 的 MD5 做 key
