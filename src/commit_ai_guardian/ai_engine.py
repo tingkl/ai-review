@@ -612,6 +612,69 @@ class AIEngine:
             result.append(f"{i:4d} | {line}")
         return '\n'.join(result)
     
+    @staticmethod
+    def _smart_truncate_content(content: str, line_numbers: List[int], max_chars: int = 8000) -> tuple:
+        """智能截断文件内容，优先保留变更行号附近的上下文
+        
+        策略：
+        1. 文件 <= max_chars → 不截断
+        2. 变更都在前面 → 截断前 max_chars（简单截断）
+        3. 变更在后面 → 提取变更区域 + 前后各 30 行上下文
+        
+        Args:
+            content: 文件完整内容
+            line_numbers: 变更行号列表
+            max_chars: 最大字符数
+            
+        Returns:
+            (截断后的内容, 是否截断, 截断说明)
+        """
+        if len(content) <= max_chars:
+            return content, False, ""
+        
+        if not line_numbers:
+            # 没有行号信息，简单截断
+            return content[:max_chars], True, f"只显示前 {max_chars} 字符"
+        
+        lines = content.split('\n')
+        
+        # 检查所有变更行是否都在前 max_chars 内
+        # 找到前 max_chars 对应的行号
+        prefix = content[:max_chars]
+        prefix_lines = prefix.count('\n') + 1
+        
+        if all(ln <= prefix_lines for ln in line_numbers):
+            # 所有变更都在前面，简单截断即可
+            return content[:max_chars], True, f"只显示前 {prefix_lines} 行"
+        
+        # 有变更在后面，需要智能截断
+        # 提取变更区域 + 前后各 30 行上下文
+        context_lines = 30
+        include_lines: set = set()
+        
+        for ln in line_numbers:
+            start = max(0, ln - context_lines - 1)
+            end = min(len(lines), ln + context_lines)
+            include_lines.update(range(start, end))
+        
+        # 按顺序构建结果，添加省略标记
+        result_lines = []
+        last_included = -1
+        for i in sorted(include_lines):
+            if i > last_included + 1 and result_lines:
+                result_lines.append(f"    ... ({i - last_included - 1} 行省略) ...")
+            result_lines.append(lines[i])
+            last_included = i
+        
+        truncated_content = '\n'.join(result_lines)
+        
+        # 如果还是超长，强制截断
+        if len(truncated_content) > max_chars:
+            truncated_content = truncated_content[:max_chars]
+            return truncated_content, True, f"保留变更区域上下文，共 {len(result_lines)} 行"
+        
+        return truncated_content, True, f"保留变更区域上下文，共 {len(result_lines)} 行"
+    
     def _build_full_file_prompt_for_diff(self, filename: str, full_content: str,
                                           diff_content: str, file_diff: Any) -> str:
         """构建 full 模式的 diff 审核 prompt（审核完整文件，标注变更部分）
@@ -630,12 +693,13 @@ class AIEngine:
         """
         language = getattr(file_diff, 'language', 'unknown')
         
-        # 截断过长的文件
-        max_content_length = 8000
-        truncated = False
-        if len(full_content) > max_content_length:
-            full_content = full_content[:max_content_length]
-            truncated = True
+        # 提取变更行号列表
+        line_numbers = getattr(file_diff, 'line_numbers', [])
+        
+        # 智能截断：优先保留变更区域上下文
+        full_content, truncated, truncate_note = self._smart_truncate_content(
+            full_content, line_numbers, max_chars=8000
+        )
         
         # 给完整文件加行号
         annotated_content = self._annotate_content_with_line_numbers(full_content)
@@ -677,7 +741,7 @@ class AIEngine:
         prompt = prompt.replace("{{cases_note}}", cases_instruction + "\n" + change_note)
         
         if truncated:
-            prompt += f"\n- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符\n"
+            prompt += f"\n- 注意: 文件内容已截断（{truncate_note}）\n"
         
         self._write_debug_log(filename, prompt)
         return prompt
@@ -1295,12 +1359,15 @@ class AIEngine:
         content = getattr(source_file, 'content', '')
         line_count = getattr(source_file, 'line_count', 0)
         
-        # 截断过长的文件（保留文件头部，通常包含重要逻辑）
+        # review 模式没有变更行号，简单截断前 8000 字符
+        # 保留文件头部（通常包含重要逻辑：import、类定义等）
         max_content_length = 8000
         truncated = False
+        truncate_note = ""
         if len(content) > max_content_length:
             content = content[:max_content_length]
             truncated = True
+            truncate_note = f"保留文件头部（前 8000 字符），尾部省略"
         
         # 给文件内容加上行号前缀（关键：让 AI 看到正确的文件行号）
         content = self._annotate_content_with_line_numbers(content)
@@ -1324,8 +1391,7 @@ class AIEngine:
         prompt = prompt.replace("{{content}}", content)
         prompt = prompt.replace("{{cases_text}}", cases_text)
         prompt = prompt.replace("{{truncation_note}}",
-            f"- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符" if truncated
-            else "")
+            f"- 注意: {truncate_note}" if truncated else "")
         prompt = prompt.replace("{{cases_note}}",
             _build_cases_check_instruction() if cases_text
             else "- 按通用审核维度进行检查")
