@@ -89,18 +89,12 @@ class ResultFormatter:
         else:
             border_style, status_icon = "green", "✅"
         
-        # === 文件头：文件名用 VS Code 可识别格式（文件名:行号）===
-        # VS Code 终端自动识别 "path/to/file.ts:145" 为可点击链接
-        # 有 issue 时用第一个 issue 的实际行号，否则用 first_line_number 或 1
+        # === 文件头：文件名:MD5 短码 ===
+        # 显示 MD5 方便定位缓存文件 .ai-review/cache/{md5}.json
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        if result.issues and result.issues[0].line_number:
-            line_num = result.issues[0].line_number
-        else:
-            line_num = result.first_line_number or 1
-        # 文件名:行号 [MD5: abc123...]
-        md5_str = f" [{result.cache_key[:8]}...]" if result.cache_key else ""
-        header.append(f"{result.filename}:{line_num}{md5_str}", style="bold white underline")
+        md5_short = result.cache_md5 or "no-cache"
+        header.append(f"{result.filename}:{md5_short}", style="bold white underline")
         if result.summary:
             header.append(f"\n{result.summary}", style="dim")
         

@@ -178,8 +178,8 @@ class ReviewResult:
     summary: str = ""
     passed: bool = True
     raw_response: str = ""
-    first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号（文件名头显示用）
-    cache_key: str = ""  # 缓存 MD5，用于文件名头显示
+    first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号
+    cache_md5: str = ""  # 缓存 key 的 MD5 短码（文件名头显示用）
 
 
 class AIEngine:
@@ -285,8 +285,8 @@ class AIEngine:
         cached = self._check_cache(cache_key)
         if cached:
             cached.filename = filename
-            cached.cache_key = cache_key
-            print(f"[信息] 缓存命中: {filename}（MD5: {cache_key[:8]}...），跳过 AI 审核")
+            cached.cache_md5 = cache_key[:8]
+            print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
             return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
@@ -299,12 +299,12 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename)
-            result = self._parse_response(response, filename, cache_key=cache_key)
-            # diff 模式下：把第一个变更行号赋给结果（文件名头显示用）
+            result = self._parse_response(response, filename)
+            # diff 模式下：把第一个变更行号和 MD5 赋给结果（文件名头显示用）
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
-            result.cache_key = cache_key
+            result.cache_md5 = cache_key[:8]
             # 审核成功，保存到缓存
             self._save_cache(cache_key, result)
             return result
@@ -431,11 +431,12 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename)
-            result = self._parse_response(response, filename, cache_key=cache_key)
-            # diff 模式下：把第一个变更行号赋给结果
+            result = self._parse_response(response, filename)
+            # diff 模式下：把第一个变更行号和 MD5 赋给结果
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
+            result.cache_md5 = cache_key[:8]
             # 保存到缓存
             self._save_cache(cache_key, result)
             return result
@@ -1002,7 +1003,7 @@ class AIEngine:
         
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
-    def _parse_response(self, response: str, filename: str, cache_key: str = "") -> ReviewResult:
+    def _parse_response(self, response: str, filename: str) -> ReviewResult:
         """解析 AI 的响应文本为结构化的 ReviewResult
         
         解析策略（层层降级，保证不崩）：
@@ -1014,12 +1015,11 @@ class AIEngine:
         Args:
             response: AI 返回的原始文本（含 markdown 代码块）
             filename: 被审核的文件名
-            cache_key: 缓存 MD5，解析失败时用于定位缓存文件
             
         Returns:
             ReviewResult。解析失败也返回 passed=True（不阻断提交）
         """
-        result = ReviewResult(filename=filename, raw_response=response, cache_key=cache_key)
+        result = ReviewResult(filename=filename, raw_response=response)
         
         # 防御：空响应
         if not response or not response.strip():
@@ -1133,16 +1133,16 @@ class AIEngine:
         cached = self._check_cache(content_md5)
         if cached:
             cached.filename = filename
-            cached.cache_key = content_md5
-            print(f"[信息] 缓存命中: {filename}（MD5: {content_md5[:8]}...），跳过 AI 审核")
+            cached.cache_md5 = content_md5[:8]
+            print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
             return cached
         
         prompt = self._build_full_file_prompt(source_file)
         
         try:
             response = self._call_api(prompt, filename=filename)
-            result = self._parse_response(response, filename, cache_key=content_md5)
-            result.cache_key = content_md5
+            result = self._parse_response(response, filename)
+            result.cache_md5 = content_md5[:8]
             # 审核成功，保存到缓存
             self._save_cache(content_md5, result)
             return result
