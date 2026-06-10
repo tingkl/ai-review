@@ -79,6 +79,64 @@ BINARY_EXTENSIONS = {
 }
 
 
+def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bool:
+    """支持 ** 递归目录匹配的 glob（兼容 fnmatch）
+    
+    修复 Python fnmatch 的 ** 不一致行为：
+    - deprecated/** → deprecated/old.py ✅, deprecated/sub/a.py ✅
+    - src/**/*.py → src/main.py ✅ (0层), src/a/b/main.py ✅
+    - **/*.py → main.py ✅ (根目录), a/b/c/main.py ✅
+    - **/deprecated/** → src/deprecated/x.py ✅ (中间目录)
+    
+    实现：递归回溯，逐个处理每个 **，展开为 0~max_depth 层 */
+    不含 ** 的模式直接 fallback 到标准 fnmatch。
+    
+    Args:
+        filename: 文件名（如 "src/main.py"）
+        pattern: glob 模式（如 "src/**/*.py"）
+        max_depth: 最大递归深度（默认10层）
+        
+    Returns:
+        True 如果匹配
+    """
+    from fnmatch import fnmatch
+    
+    if '**' not in pattern:
+        return fnmatch(filename, pattern)
+    
+    match = re.search(r'\*\*', pattern)
+    if not match:
+        return fnmatch(filename, pattern)
+    
+    prefix = pattern[:match.start()]
+    suffix = pattern[match.end():]
+    
+    for depth in range(max_depth + 1):
+        if depth == 0:
+            if not suffix:
+                # ** 在末尾（如 deprecated/**），depth=0 尝试匹配 prefix 本身
+                expanded = prefix.rstrip('/')
+                if fnmatch(filename, expanded):
+                    return True
+                continue
+            expanded = prefix + suffix.lstrip('/')
+        else:
+            if not suffix:
+                # ** 在末尾（如 deprecated/**）: */*, */*/*, ...
+                if depth == 1:
+                    expanded = prefix.rstrip('/') + '/*'
+                else:
+                    expanded = prefix.rstrip('/') + ('/*/' * (depth - 1)) + '*'
+            else:
+                # ** 在中间（如 src/**/*.py, **/src/**/*.py）
+                expanded = prefix + ('*/' * depth) + suffix.lstrip('/')
+        
+        if _match_with_globstar(filename, expanded):
+            return True
+    
+    return False
+
+
 class DiffCollector:
     """Git Diff 采集器
     
@@ -327,63 +385,6 @@ class DiffCollector:
         
         return False
     
-def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bool:
-    """支持 ** 递归目录匹配的 glob（兼容 fnmatch）
-    
-    修复 Python fnmatch 的 ** 不一致行为：
-    - deprecated/** → deprecated/old.py ✅, deprecated/sub/a.py ✅
-    - src/**/*.py → src/main.py ✅ (0层), src/a/b/main.py ✅
-    - **/*.py → main.py ✅ (根目录), a/b/c/main.py ✅
-    - **/deprecated/** → src/deprecated/x.py ✅ (中间目录)
-    
-    实现：递归回溯，逐个处理每个 **，展开为 0~max_depth 层 */
-    不含 ** 的模式直接 fallback 到标准 fnmatch。
-    
-    Args:
-        filename: 文件名（如 "src/main.py"）
-        pattern: glob 模式（如 "src/**/*.py"）
-        max_depth: 最大递归深度（默认10层）
-        
-    Returns:
-        True 如果匹配
-    """
-    from fnmatch import fnmatch
-    
-    if '**' not in pattern:
-        return fnmatch(filename, pattern)
-    
-    match = re.search(r'\*\*', pattern)
-    if not match:
-        return fnmatch(filename, pattern)
-    
-    prefix = pattern[:match.start()]
-    suffix = pattern[match.end():]
-    
-    for depth in range(max_depth + 1):
-        if depth == 0:
-            if not suffix:
-                # ** 在末尾（如 deprecated/**），depth=0 尝试匹配 prefix 本身
-                expanded = prefix.rstrip('/')
-                if fnmatch(filename, expanded):
-                    return True
-                continue
-            expanded = prefix + suffix.lstrip('/')
-        else:
-            if not suffix:
-                # ** 在末尾（如 deprecated/**）: */*, */*/*, ...
-                if depth == 1:
-                    expanded = prefix.rstrip('/') + '/*'
-                else:
-                    expanded = prefix.rstrip('/') + ('/*/' * (depth - 1)) + '*'
-            else:
-                # ** 在中间（如 src/**/*.py, **/src/**/*.py）
-                expanded = prefix + ('*/' * depth) + suffix.lstrip('/')
-        
-        if _match_with_globstar(filename, expanded):
-            return True
-    
-    return False
-
 
     def _matches_patterns(self, filename: str, patterns: List[str]) -> bool:
         """
