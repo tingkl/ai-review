@@ -239,6 +239,7 @@ class HookInstaller:
         'severity_threshold': ('""', '阻断级别 (info/warning/error/critical)'),
         'diff_mode': ('""', 'diff 审核模式: full=完整文件(默认), diff=只审变更'),
         'max_file_size': ('0', '最大审核文件大小 (KB)'),
+        'cache_ttl': ('"1d"', '缓存存活时间（1d=1天, 12h=12小时, 30m=30分钟）'),
         'ignore_patterns': (r'["*.lock", "*.md", "*.txt", "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf", "*.mp3", "*.mp4", "*.avi", "*.pdf", "*.doc", "*.docx", "*.zip", "*.tar", "*.gz", "*.rar", "*.7z", "*.exe", "*.dll", "*.so", "*.dylib", "*.class", "*.jar", "*.ear", "*.egg", "*.whl", "*.parquet", "*.pkl", "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb"]', '忽略的文件模式（glob 格式）'),
         'timeout': ('0', 'API 超时 (秒)'),
         'max_tokens': ('0', 'AI 最大返回长度 (token 数，支持 4K/8K 写法)'),

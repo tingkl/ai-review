@@ -315,6 +315,61 @@ class AIEngine:
                 raw_response=str(e),
             )
     
+
+    def _parse_cache_ttl(self) -> Optional[float]:
+        """解析 cache_ttl 配置为秒数
+
+        支持的格式:
+            "1d"  → 86400 秒
+            "12h" → 43200 秒
+            "30m" → 1800 秒
+            "0"   → None（不缓存）
+
+        Returns:
+            秒数，或 None（不缓存/解析失败）
+        """
+        ttl = getattr(self.config, 'cache_ttl', '1d')
+        if not ttl or ttl == '0':
+            return None
+
+        ttl = str(ttl).strip().lower()
+        try:
+            if ttl.endswith('d'):
+                return float(ttl[:-1]) * 86400
+            elif ttl.endswith('h'):
+                return float(ttl[:-1]) * 3600
+            elif ttl.endswith('m'):
+                return float(ttl[:-1]) * 60
+            else:
+                return float(ttl)  # 纯数字视为秒
+        except (ValueError, TypeError):
+            return 86400  # 解析失败默认 1 天
+
+    def _clean_expired_cache(self) -> None:
+        """清理过期的缓存文件
+
+        在批量检查缓存前调用，删除超过 cache_ttl 的 .json 缓存文件。
+        """
+        if not self._cache_dir or not self._cache_dir.exists():
+            return
+        
+        ttl_seconds = self._parse_cache_ttl()
+        if ttl_seconds is None:
+            return  # 不缓存，不清理
+
+        now = time.time()
+        cleaned = 0
+        for cache_file in self._cache_dir.glob('*.json'):
+            try:
+                if now - cache_file.stat().st_mtime > ttl_seconds:
+                    cache_file.unlink()
+                    cleaned += 1
+            except Exception:
+                pass
+
+        if cleaned > 0:
+            print(f"[信息] 清理 {cleaned} 个过期缓存文件")
+
     def _get_cache_key_for_file(self, file_diff: Any) -> Optional[str]:
         """计算文件的缓存 key（用于批量缓存检查）
         
@@ -413,6 +468,9 @@ class AIEngine:
         
         results: List[Optional[ReviewResult]] = [None] * len(file_diffs)
         
+        # 先清理过期缓存
+        self._clean_expired_cache()
+
         # ===== 第一阶段：批量检查缓存 =====
         # 分离命中和未命中的文件索引
         cache_hit_indices: List[int] = []
@@ -1138,6 +1196,9 @@ class AIEngine:
             return [self.review_source(source_files[0])]
         
         results: List[Optional[ReviewResult]] = [None] * len(source_files)
+        
+        # 先清理过期缓存
+        self._clean_expired_cache()
         
         # ===== 第一阶段：批量检查缓存 =====
         cache_hit_indices: List[int] = []
