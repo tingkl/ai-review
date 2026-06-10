@@ -272,6 +272,7 @@ class ConfigManager:
         lines.append(f"  max_file_size: {config.max_file_size} KB")
         lines.append(f"  timeout: {config.timeout} 秒")
         lines.append(f"  max_tokens: {config.max_tokens}")
+        lines.append(f"  diff_mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
         lines.append(f"  proxy: {config.proxy or '(未配置)'}")
         lines.append(f"  auto_fix: {config.auto_fix}")
         
