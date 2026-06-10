@@ -1276,11 +1276,14 @@ class AIEngine:
         
         # 解析失败时打印日志提示（线上运行时帮助定位问题）
         if not result.passed and result.issues == [] and result.raw_response:
-            log_path = Path(self.repo_path) / ".ai-review" / "logs" / f"{filename.replace('/', '_')}.ai.log"
+            safe_name = filename.replace('/', '_').replace(' ', '_')
+            log_path = Path(self.repo_path) / ".ai-review" / "logs" / f"{safe_name}.ai.log"
+            # 缩短路径显示：把 $HOME 替换为 ~，避免终端折行导致无法点击跳转
+            log_display = str(log_path).replace(str(Path.home()), "~")
             if "无法从响应中解析 JSON" in result.summary:
-                print(f"\n⚠️  JSON 解析失败，完整响应见 {log_path}")
+                print(f"\n⚠️  JSON 解析失败，完整响应见 {log_display}")
             elif "JSON 解析失败" in result.summary:
-                print(f"\n⚠️  JSON 解析失败，完整响应见 {log_path}")
+                print(f"\n⚠️  JSON 解析失败，完整响应见 {log_display}")
                 print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
         
         return result
