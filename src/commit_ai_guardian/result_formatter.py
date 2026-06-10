@@ -105,7 +105,9 @@ class ResultFormatter:
             
             for issue in result.issues:
                 sev_style = self.SEVERITY_STYLES.get(issue.severity, "white")
+                sev_label = self.SEVERITY_LABELS.get(issue.severity, issue.severity)
                 sev_icon = self.SEVERITY_ICONS.get(issue.severity, "⚪")
+                cat_icon = self.CATEGORY_ICONS.get(issue.category, "📌")
                 
                 # 行号用 "文件名:行号" 格式，VS Code 可点击跳转
                 if issue.line_number:
@@ -113,19 +115,41 @@ class ResultFormatter:
                 else:
                     location = result.filename
                 
-                issue_lines.append(f"\n  {sev_icon} ", style="")
-                # location 格式为 "file.ts:145"，VS Code 终端自动识别为链接
+                # === 分隔线（每个问题之间用虚线分隔，更清晰）===
+                issue_lines.append(f"\n  {'─' * 50}\n", style="dim")
+                
+                # === 第1行: 严重级别标签 + 类别 + 位置 ===
+                # 严重级别用背景色高亮（如 red background），非常醒目
+                bg_colors = {
+                    "critical": "on_red",
+                    "error": "on_bright_red",
+                    "warning": "on_yellow",
+                    "info": "on_blue",
+                }
+                bg = bg_colors.get(issue.severity, "on_white")
+                issue_lines.append(f"  {sev_icon} ", style="")
+                issue_lines.append(f"[{sev_label}]", style=f"bold white {bg}")
+                issue_lines.append(f"  {cat_icon} ", style="")
                 issue_lines.append(location, style=f"bold {sev_style} underline")
-                issue_lines.append(f"  {issue.message or '-'}\n", style=f"bold {sev_style}")
+                issue_lines.append("\n")
                 
+                # === 第2行: 问题描述（message）—— 最醒目的部分 ===
+                # 用 >> 符号 + 加粗 + 颜色，让问题原因一目了然
+                issue_lines.append(f"     >> ", style=f"bold {sev_style}")
+                issue_lines.append(f"{issue.message or '-'}\n", style=f"bold white")
+                
+                # === 第3行: 修复建议 ===
                 if issue.suggestion:
-                    issue_lines.append(f"     → {issue.suggestion}\n", style="dim green")
+                    issue_lines.append(f"     💡 ", style="bold green")
+                    issue_lines.append(f"{issue.suggestion}\n", style="green")
                 
+                # === 第4行: 代码片段 ===
                 if issue.code_snippet:
                     snippet = issue.code_snippet.strip()
                     if len(snippet) > 80:
                         snippet = snippet[:77] + "..."
-                    issue_lines.append(f"     {snippet}\n", style="dim")
+                    issue_lines.append(f"     📍 ", style="dim")
+                    issue_lines.append(f"{snippet}\n", style="dim")
             
             content = Group(header, issue_lines)
         else:
