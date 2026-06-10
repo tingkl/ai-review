@@ -13,7 +13,7 @@ from rich.console import Console
 from .config import ConfigManager
 from .hook_installer import HookInstaller
 from .diff_collector import DiffCollector
-from .ai_engine import AIEngine
+from .ai_engine import AIEngine, parse_ai_response
 from .result_formatter import ResultFormatter
 
 # Rich 控制台实例（用于 loading 动画和彩色输出）
@@ -399,6 +399,51 @@ def validate_cases(repo):
             sys.exit(1)
     else:
         sys.exit(1)
+
+
+@main.command('debug-log')
+@click.argument('log_file', type=click.Path(exists=True))
+@click.option('--filename', '-f', default='debug.log', help='模拟的文件名（用于展示）')
+@click.option('--repo', default='.', help='项目路径（用于加载配置）')
+def debug_log(log_file, filename, repo):
+    """调试 AI 响应日志 - 传入 ai.log 文件，直接看格式化结果（不调用 AI）
+    
+    使用场景：
+    - 调试 JSON 解析失败（<think> 标签、截断、格式错误等）
+    - 验证结果展示格式
+    - 无需 API Key，不花钱，不耗时间
+    
+    用法：
+        commit-ai-guardian debug-log ai.log
+        commit-ai-guardian debug-log ai.log --filename src/main.py
+    
+    ai.log 获取方式：
+        # 把某次 AI 的原始响应保存到文件
+        cat .ai-review/cache/xxx.json  # 或手动保存 AI 返回的内容
+    """
+    try:
+        # 读取 AI 原始响应
+        log_path = Path(log_file)
+        raw_response = log_path.read_text(encoding='utf-8')
+        
+        click.echo(f"📄 日志文件: {log_path.absolute()}")
+        click.echo(f"📄 文件大小: {len(raw_response)} 字符\n")
+        
+        # 使用与线上完全一致的解析逻辑
+        result = parse_ai_response(raw_response, filename)
+        
+        # 用 ResultFormatter 渲染（与 audit/review 命令的展示完全一致）
+        config_manager = ConfigManager(repo_path=repo)
+        config = config_manager.load()
+        formatter = ResultFormatter(config, repo_path=repo)
+        formatter.format_and_display([result])
+        
+        # 打印原始响应摘要（方便调试）
+        click.echo(f"\n[调试] passed={result.passed}, issues={len(result.issues)}, summary={result.summary}")
+        
+    except Exception as e:
+        click.echo(f"❌ 错误: {e}")
+        sys.exit(2)
 
 
 if __name__ == '__main__':

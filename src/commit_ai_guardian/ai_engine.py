@@ -187,6 +187,100 @@ class ReviewResult:
     cache_md5: str = ""  # 缓存 key 的 MD5 短码（文件名头显示用）
 
 
+def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
+    """解析 AI 的原始响应文本为结构化的 ReviewResult（纯函数，不依赖 AIEngine）
+    
+    用于 debug-log 命令：用户保存 AI 原始响应到文件，本地解析看结果，
+    无需重新调用 AI（不花钱、不耗时间）。
+    
+    解析策略（层层降级）：
+    1. 过滤 <think> 标签
+    2. 从 markdown 代码块 ```json ... ``` 中提取 JSON
+    3. 找第一个 {...}
+    4. 尝试修复常见问题（BOM、单引号等）
+    5. 最后都失败 → passed=False（让用户知道出问题了）
+    
+    Args:
+        response: AI 返回的原始文本（从 ai.log 文件读取的内容）
+        filename: 被审核的文件名（用于展示）
+        
+    Returns:
+        ReviewResult。完整复用 AIEngine._parse_response 的解析逻辑
+    """
+    # 过滤 DeepSeek 等模型的 <think>...</think> 推理标签
+    filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+    if filtered_response != response:
+        response = filtered_response
+        print(f"[信息] 已过滤 <think> 推理标签")
+    
+    result = ReviewResult(filename=filename, raw_response=response)
+    
+    # 防御：空响应
+    if not response or not response.strip():
+        result.summary = "API 返回空响应"
+        result.passed = True
+        return result
+    
+    # ===== JSON 提取策略（层层降级） =====
+    
+    # 策略 1：从 ```json ... ``` 或 ``` ... ``` 代码块中提取
+    json_str = None
+    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
+    if json_match:
+        json_str = json_match.group(1).strip()
+    
+    # 策略 2：从响应中找第一个 {...}（非贪婪）
+    if json_str is None:
+        brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+        if brace_match:
+            json_str = brace_match.group(0).strip()
+    
+    # 策略 3：直接解析整个响应（去掉常见的前缀废话）
+    if json_str is None:
+        cleaned = response.strip()
+        for prefix in ['以下是', '这是', '审核结果', '结果如下', 'JSON 如下', '返回结果']:
+            if prefix in cleaned and '{' in cleaned:
+                idx = cleaned.find('{')
+                if idx > 0:
+                    cleaned = cleaned[idx:]
+                    break
+        json_str = cleaned
+    
+    if not json_str:
+        result.summary = "无法从响应中解析 JSON"
+        result.passed = False
+        return result
+    
+    # 策略 4：正常 JSON 解析（含多种修复尝试）
+    data = _try_parse_json(json_str)
+    
+    if data is None:
+        result.summary = "JSON 解析失败"
+        result.passed = False
+        return result
+    
+    # 提取各字段
+    result.summary = data.get('summary', '审核完成')
+    result.passed = bool(data.get('passed', True))
+    
+    # 解析 issues 列表
+    issues_data = data.get('issues', [])
+    if isinstance(issues_data, list):
+        for issue_data in issues_data:
+            if isinstance(issue_data, dict):
+                issue = ReviewIssue(
+                    severity=issue_data.get('severity', 'info'),
+                    category=issue_data.get('category', 'best-practice'),
+                    line_number=issue_data.get('line_number'),
+                    message=issue_data.get('message', ''),
+                    suggestion=issue_data.get('suggestion', ''),
+                    code_snippet=issue_data.get('code_snippet', ''),
+                )
+                result.issues.append(issue)
+    
+    return result
+
+
 class AIEngine:
     """AI 代码审核引擎
     
@@ -1078,94 +1172,24 @@ class AIEngine:
     def _parse_response(self, response: str, filename: str) -> ReviewResult:
         """解析 AI 的响应文本为结构化的 ReviewResult
         
-        解析策略（层层降级，保证不崩）：
-        1. 从 markdown 代码块 ```json ... ``` 中提取 JSON
-        2. 如果不行，直接解析整个响应
-        3. 如果还不行，尝试修复常见问题（BOM、单引号等）
-        4. 最后都失败 → 返回空结果（passed=True）
+        委托给模块级函数 parse_ai_response()，复用同一套解析逻辑。
         
         Args:
             response: AI 返回的原始文本（含 markdown 代码块）
             filename: 被审核的文件名
             
         Returns:
-            ReviewResult。解析失败也返回 passed=True（不阻断提交）
+            ReviewResult。解析失败返回 passed=False（让用户知道出问题了）
         """
-        # 过滤 DeepSeek 等模型的 <think>...</think> 推理标签
-        # 用正则直接匹配，不依赖字符串包含判断（更健壮）
-        filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
-        if filtered_response != response:
-            response = filtered_response
-            print(f"[信息] 已过滤 <think> 推理标签")
+        result = parse_ai_response(response, filename)
         
-        result = ReviewResult(filename=filename, raw_response=response)
-        
-        # 防御：空响应
-        if not response or not response.strip():
-            result.summary = "API 返回空响应"
-            result.passed = True
-            return result
-        
-        # ===== JSON 提取策略（层层降级） =====
-        
-        # 策略 1：从 ```json ... ``` 或 ``` ... ``` 代码块中提取
-        json_str = None
-        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1).strip()
-        
-        # 策略 2：从响应中找第一个 {...}（非贪婪，避免匹配过多）
-        if json_str is None:
-            brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
-            if brace_match:
-                json_str = brace_match.group(0).strip()
-        
-        # 策略 3：直接解析整个响应（去掉常见的前缀废话）
-        if json_str is None:
-            cleaned = response.strip()
-            # 去掉常见的前缀（如 "以下是 JSON："、"审核结果：" 等）
-            for prefix in ['以下是', '这是', '审核结果', '结果如下', 'JSON 如下', '返回结果']:
-                if prefix in cleaned and '{' in cleaned:
-                    idx = cleaned.find('{')
-                    if idx > 0:
-                        cleaned = cleaned[idx:]
-                        break
-            json_str = cleaned
-        
-        if not json_str:
-            result.summary = "无法从响应中解析 JSON"
-            result.passed = False  # ← 解析失败标记为未通过，让用户知道出问题了
-            print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
-            return result
-        
-        # 策略 4：正常 JSON 解析（含多种修复尝试）
-        data = _try_parse_json(json_str)
-        
-        if data is None:
-            result.summary = "JSON 解析失败"
-            result.passed = False  # ← 解析失败标记为未通过
-            print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
-            print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
-            return result
-        
-        # 提取各字段（用 .get() 防止字段缺失时报错）
-        result.summary = data.get('summary', '审核完成')
-        result.passed = bool(data.get('passed', True))
-        
-        # 解析 issues 列表
-        issues_data = data.get('issues', [])
-        if isinstance(issues_data, list):
-            for issue_data in issues_data:
-                if isinstance(issue_data, dict):
-                    issue = ReviewIssue(
-                        severity=issue_data.get('severity', 'info'),
-                        category=issue_data.get('category', 'best-practice'),
-                        line_number=issue_data.get('line_number'),
-                        message=issue_data.get('message', ''),
-                        suggestion=issue_data.get('suggestion', ''),
-                        code_snippet=issue_data.get('code_snippet', ''),
-                    )
-                    result.issues.append(issue)
+        # 解析失败时打印日志提示（线上运行时帮助定位问题）
+        if not result.passed and result.issues == [] and result.raw_response:
+            if "无法从响应中解析 JSON" in result.summary:
+                print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
+            elif "JSON 解析失败" in result.summary:
+                print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
+                print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
         
         return result
     
