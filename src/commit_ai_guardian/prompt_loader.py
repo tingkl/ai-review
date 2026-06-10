@@ -15,27 +15,41 @@ from typing import Optional
 
 
 # 内置默认模板（模板不存在时的兜底）
-DEFAULT_SYSTEM_MESSAGE = """你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
-
-🚨🚨🚨 输出格式规则（违反会导致解析失败，审核结果作废）🚨🚨🚨
-
-【规则1 - 最高优先级】最终输出必须且只能包含一对 <result> 标签，JSON 必须包裹其中：
-  ✅ 正确: <result>{"summary":"...","passed":...,"issues":[...]}</result>
-  ❌ 错误: {"summary":"...","passed":...}                    （缺少 <result> 标签）
-  ❌ 错误: ```json {...}```                                    （用了代码块标记）
-  ❌ 错误: <result>{...}</result> 之外还有任何其他文字       （有额外文字）
-
-【规则2】<think> 必须精简，确保 <result> 有充足空间：
-  - <think> 长度控制在 500 字以内，只写关键判断点
-  - 禁止在 <think> 中写完整的代码分析，只写结论性要点
-  - <result> 才是最终输出，必须留出足够 token 给 JSON
-  - ❌ 错误: <think>写了2000字...</think> 导致 <result> 被截断
-
-【规则3】<think> 和 <result> 必须分开，<think> 内不要放 JSON：
-  ✅ 正确: <think>思考...</think>\n<result>{...}</result>
-  ❌ 错误: 把 JSON 放在 <think> 标签内
-
-【规则4】不要添加任何解释、前言、总结——<result> 标签外除了 <think> 之外不要有任何文字。"""
+DEFAULT_SYSTEM_MESSAGE = (
+    "你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。\n"
+    "\n"
+    "🚨🚨🚨 输出格式规则（违反会导致解析失败，审核结果作废）🚨🚨🚨\n"
+    "\n"
+    "【规则1 - 最高优先级】最终输出必须且只能包含一对 <result> 标签，JSON 必须包裹其中：\n"
+    '  ✅ 正确: <result>{\"summary\":\"...\",\"passed\":...,\"issues\":[...]}</result>\n'
+    '  ❌ 错误: {\"summary\":\"...\",\"passed\":...}                    （缺少 <result> 标签）\n'
+    "  ❌ 错误: ```json {...}```                                    （用了代码块标记）\n"
+    "  ❌ 错误: <result>{...}</result> 之外还有任何其他文字       （有额外文字）\n"
+    "\n"
+    "【规则2】<think> 必须精简，确保 <result> 有充足空间：\n"
+    "  - <think> 长度控制在 500 字以内，只写关键判断点\n"
+    "  - 禁止在 <think> 中写完整的代码分析，只写结论性要点\n"
+    "  - <result> 才是最终输出，必须留出足够 token 给 JSON\n"
+    "  - ❌ 错误: <think>写了2000字...</think> 导致 <result> 被截断\n"
+    "\n"
+    "【规则3】<think> 和 <result> 必须分开，<think> 内不要放 JSON：\n"
+    "  ✅ 正确: <think>思考...</think>\\n<result>{...}</result>\n"
+    "  ❌ 错误: 把 JSON 放在 <think> 标签内\n"
+    "\n"
+    "【规则4】不要添加任何解释、前言、总结——<result> 标签外除了 <think> 之外不要有任何文字。\n"
+    "\n"
+    "【规则5 - JSON 格式自检】输出 <result> 前，必须确认 JSON 合法，以下是最常见错误：\n"
+    '  1. 字符串值中的 `\"` 和 `\\` 必须转义为 `\\\"` 和 `\\\\`\n'
+    "  2. code_snippet 含 `{` `}` 时，确保它被完整包裹在字符串引号内，不会破坏 JSON 结构\n"
+    '  3. 多个 issue 之间必须有逗号 `}, {\"severity\"...`，不能写成 `}{\"severity\"...`（漏逗号）\n'
+    "  4. 最后一个字段后不能有逗号（trailing comma）\n"
+    "  5. line_number 必须是单个整数（如 80），不能写范围（如 80,81 或 80-81）\n"
+    "\n"
+    "  ❌ 常见错误示例：\n"
+    '     \"code_snippet\":\"if(x){}\"}{\"severity\"...    ← 漏了逗号，应该是 \"}\"}, {\"severity\"...\n'
+    '     \"line_number\":80,81                         ← 范围非法，应该是 80\n'
+    '     \"message\":\"用了\"name\"变量\"                  ← 引号未转义，应该是 \\\\\\"name\\\\\\"\n'
+)
 
 DEFAULT_DIFF_REVIEW_TEMPLATE = """你是一位资深代码审核专家。请对以下代码变更进行严格审核。
 
@@ -108,7 +122,8 @@ severity 只能是 critical/error/warning/info，category 只能是 bug/security
 - 只关注本次变更引入的问题，不要审核已有代码
 - <think> 必须精简（500字以内），确保 <result> 不被截断
 {{cases_note}}
-- 尽量给出具体的修复建议，不要泛泛而谈"""
+- 尽量给出具体的修复建议，不要泛泛而谈
+- ⚠️ JSON 自检：输出前确认字符串引号已转义、issue 之间有逗号、code_snippet 不破坏 JSON 结构"""
 
 DEFAULT_FULL_FILE_TEMPLATE = """你是一位资深代码审核专家。请对以下完整代码文件进行全面审核。
 
@@ -181,7 +196,8 @@ severity 只能是 critical/error/warning/info，category 只能是 bug/security
 - line_number 为代码左侧标注的行号（如 "145 | const x = ..." 中的 145）
 - 对整个文件进行全面审核，不限于变更部分
 {{cases_note}}
-- 尽量给出具体的修复建议，不要泛泛而谈"""
+- 尽量给出具体的修复建议，不要泛泛而谈
+- ⚠️ JSON 自检：输出前确认字符串引号已转义、issue 之间有逗号、code_snippet 不破坏 JSON 结构"""
 
 # 项目仓库中存放 prompt 模板的目录
 REPO_PROMPTS_DIR = Path(".ai-review") / "prompts"
