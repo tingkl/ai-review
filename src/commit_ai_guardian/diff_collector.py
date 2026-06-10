@@ -335,6 +335,48 @@ class DiffCollector:
     def get_repo_root(self) -> str:
         """获取仓库根目录路径"""
         return str(self.repo_path)
+    
+    @staticmethod
+    def read_gitignore_patterns(repo_path: str) -> List[str]:
+        """读取 .gitignore 文件中的忽略模式
+        
+        解析 .gitignore 内容，提取有效的 glob 模式。
+        跳过注释行、空行、取反模式（!xxx）。
+        
+        Args:
+            repo_path: Git 仓库路径
+            
+        Returns:
+            解析出的 glob 模式列表
+        """
+        gitignore_path = Path(repo_path) / ".gitignore"
+        if not gitignore_path.exists():
+            return []
+        
+        patterns = []
+        try:
+            content = gitignore_path.read_text(encoding='utf-8')
+            for line in content.split('\n'):
+                line = line.strip()
+                # 跳过空行和注释
+                if not line or line.startswith('#'):
+                    continue
+                # 跳过取反模式（比较复杂，暂时不支持）
+                if line.startswith('!'):
+                    continue
+                # 转换为 glob 格式
+                # .gitignore 中的 "node_modules/" → "node_modules/*"
+                # .gitignore 中的 "dist" → "dist*" 和 "*/dist*"
+                if line.endswith('/'):
+                    patterns.append(line + '*')
+                    patterns.append('*/' + line + '*')
+                else:
+                    patterns.append(line)
+                    patterns.append('*/' + line)
+        except Exception:
+            pass
+        
+        return patterns
 
 
 def collect_staged_diffs(repo_path: str = ".", ignore_patterns: Optional[List[str]] = None,
