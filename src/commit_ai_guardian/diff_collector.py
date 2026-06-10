@@ -327,9 +327,58 @@ class DiffCollector:
         
         return False
     
+def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bool:
+    """支持 ** 递归目录匹配的 glob（兼容 fnmatch）
+    
+    Python fnmatch 的 ** 不是递归匹配（等于 * + *），本函数修复此问题：
+    - src/**/*.py 能匹配 src/main.py（0层子目录）✅
+    - src/**/*.py 能匹配 src/a/b/c/main.py（多层子目录）✅
+    - **/*.py 能匹配 main.py（根目录）✅
+    
+    实现：把 ** 展开为 0~max_depth 层 */ 来逐一尝试 fnmatch。
+    不含 ** 的模式直接 fallback 到标准 fnmatch。
+    
+    Args:
+        filename: 文件名（如 "src/main.py"）
+        pattern: glob 模式（如 "src/**/*.py"）
+        max_depth: 最大递归深度（默认10层）
+        
+    Returns:
+        True 如果匹配
+    """
+    from fnmatch import fnmatch
+    
+    if '**' not in pattern:
+        return fnmatch(filename, pattern)
+    
+    # 按 ** 分割模式
+    parts = re.split(r'\*\*', pattern)
+    
+    if len(parts) != 2:
+        # 多个 ** 太复杂，fallback 到 fnmatch
+        return fnmatch(filename, pattern)
+    
+    prefix = parts[0]
+    suffix = parts[1]
+    
+    # 展开 ** 为 0 层、1 层、2 层...递归目录
+    for depth in range(max_depth + 1):
+        if depth == 0:
+            # ** 匹配空（0层子目录），去掉 suffix 开头的 /
+            expanded = prefix + suffix.lstrip('/')
+        else:
+            # ** 匹配 depth 层子目录
+            expanded = prefix + ('*/' * depth) + suffix.lstrip('/')
+        
+        if fnmatch(filename, expanded):
+            return True
+    
+    return False
+
+
     def _matches_patterns(self, filename: str, patterns: List[str]) -> bool:
         """
-        检查文件名是否匹配任何 glob 模式
+        检查文件名是否匹配任何 glob 模式（支持 ** 递归目录匹配）
         
         同时用于 include_patterns 和 ignore_patterns：
         - include: 不匹配任何模式 → 跳过
@@ -340,6 +389,11 @@ class DiffCollector:
         2. basename 匹配（如 "src/main.py" 匹配 "*.py"、"main.*"）
         任一方式匹配即命中。
         
+        ** 语义（标准 glob）：递归匹配任意层目录，包括 0 层
+          - src/**/*.py 匹配 src/main.py（0层子目录）✅
+          - src/**/*.py 匹配 src/a/b/main.py（多层子目录）✅
+          - **/*.py 匹配 main.py（根目录）✅
+        
         Args:
             filename: 文件名（相对路径，如 "src/auth.py"）
             patterns: glob 模式列表
@@ -347,12 +401,11 @@ class DiffCollector:
         Returns:
             True 如果匹配任何模式
         """
-        from fnmatch import fnmatch
         basename = filename.split('/')[-1] if '/' in filename else filename
         for pattern in patterns:
-            if fnmatch(filename, pattern):
+            if _match_with_globstar(filename, pattern):
                 return True
-            if fnmatch(basename, pattern):
+            if _match_with_globstar(basename, pattern):
                 return True
         return False
     

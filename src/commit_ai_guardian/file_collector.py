@@ -290,33 +290,35 @@ class FileCollector:
             return True
     
     def _matches_include_patterns(self, filename: str) -> bool:
-        """检查是否匹配 include 模式（白名单）
+        """检查是否匹配 include 模式（白名单，支持 ** 递归目录匹配）
         
         同时支持路径模式和后缀模式：
-        - "src/**" → 匹配 src/ 目录下所有文件
-        - "**/*.py" → 匹配所有 .py 文件
+        - "src/**/*.py" → 匹配 src/ 下所有 .py 文件（含子目录和根层）
+        - "**/*.py" → 匹配所有 .py 文件（任意目录）
         - "*.py" → 匹配任意目录下的 .py 文件（通过后缀匹配）
+        
+        ** 语义：递归匹配任意层目录，包括 0 层（标准 glob 行为）
         """
-        from fnmatch import fnmatch
+        from commit_ai_guardian.diff_collector import _match_with_globstar
         basename = filename.split('/')[-1] if '/' in filename else filename
         for pattern in self.include_patterns:
-            if fnmatch(filename, pattern):
+            if _match_with_globstar(filename, pattern):
                 return True
-            if fnmatch(basename, pattern):
+            if _match_with_globstar(basename, pattern):
                 return True
         return False
     
     def _matches_ignore_patterns(self, filename: str) -> bool:
-        """检查是否匹配忽略模式
+        """检查是否匹配忽略模式（支持 ** 递归目录匹配）
         
         匹配策略与 include 一致：完整路径 + basename 双重匹配。
         """
-        from fnmatch import fnmatch
+        from commit_ai_guardian.diff_collector import _match_with_globstar
         basename = filename.split('/')[-1] if '/' in filename else filename
         for pattern in self.ignore_patterns:
-            if fnmatch(filename, pattern):
+            if _match_with_globstar(filename, pattern):
                 return True
-            if fnmatch(basename, pattern):
+            if _match_with_globstar(basename, pattern):
                 return True
         return False
     
