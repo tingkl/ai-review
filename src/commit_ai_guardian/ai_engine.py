@@ -1182,12 +1182,23 @@ class AIEngine:
         Returns:
             ReviewResult 审核结果
         """
+        filename = getattr(source_file, 'filename', 'unknown')
+        
+        # 检查 enabled 配置
+        if not getattr(self.config, 'enabled', True):
+            return ReviewResult(
+                filename=filename,
+                summary="AI 审核已禁用（enabled=false），跳过审核",
+                passed=True,  # 禁用时不阻断
+                raw_response="",
+            )
+        
         # 先检查 API Key（更友好的错误提示）
         if not getattr(self.config, 'api_key', None):
             return ReviewResult(
-                filename=getattr(source_file, 'filename', 'unknown'),
+                filename=filename,
                 summary="未配置 API Key，跳过审核",
-                passed=True,
+                passed=False,
                 raw_response="",
             )
         
