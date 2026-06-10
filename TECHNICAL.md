@@ -296,6 +296,39 @@ critical / error / warning / info
 
 默认模板内嵌在 `prompt_loader.py` 中，`install` 命令会把模板写入 `.ai-review/prompts/`。用户可以直接编辑这些文件来自定义审核行为，不需要改代码。
 
+### 8. System/User 角色分工
+
+API 调用时 messages 分为 system 和 user 两个 role，内容不能混放。
+
+**system message 只放规则约束：**
+- 角色定义（"你是代码审核专家"）
+- 输出格式规则（`<result>` 标签、JSON 结构）
+- `<think>` 长度限制和位置约束
+- JSON 自检清单（5 条检查项 + 常见错误示例）
+
+**user message 只放任务内容：**
+- 要审核的代码（`{{diff_content}}` 或 `{{content}}`）
+- 审核维度说明（Bug/安全/风格/性能/最佳实践/文档）
+- 空指针检测规则（具体业务规则，不是格式规则）
+- 案例参考（`{{cases_text}}`）
+- 严重级别定义
+
+**为什么这样分：**
+- 模型对 system 的注意力权重更高，格式约束放在这里遵守率更好
+- 代码内容每次都不同，放 user 中，避免 system 过长导致 KV cache 失效
+- 两边不重复——system 中的 JSON 格式约束不在 user 中重复，节省 token
+
+**user message 中的输出格式提示：**
+
+不需要再在 user 中写完整的 `<result>` 示例和 JSON 格式说明。只需一行引用：
+
+```
+## 输出要求
+输出格式规则已在 system message 中说明，此处不再重复。请严格遵守。
+```
+
+保留 `⚠️ JSON 自检` 作为最后提醒（双重保险）。
+
 ---
 
 ## 案例文件解析逻辑
