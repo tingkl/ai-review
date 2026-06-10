@@ -123,6 +123,9 @@ class PromptLoader:
     模板变量格式: {{variable_name}}
     """
     
+    # 类级别：记录已打印过的模板路径，并发时避免重复打印
+    _printed: set = set()
+    
     def __init__(self, repo_path: Optional[str] = None):
         """初始化
         
@@ -143,7 +146,7 @@ class PromptLoader:
     def _load_file(self, filename: str, default_content: str) -> str:
         """加载模板文件，找不到返回默认内容
         
-        加载成功时打印具体文件路径，使用内置默认时也打印提示。
+        加载成功时打印具体文件路径（每个路径只打印一次，并发安全）。
         
         Args:
             filename: 模板文件名（如 "diff_review.md"）
@@ -157,14 +160,24 @@ class PromptLoader:
             if file_path.exists():
                 try:
                     content = file_path.read_text(encoding='utf-8')
-                    print(f"[信息] 加载 prompt 模板: {file_path}")
+                    # 只打印一次（并发安全）
+                    path_str = str(file_path)
+                    if path_str not in PromptLoader._printed:
+                        PromptLoader._printed.add(path_str)
+                        print(f"[信息] 加载 prompt 模板: {file_path}")
                     return content
                 except Exception as e:
                     print(f"[警告] 读取模板 {file_path} 失败: {e}，使用内置默认")
             else:
-                print(f"[信息] 模板文件不存在: {file_path}，使用内置默认")
+                path_str = str(file_path)
+                if path_str not in PromptLoader._printed:
+                    PromptLoader._printed.add(path_str)
+                    print(f"[信息] 模板文件不存在: {file_path}，使用内置默认")
         else:
-            print(f"[信息] 未找到 .ai-review/prompts/，使用内置默认 {filename}")
+            msg = f"未找到 .ai-review/prompts/，使用内置默认 {filename}"
+            if msg not in PromptLoader._printed:
+                PromptLoader._printed.add(msg)
+                print(f"[信息] {msg}")
         
         return default_content
     
