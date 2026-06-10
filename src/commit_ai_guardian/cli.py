@@ -110,15 +110,11 @@ def audit(repo, output, config_path):
         # Step 2: 采集 diff（从 Git 暂存区获取变更内容）
         collector = DiffCollector(repo)
         
-        # 合并所有忽略模式（优先级从低到高）：
-        # 1. .gitignore 内容（自动读取）
-        # 2. 默认忽略 .ai-review/ 目录（工具自身目录）
-        # 3. 配置中的 ignore_patterns（用户自定义）
-        gitignore_patterns = DiffCollector.read_gitignore_patterns(repo)
-        all_ignore_patterns = gitignore_patterns + [".ai-review/*"] + config.ignore_patterns
+        # 合并忽略模式：默认 .ai-review/ 目录 + 用户配置
+        all_ignore_patterns = [".ai-review/*"] + config.ignore_patterns
         
         file_diffs = collector.get_staged_diffs(
-            ignore_patterns=all_ignore_patterns,   # 过滤掉 .gitignore + .ai-review/ + 配置中的模式
+            ignore_patterns=all_ignore_patterns,   # 过滤掉 .ai-review/ + 配置中的模式
             max_file_size=config.max_file_size       # 过滤掉超过 500KB 的文件
         )
         
@@ -209,14 +205,11 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
         # Step 3: 采集文件（从文件系统读取，不经过 Git）
         from .file_collector import FileCollector
         
-        # 合并所有忽略模式
-        search_path = file[0] if file else (dir[0] if dir else ".")
-        repo_path = _find_repo_path(search_path)
-        gitignore_patterns = DiffCollector.read_gitignore_patterns(repo_path or ".")
-        all_ignore_patterns = gitignore_patterns + [".ai-review/*"] + config.ignore_patterns
+        # 合并忽略模式：默认 .ai-review/ 目录 + 用户配置
+        all_ignore_patterns = [".ai-review/*"] + config.ignore_patterns
         
         collector = FileCollector(
-            ignore_patterns=all_ignore_patterns,   # 过滤 .gitignore + .ai-review/ + 配置
+            ignore_patterns=all_ignore_patterns,   # 过滤 .ai-review/ + 配置
             max_file_size=config.max_file_size       # 大小限制
         )
         

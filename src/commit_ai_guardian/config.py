@@ -35,10 +35,17 @@ class Config:
     diff_mode: str = "full"                  # diff 审核模式: full=完整文件, diff=只审变更
     max_file_size: int = 500                 # 最大文件大小（KB）
     ignore_patterns: List[str] = field(default_factory=lambda: [
-        "*.lock", "*.json", "*.md", "*.yaml", "*.yml",
-        "*.txt", "*.svg", "*.png", "*.jpg", "*.jpeg",
-        "*.gif", "*.ico", "*.woff", "*.woff2", "*.ttf",
-        "*.eot", "*.otf", "*.mp3", "*.mp4", "*.avi",
+        # 配置文件
+        "*.gitignore", "*.lock", "*.json", "*.yaml", "*.yml",
+        # 文档
+        "*.md", "*.txt",
+        # 图片
+        "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico",
+        # 字体
+        "*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf",
+        # 媒体
+        "*.mp3", "*.mp4", "*.avi",
+        # 文档/压缩包/二进制
         "*.pdf", "*.doc", "*.docx", "*.zip", "*.tar",
         "*.gz", "*.rar", "*.7z", "*.exe", "*.dll",
         "*.so", "*.dylib", "*.class", "*.jar", "*.war",
