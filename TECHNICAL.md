@@ -59,6 +59,105 @@ python -m commit_ai_guardian audit --repo <path>
              exit 1 → commit 阻断
 ```
 
+## Git Diff 采集详解
+
+### 使用的命令
+
+```bash
+git diff --cached --unified=5 --diff-filter=ACMRT
+```
+
+| 参数 | 含义 |
+|------|------|
+| `--cached` | 对比暂存区（staged）和 HEAD，获取已 `git add` 但未 commit 的变更 |
+| `--unified=5` | Unified diff 格式，显示变更前后各 5 行上下文 |
+| `--diff-filter=ACMRT` | 只包含 Added/Copied/Modified/Renamed/Type-changed 的文件，**排除 Deleted** |
+
+### 输出示例
+
+```
+diff --git a/src/auth.ts b/src/auth.ts
+index 3a4f2b..8c7e1d 100644
+--- a/src/auth.ts
++++ b/src/auth.ts
+@@ -10,7 +10,7 @@ import { UserService } from './user.service';
+  * 用户认证模块
+  */
+ export class AuthService {
+-  private timeout = 30000;
++  private timeout = 60000;
+
+   async login(username: string, password: string) {
+     const user = await this.userService.findOne(username);
+```
+
+### 解析流程
+
+```
+git diff --cached --unified=5 --diff-filter=ACMRT
+    │
+    ▼
+diff_output（完整的 unified diff 文本）
+    │
+    ├── _split_diff_by_file() → 按 "diff --git a/" 分割
+    │      得到: ["diff --git a/src/auth.ts...", "diff --git a/src/api.ts..."]
+    │
+    └── _parse_file_diff()（逐个文件解析）
+           │
+           ├── 文件名 → diff --git a/(...) b/(...)
+           │
+           ├── 状态 → added / modified / deleted / renamed
+           │
+           ├── 行号 → 从 @@ hunk 头解析
+           │      @@ -10,7 +10,7 @@  → 新文件从第 10 行开始
+           │      遍历 + 行 → 记录行号（这些是新增/修改的行）
+           │      遍历 - 行 → 跳过（删除的行不属于新文件）
+           │
+           └── 统计 → additions / deletions 计数
+           │
+           ▼
+    FileDiff(
+        filename="src/auth.ts",
+        status="modified",
+        diff_content="完整的 diff 文本",
+        line_numbers=[15],      ← 第 15 行是本次变更
+        additions=1,
+        deletions=1,
+    )
+```
+
+### 行号解析原理
+
+从 `@@` hunk 头提取起始行号，然后逐行遍历 hunk 内容：
+
+| 行前缀 | 处理 | 行号变化 |
+|--------|------|---------|
+| `+`（空格后） | 记录当前行号（**新增/修改的行**） | `current_line += 1` |
+| `-`（空格后） | 跳过（删除的行不属于新文件） | 不变 |
+| ` `（空格，上下文行） | 跳过 | `current_line += 1` |
+| `\` | 跳过（"No newline at end of file"） | 不变 |
+
+示例中的 `+  private timeout = 60000;` 对应新文件第 15 行，所以 `line_numbers = [15]`。
+
+### 传给 AI 的 diff_content
+
+原始 diff 文本经过 `_annotate_diff_with_line_numbers()` 加上行号前缀后发给 AI：
+
+```
+   1 | <template>
+   2 |   <!-- {{ proxy }} -->
+  15 |     :loading="loading"
+  16 |     popup-class-name="bus-remote-select"
++  99 | {{ this.$filter.PlatformLabel(option.platformId) }}
+```
+
+格式说明：
+- ` 145 | context line` — 上下文行，显示原文件行号
+- `+ 145 | +added line` — 新增行，显示新文件行号
+- `     | -deleted line` — 删除行，不显示行号
+
+AI 根据左侧行号返回 `line_number`，不受 prompt 前面说明文字的影响。
+
 ### review 命令（文件审核）
 
 ```
