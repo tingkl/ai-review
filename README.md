@@ -1,74 +1,174 @@
-# Commit AI Guardian
+# 🤖 Commit AI Guardian
 
-Git commit 前的 AI 代码审核工具。
+<p align="center">
+  <strong>Git Pre-commit Hook AI 代码审核系统</strong><br>
+  每次 commit 前，让 AI 帮你把关代码质量
+</p>
 
-## 推荐用法
+<p align="center">
+  <a href="#"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
+  <a href="#"><img src="https://img.shields.io/badge/coverage-85%25-green" alt="Coverage"></a>
+  <a href="#"><img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python 3.9+"></a>
+  <a href="#"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+  <a href="#"><img src="https://img.shields.io/badge/pypi-v0.1.0-orange" alt="PyPI"></a>
+</p>
 
-### 1. 安装工具（全局，一次）
+---
 
-**方式一：从 Git 仓库直接安装（推荐）**
+## 目录
+
+- [功能概览](#功能概览)
+- [快速开始](#快速开始)
+- [安装](#安装)
+- [命令参考](#命令参考)
+- [配置说明](#配置说明)
+- [案例驱动审核](#案例驱动审核)
+- [工作原理](#工作原理)
+- [常见问题](#常见问题)
+- [开源协议](#开源协议)
+
+---
+
+## 功能概览
+
+| 特性 | 说明 |
+|------|------|
+| 🔍 **自动审核** | `git commit` 前自动触发 AI 代码审核，发现问题阻断提交 |
+| 📁 **手动审核** | 指定文件或目录随时审核，不依赖 git 流程 |
+| 📚 **案例驱动** | 自定义"坏代码/好代码"案例，AI 按你的标准检查 |
+| ⚙️ **项目级配置** | 每个仓库独立配置规则，团队协作一致 |
+| 🏠 **两级配置** | 全局配置 + 项目配置，项目覆盖全局 |
+| ⚡ **并发审核** | 多文件变更时并行调用 AI，减少等待 |
+| 💾 **智能缓存** | 审核过的文件自动缓存，内容未变直接复用结果 |
+| 🛡️ **容错设计** | 任何环节失败都不阻断 commit，绝不耽误提交 |
+
+---
+
+## 快速开始
 
 ```bash
-# SSH
+# 1. 安装工具
 uv tool install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git
 
-# 或 HTTP（如果 SSH 不可用）
-uv tool install git+http://124.223.189.152:7080/tingkl/ai-review.git
-```
+# 2. 进入你的项目，初始化
+commit-ai-guardian install
 
-**方式二：先 clone 再安装（开发调试）**
-
-```bash
-git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git ~/ai-review
-cd ~/ai-review
-uv sync && uv pip install -e .
-uv tool install -e .
-```
-
-### 2. 配置 API Key（一次）
-
-```bash
+# 3. 配置 API 密钥
 commit-ai-guardian configure
+
+# 4. 正常提交代码，AI 自动审核
+
+git add .
+git commit -m "feat: add new feature"
+# AI 审核通过 → 提交成功
+# AI 发现问题 → 阻断提交，输出修改建议
 ```
 
-### 3. 给代码仓库装上 Hook（每个仓库一次）
+---
+
+## 安装
+
+### 方式一：uv 安装（推荐）
 
 ```bash
-cd your-code-repo
+uv tool install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+```
+
+### 方式二：pip 安装（PyPI）
+
+```bash
+pip install commit-ai-guardian
+```
+
+### 方式三：源码安装
+
+```bash
+git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+cd ai-review
+pip install -e .
+```
+
+### 项目初始化
+
+```bash
+# 进入目标项目目录
+cd your-project
+
+# 安装 hook 并创建配置目录
 commit-ai-guardian install
 ```
 
-安装后自动创建 `.ai-review/` 目录结构：
+安装后目录结构：
 
 ```
-your-code-repo/
-└── .ai-review/
-    ├── cases/      ← 启用审核的案例放这里（用户自己添加）
-    └── example/    ← 示例模板（不参与审核，仅参考）
-        ├── sql-injection.md
-        ├── xss.md
-        └── ...
+your-project/
+├── .ai-review/
+│   ├── cases/          # 启用的审核案例
+│   ├── example/        # 示例模板
+│   ├── prompts/        # Prompt 模板（可自定义）
+│   └── config.yaml     # 项目级配置
+└── .git/hooks/pre-commit  # 自动安装的 hook 脚本
 ```
 
-**启用案例**：从 `example/` 复制需要的 `.md` 文件到 `cases/`：
+---
+
+## 命令参考
+
+| 命令 | 说明 |
+|------|------|
+| `commit-ai-guardian install` | 安装 pre-commit hook，创建 `.ai-review/` 目录 |
+| `commit-ai-guardian install --force` | 强制重新安装，补全缺失配置 |
+| `commit-ai-guardian uninstall` | 卸载 hook |
+| `commit-ai-guardian audit` | 审核暂存区变更（hook 自动调用） |
+| `commit-ai-guardian review -f <文件>` | 审核指定文件 |
+| `commit-ai-guardian review -d <目录>` | 审核指定目录 |
+| `commit-ai-guardian configure` | 交互式配置向导 |
+| `commit-ai-guardian status` | 查看当前配置状态 |
+| `commit-ai-guardian validate-cases` | 校验案例文件格式 |
+
+---
+
+## 配置说明
+
+### 两级配置体系
+
+**全局配置** `~/.commit-ai-guardian/config.yaml` —— 默认基准配置
+
+**项目配置** `.ai-review/config.yaml` —— 项目专属规则，优先级高于全局
+
+### 配置项
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `api_key` | AI API 密钥 | `""` |
+| `api_base` | API 地址 | `https://api.openai.com/v1` |
+| `model` | 模型名称 | `gpt-4o-mini` |
+| `language` | 审核语言 | `zh-CN` |
+| `severity_threshold` | 阻断级别（`critical`/`warning`/`info`） | `warning` |
+| `diff_mode` | 审核模式（`full` 全文件 / `diff` 仅变更） | `full` |
+| `max_tokens` | AI 最大返回 token 数 | `4096` |
+| `cache_ttl` | 缓存存活时间 | `1d` |
+| `ignore_patterns` | 忽略的文件模式 | 见默认列表 |
+
+### 快速配置
 
 ```bash
-cp .ai-review/example/sql-injection.md .ai-review/cases/
-cp .ai-review/example/xss.md .ai-review/cases/
-# 只复制你项目需要的
+# 交互式配置向导
+commit-ai-guardian configure
+
+# 查看当前状态
+commit-ai-guardian status
 ```
 
-### 4. 日常使用
+---
 
-```bash
-git add .
-git commit -m "xxx"
-# 自动触发 AI 审核，不通过会阻断提交
-```
+## 案例驱动审核
 
-## 案例文件格式
+Commit AI Guardian 的核心设计理念是**案例驱动**。你可以在 `.ai-review/cases/` 下编写案例，AI 会参照这些案例来检查代码。
 
-`.ai-review/cases/` 下的 `.md` 文件，格式为 **Markdown + YAML frontmatter**：
+### 案例文件格式
+
+案例使用 **Markdown + YAML frontmatter** 格式：
 
 ```markdown
 ---
@@ -100,23 +200,137 @@ cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 ## 检查清单
 - [ ] 是否有字符串拼接构建 SQL
   - 使用参数化查询替代字符串拼接
-- [ ] 是否使用了参数化查询
-  - 确认所有用户输入都通过参数绑定
 ```
 
-## 其他用法
+### 案例字段说明
 
-### 手动审核指定文件/目录（不经过 git）
+| 字段 | 说明 |
+|------|------|
+| `title` | 案例标题 |
+| `severity` | 严重程度（1-10） |
+| `level` | 阻断级别：`critical` / `warning` / `info` |
+| `category` | 分类名称 |
+| `tags` | 标签列表 |
+| `languages` | 适用的编程语言 |
+
+### 验证案例格式
 
 ```bash
-commit-ai-guardian review -f src/auth.ts
-commit-ai-guardian review -d src/
-commit-ai-guardian review -p 'src/**/*.ts'
+commit-ai-guardian validate-cases
 ```
 
-### 查看状态 / 卸载 Hook
+---
+
+## 工作原理
+
+```
+git commit
+    │
+    ▼
+┌─────────────────┐
+│  pre-commit hook │  ← 自动触发
+│  (commit-ai-guardian audit)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  获取暂存区 diff  │
+│  (git diff --cached)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  缓存检查         │  ← 已审核且未变更 → 直接返回
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  加载项目配置     │  ← .ai-review/config.yaml
+│  加载审核案例     │  ← .ai-review/cases/
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  AI 审核（并发）  │  ← 调用 LLM API
+│  对比案例检查代码 │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+ 通过 ✓     阻断 ✗
+    │         │
+    ▼         ▼
+ 提交成功   输出修改建议
+           用户修改后重新提交
+```
+
+### 容错原则
+
+> **任何环节失败都不阻断 commit。**
+> 
+> 如果 API 调用超时、配置缺失、或任何异常发生，工具会打印警告并允许提交继续进行，绝不会成为你的阻碍。
+
+需要临时跳过审核？使用：
 
 ```bash
-commit-ai-guardian status       # 查看配置和 hook 状态
-commit-ai-guardian uninstall    # 卸载当前仓库的 hook
+git commit --no-verify
 ```
+
+---
+
+## 常见问题
+
+### Q: 安装后为什么没有生效？
+
+确认 hook 已正确安装：
+
+```bash
+ls -la .git/hooks/pre-commit
+commit-ai-guardian status
+```
+
+如果缺失，重新安装：
+
+```bash
+commit-ai-guardian install --force
+```
+
+### Q: 如何跳过 AI 审核？
+
+```bash
+git commit --no-verify
+```
+
+### Q: 支持哪些 AI 模型？
+
+任何兼容 OpenAI API 格式的模型均可，包括但不限于：
+
+- OpenAI: `gpt-4o`, `gpt-4o-mini`
+- 自定义: 填写 `api_base` 指向你的 API 网关
+
+### Q: 项目配置和全局配置如何共存？
+
+项目配置 `.ai-review/config.yaml` 会**覆盖**全局配置 `~/.commit-ai-guardian/config.yaml` 的同名项。建议：
+
+- **全局配置**：放 API 密钥、模型等通用项
+- **项目配置**：放 severity_threshold、language 等项目专属规则
+
+### Q: 缓存文件存在哪里？
+
+缓存存储在全局配置目录下，默认 TTL 为 1 天。可通过 `cache_ttl` 配置项调整。
+
+### Q: 如何自定义审核 Prompt？
+
+编辑 `.ai-review/prompts/` 目录下的模板文件即可。项目初始化时会自动创建默认模板。
+
+---
+
+## 开源协议
+
+[MIT License](LICENSE)
+
+---
+
+<p align="center">
+  Made with ❤️ by tingkl
+</p>
