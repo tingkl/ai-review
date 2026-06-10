@@ -236,29 +236,40 @@ class TestMultilineContent:
     """多行内容的处理"""
 
     def test_why_it_matters_multiline(self, loader):
-        """why_it_matters 多行 → 每行加前缀"""
+        """why_it_matters 多行 → 合并为一行用逗号分隔"""
         case = {
             "title": "测试",
             "level": "warning",
             "why_it_matters": "第一行原因\n第二行原因\n\n  \n",  # 含空行和空白
         }
         result = loader.format_cases_for_prompt([case])
-        assert "原因: 第一行原因" in result
-        assert "原因: 第二行原因" in result
-        # 空行和纯空白不应输出
-        lines = [l for l in result.split('\n') if l.strip()]
-        assert sum(1 for l in lines if l.startswith("原因:")) == 2
+        # 多行合并为一行，用逗号分隔
+        assert "原因: 第一行原因，第二行原因" in result
+        # 只出现一次"原因:"前缀
+        assert result.count("原因:") == 1
 
     def test_consequences_multiline(self, loader):
-        """consequences 多行 → 每行加前缀"""
+        """consequences 多行 → 合并为一行用逗号分隔"""
         case = {
             "title": "测试",
             "level": "warning",
             "consequences": "数据泄露\n系统崩溃",
         }
         result = loader.format_cases_for_prompt([case])
-        assert "后果: 数据泄露" in result
-        assert "后果: 系统崩溃" in result
+        assert "后果: 数据泄露，系统崩溃" in result
+        assert result.count("后果:") == 1
+
+    def test_consequences_markdown_list(self, loader):
+        """consequences 是 Markdown 列表（- 开头）→ 去掉标记后合并"""
+        case = {
+            "title": "测试",
+            "level": "warning",
+            "consequences": "- 数据泄露\n- 系统崩溃\n- 权限失控",
+        }
+        result = loader.format_cases_for_prompt([case])
+        assert "后果: 数据泄露，系统崩溃，权限失控" in result
+        # 不应保留 - 标记
+        assert "- 数据泄露" not in result
 
 
 # ==================== 特殊字符和边界值 ====================

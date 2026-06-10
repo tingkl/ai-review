@@ -258,6 +258,36 @@ class CaseLoader:
             return match.group(1).strip()
         return ""
     
+    @staticmethod
+    def _collapse_list(text: str) -> str:
+        """把 Markdown 列表文本合并为一行
+        
+        案例中的 why_it_matters / consequences 可能是多行列表：
+          - 数据泄露
+          - 数据被篡改
+        
+        转为结构化格式时合并为一行，用逗号分隔，避免重复前缀。
+        
+        Args:
+            text: 可能含 Markdown 列表的多行文本
+            
+        Returns:
+            合并后的单行文本
+        """
+        lines = []
+        for line in text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            # 去掉 Markdown 列表标记 '- ' 和 '* '
+            if line.startswith('- '):
+                line = line[2:]
+            elif line.startswith('* '):
+                line = line[2:]
+            if line:
+                lines.append(line)
+        return '，'.join(lines) if lines else text
+    
     def _extract_why_it_matters(self, body: str) -> str:
         """从 Markdown 正文中提取'为什么这是个问题'"""
         match = re.search(r'##\s*为什么这是个问题\s*\n(.+?)(?=\n##|\Z)', body, re.DOTALL)
@@ -332,18 +362,12 @@ class CaseLoader:
             # 原因
             why = case.get("why_it_matters", "")
             if why:
-                for line in why.split('\n'):
-                    line = line.strip()
-                    if line:
-                        lines.append(f"原因: {line}")
+                lines.append(f"原因: {self._collapse_list(why)}")
 
             # 后果
             consequences = case.get("consequences", "")
             if consequences:
-                for line in consequences.split('\n'):
-                    line = line.strip()
-                    if line:
-                        lines.append(f"后果: {line}")
+                lines.append(f"后果: {self._collapse_list(consequences)}")
 
             # 检查点
             for cp in case.get("check_points", []):
