@@ -685,8 +685,10 @@ class AIEngine:
             for idx in cache_hit_indices:
                 filename = getattr(file_diffs[idx], 'filename', 'unknown')
                 cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
-                md5_str = f"（MD5: {cache_key[:8]}...）" if cache_key else ""
-                print(f"[信息] 缓存命中: {filename}{md5_str}，跳过 AI 审核")
+                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                if cache_key:
+                    cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
+                    print(f"  💾 {cache_path}")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
         if cache_miss_indices:
@@ -1433,8 +1435,10 @@ class AIEngine:
             for idx in cache_hit_indices:
                 filename = getattr(source_files[idx], 'filename', 'unknown')
                 cache_key = self._get_cache_key_for_source(source_files[idx]) or ""
-                md5_str = f"（MD5: {cache_key[:8]}...）" if cache_key else ""
-                print(f"[信息] 缓存命中: {filename}{md5_str}，跳过 AI 审核")
+                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                if cache_key:
+                    cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
+                    print(f"  💾 {cache_path}")
         
         # ===== 第二阶段：并发调 AI =====
         if cache_miss_indices:

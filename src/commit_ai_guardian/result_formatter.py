@@ -8,6 +8,7 @@
 """
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, List
 
 from rich.console import Console, Group
@@ -95,9 +96,9 @@ class ResultFormatter:
         header.append(f"{status_icon} ", style="bold")
         header.append(f"{result.filename}", style="bold white underline")
         
-        # 缓存文件路径（方便点击跳转到 .ai-review/cache/{md5}.json）
+        # 缓存文件路径（绝对路径，VS Code 可点击跳转）
         if result.cache_md5:
-            cache_path = f".ai-review/cache/{result.cache_md5}.json"
+            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{result.cache_md5}.json"
             header.append(f"\n  💾 {cache_path}", style="dim cyan")
         
         if result.summary:
