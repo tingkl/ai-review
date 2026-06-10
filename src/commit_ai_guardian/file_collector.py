@@ -83,14 +83,18 @@ class FileCollector:
     """
     
     def __init__(self,
+                 include_patterns: Optional[List[str]] = None,
                  ignore_patterns: Optional[List[str]] = None,
                  max_file_size: int = 500):
         """初始化
         
         Args:
+            include_patterns: 要审核的模式列表（glob 格式），如 ["src/**", "app/**"]
+                              默认 ["*"] 表示审核所有
             ignore_patterns: 忽略模式列表（glob 格式），如 ["*.lock", "*.json"]
             max_file_size: 最大文件大小（KB），超过的文件会被跳过
         """
+        self.include_patterns = include_patterns or ["*"]
         self.ignore_patterns = ignore_patterns or []
         self.max_file_size = max_file_size * 1024  # KB → bytes
     
@@ -120,6 +124,10 @@ class FileCollector:
         
         if self._is_too_large(path):
             print(f"[跳过] 文件过大: {file_path}")
+            return None
+        
+        # 检查 include_patterns（不在白名单内的跳过）
+        if not self._matches_include_patterns(str(path)):
             return None
         
         if self._matches_ignore_patterns(str(path)):
@@ -280,6 +288,11 @@ class FileCollector:
             return path.stat().st_size > self.max_file_size
         except OSError:
             return True
+    
+    def _matches_include_patterns(self, filename: str) -> bool:
+        """检查是否匹配 include 模式（白名单）"""
+        from fnmatch import fnmatch
+        return any(fnmatch(filename, pattern) for pattern in self.include_patterns)
     
     def _matches_ignore_patterns(self, filename: str) -> bool:
         """检查是否匹配忽略模式"""

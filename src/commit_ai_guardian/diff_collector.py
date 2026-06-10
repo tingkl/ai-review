@@ -108,22 +108,27 @@ class DiffCollector:
         except InvalidGitRepositoryError:
             raise RuntimeError(f"'{repo_path}' 不是有效的 Git 仓库")
     
-    def get_staged_diffs(self, ignore_patterns: Optional[List[str]] = None,
+    def get_staged_diffs(self, include_patterns: Optional[List[str]] = None,
+                         ignore_patterns: Optional[List[str]] = None,
                          max_file_size: int = 500) -> List[FileDiff]:
         """获取暂存区（staged）的所有变更
         
         执行流程：
         1. git diff --cached --unified=5 --diff-filter=ACMRT
         2. 按文件拆分 diff
-        3. 逐个解析 + 多层过滤（二进制/大文件/忽略模式）
+        3. 逐个解析 + 多层过滤（include/二进制/大文件/忽略模式）
         
         Args:
+            include_patterns: 要审核的文件模式列表（glob 格式，如 ["src/**", "app/**"]）
+                             默认 ["*"] 表示审核所有
             ignore_patterns: 忽略的文件模式列表（glob 格式，如 ["*.lock", "*.json"]）
             max_file_size: 最大文件大小限制（KB），超过的文件跳过
             
         Returns:
             FileDiff 列表（可能为空，表示暂存区没有可审核的文件）
         """
+        if include_patterns is None:
+            include_patterns = ["*"]
         if ignore_patterns is None:
             ignore_patterns = []
         
@@ -148,6 +153,10 @@ class DiffCollector:
                 if self._is_binary_file(file_diff.filename):
                     continue
                 
+                # 检查 include 模式（不在白名单内的跳过）
+                if not self._matches_patterns(file_diff.filename, include_patterns):
+                    continue
+                
                 # 检查文件大小
                 file_path = self.repo_path / file_diff.filename
                 if file_path.exists():
@@ -156,7 +165,7 @@ class DiffCollector:
                         continue
                 
                 # 检查忽略模式
-                if self._matches_ignore_patterns(file_diff.filename, ignore_patterns):
+                if self._matches_patterns(file_diff.filename, ignore_patterns):
                     continue
                 
                 # 推断编程语言
@@ -318,9 +327,13 @@ class DiffCollector:
         
         return False
     
-    def _matches_ignore_patterns(self, filename: str, patterns: List[str]) -> bool:
+    def _matches_patterns(self, filename: str, patterns: List[str]) -> bool:
         """
-        检查文件名是否匹配忽略模式
+        检查文件名是否匹配任何 glob 模式
+        
+        同时用于 include_patterns 和 ignore_patterns：
+        - include: 不匹配任何模式 → 跳过
+        - ignore: 匹配任何模式 → 跳过
         
         Args:
             filename: 文件名
@@ -336,13 +349,15 @@ class DiffCollector:
         """获取仓库根目录路径"""
         return str(self.repo_path)
     
-def collect_staged_diffs(repo_path: str = ".", ignore_patterns: Optional[List[str]] = None,
+def collect_staged_diffs(repo_path: str = ".", include_patterns: Optional[List[str]] = None,
+                         ignore_patterns: Optional[List[str]] = None,
                          max_file_size: int = 500) -> List[FileDiff]:
     """
     便捷函数：获取暂存区 diff
     
     Args:
         repo_path: Git 仓库路径
+        include_patterns: 要审核的文件模式（glob）
         ignore_patterns: 忽略的文件模式
         max_file_size: 最大文件大小（KB）
         
@@ -350,4 +365,8 @@ def collect_staged_diffs(repo_path: str = ".", ignore_patterns: Optional[List[st
         FileDiff 列表
     """
     collector = DiffCollector(repo_path)
-    return collector.get_staged_diffs(ignore_patterns, max_file_size)
+    return collector.get_staged_diffs(
+        include_patterns=include_patterns,
+        ignore_patterns=ignore_patterns,
+        max_file_size=max_file_size
+    )

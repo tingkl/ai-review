@@ -119,8 +119,9 @@ def audit(repo, output, config_path):
         all_ignore_patterns = [".ai-review/*"] + config.ignore_patterns
         
         file_diffs = collector.get_staged_diffs(
-            ignore_patterns=all_ignore_patterns,   # 过滤掉 .ai-review/ + 配置中的模式
-            max_file_size=config.max_file_size       # 过滤掉超过 500KB 的文件
+            include_patterns=config.include_patterns,  # 只审核白名单内的文件/目录
+            ignore_patterns=all_ignore_patterns,       # 过滤掉 .ai-review/ + 配置中的模式
+            max_file_size=config.max_file_size         # 过滤掉超过 500KB 的文件
         )
         
         if not file_diffs:
@@ -219,8 +220,9 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
         all_ignore_patterns = [".ai-review/*"] + config.ignore_patterns
         
         collector = FileCollector(
-            ignore_patterns=all_ignore_patterns,   # 过滤 .ai-review/ + 配置
-            max_file_size=config.max_file_size       # 大小限制
+            include_patterns=config.include_patterns,  # 只审核白名单内的文件/目录
+            ignore_patterns=all_ignore_patterns,       # 过滤 .ai-review/ + 配置
+            max_file_size=config.max_file_size         # 大小限制
         )
         
         # collect() 支持三种来源同时采集，自动去重

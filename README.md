@@ -148,6 +148,7 @@ your-project/
 | `diff_mode` | 审核模式（`full` 全文件 / `diff` 仅变更） | `full` |
 | `max_tokens` | AI 最大返回 token 数 | `4096` |
 | `cache_ttl` | 缓存存活时间 | `1d` |
+| `include_patterns` | 指定要审核的目录/文件（glob 模式） | `["*"]` |
 | `ignore_patterns` | 忽略的文件模式 | 见默认列表 |
 
 ### 快速配置
@@ -158,6 +159,80 @@ commit-ai-guardian configure
 
 # 查看当前状态
 commit-ai-guardian status
+```
+
+---
+
+### 指定审核目录（include_patterns）
+
+默认情况下，工具会审核所有变更文件。你可以通过 `include_patterns` 配置**只审核指定目录或文件**，支持 glob 通配符语法。
+
+#### 在 `.ai-review/config.yaml` 中配置
+
+```yaml
+# 只审核 src/ 目录下的变更
+include_patterns:
+  - "src/**"
+
+# 只审核特定模块
+include_patterns:
+  - "src/core/**"
+  - "src/utils/**"
+
+# 只审核特定类型的文件
+include_patterns:
+  - "**/*.py"
+  - "**/*.js"
+
+# 审核多个指定目录
+include_patterns:
+  - "frontend/**"
+  - "backend/**"
+```
+
+#### 常用模式示例
+
+| 模式 | 说明 |
+|------|------|
+| `["*"]` | 审核所有文件（默认） |
+| `["src/**"]` | 只审核 `src/` 目录下所有文件 |
+| `["**/*.py"]` | 只审核所有 Python 文件 |
+| `["app/**", "lib/**"]` | 只审核 `app/` 和 `lib/` 两个目录 |
+| `["packages/*/src/**"]` | 审核 `packages/` 下各包的 `src/` 目录 |
+
+> **注意**：`include_patterns` 与 `ignore_patterns` 是**叠加关系**——先匹配 `include_patterns` 的目录，再排除 `ignore_patterns` 的内容。
+
+#### 典型场景
+
+**场景 1：前后端分离项目，只审核后端代码**
+
+```yaml
+# .ai-review/config.yaml
+include_patterns:
+  - "backend/**"
+  - "server/**"
+```
+
+**场景 2：Monorepo 项目，只审核指定包**
+
+```yaml
+# .ai-review/config.yaml
+include_patterns:
+  - "packages/core/**"
+  - "packages/shared/**"
+```
+
+**场景 3：混合项目，只审核源码目录**
+
+```yaml
+# .ai-review/config.yaml
+include_patterns:
+  - "src/**"
+  - "lib/**"
+ignore_patterns:
+  - "*.test.js"
+  - "*.spec.py"
+  - "**/__tests__/**"
 ```
 
 ---

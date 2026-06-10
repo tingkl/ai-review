@@ -35,6 +35,7 @@ class Config:
     diff_mode: str = "full"                  # diff 审核模式: full=完整文件, diff=只审变更
     max_file_size: int = 500                 # 最大文件大小（KB）
     cache_ttl: str = "1d"                    # 缓存存活时间（1d=1天, 12h=12小时, 30m=30分钟）
+    include_patterns: List[str] = field(default_factory=lambda: ["*"])
     ignore_patterns: List[str] = field(default_factory=lambda: [
         # 配置文件
         "*.gitignore", "*.lock", "*.json", "*.yaml", "*.yml",
