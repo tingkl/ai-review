@@ -113,7 +113,7 @@ class HookInstaller:
         print(f"[成功] pre-commit hook 已安装到: {self.hook_path}")
         
         # 安装 hook 时顺便初始化 .ai-review/ 案例目录
-        self._init_review_dir()
+        self._init_review_dir(force=force)
         
         return True
     
@@ -156,7 +156,7 @@ class HookInstaller:
             print(f"[错误] 卸载失败: {e}")
             return False
     
-    def _init_review_dir(self) -> bool:
+    def _init_review_dir(self, force: bool = False) -> bool:
         """在目标仓库初始化 .ai-review/ 项目配置目录（install 时自动调用）
         
         创建 .ai-review/cases/ 目录，并复制示例案例文件。
@@ -221,8 +221,10 @@ class HookInstaller:
             template_files = PromptLoader.get_default_template_files()
             for template_name, template_content in template_files.items():
                 template_path = prompts_dir / template_name
-                if not template_path.exists():
+                if not template_path.exists() or force:
                     template_path.write_text(template_content, encoding='utf-8')
+                    if force and template_path.exists():
+                        print(f"[信息] prompt 模板已更新: {template_name}")
             
             # 创建或补全项目配置文件 config.yaml
             self._ensure_config_file(review_dir / "config.yaml")
