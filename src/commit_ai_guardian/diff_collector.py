@@ -334,8 +334,9 @@ def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bo
     - src/**/*.py 能匹配 src/main.py（0层子目录）✅
     - src/**/*.py 能匹配 src/a/b/c/main.py（多层子目录）✅
     - **/*.py 能匹配 main.py（根目录）✅
+    - **/src/**/*.py 能匹配 mcn/src/main.py（** 在路径中间）✅
     
-    实现：把 ** 展开为 0~max_depth 层 */ 来逐一尝试 fnmatch。
+    实现：递归回溯，逐个处理每个 **，展开为 0~max_depth 层 */
     不含 ** 的模式直接 fallback 到标准 fnmatch。
     
     Args:
@@ -351,26 +352,24 @@ def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bo
     if '**' not in pattern:
         return fnmatch(filename, pattern)
     
-    # 按 ** 分割模式
-    parts = re.split(r'\*\*', pattern)
-    
-    if len(parts) != 2:
-        # 多个 ** 太复杂，fallback 到 fnmatch
+    # 递归处理：找到第一个 **，展开为 0~max_depth 层 */ 逐一尝试
+    match = re.search(r'\*\*', pattern)
+    if not match:
         return fnmatch(filename, pattern)
     
-    prefix = parts[0]
-    suffix = parts[1]
+    prefix = pattern[:match.start()]
+    suffix = pattern[match.end():]
     
-    # 展开 ** 为 0 层、1 层、2 层...递归目录
     for depth in range(max_depth + 1):
         if depth == 0:
-            # ** 匹配空（0层子目录），去掉 suffix 开头的 /
+            # ** 匹配空（0层目录）
             expanded = prefix + suffix.lstrip('/')
         else:
-            # ** 匹配 depth 层子目录
+            # ** 匹配 depth 层目录
             expanded = prefix + ('*/' * depth) + suffix.lstrip('/')
         
-        if fnmatch(filename, expanded):
+        # 递归：如果展开后还有 **，继续递归处理
+        if _match_with_globstar(filename, expanded):
             return True
     
     return False
