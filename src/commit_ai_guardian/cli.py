@@ -99,6 +99,11 @@ def audit(repo, output, config_path):
         config_manager = ConfigManager(config_path, repo_path=repo)
         config = config_manager.load()
         
+        # 检查 enabled 配置（false=禁用审核，直接跳过）
+        if not config.enabled:
+            click.echo("[信息] AI 审核已禁用（enabled=false），跳过审核")
+            sys.exit(0)  # 正常退出，不阻断
+        
         # 检查 API Key 是否已配置（没有这个就无法调用 AI）
         if not config.api_key:
             click.echo("❌ 未配置 API Key")
@@ -183,6 +188,11 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
         repo_path = _find_repo_path(search_path)
         config_manager = ConfigManager(config_path, repo_path=repo_path)
         config = config_manager.load()
+        
+        # 检查 enabled 配置（false=禁用审核，直接跳过）
+        if not config.enabled:
+            click.echo("[信息] AI 审核已禁用（enabled=false），跳过审核")
+            sys.exit(0)  # 正常退出，不阻断
         
         # 检查 API Key
         if not config.api_key:
