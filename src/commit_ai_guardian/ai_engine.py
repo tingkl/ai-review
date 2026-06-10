@@ -315,12 +315,88 @@ class AIEngine:
                 raw_response=str(e),
             )
     
+    def _get_cache_key_for_file(self, file_diff: Any) -> Optional[str]:
+        """计算文件的缓存 key（用于批量缓存检查）
+        
+        diff_mode=full 时用完整文件内容 MD5，diff 模式用 diff 内容 MD5。
+        不需要缓存的返回 None。
+        
+        Args:
+            file_diff: FileDiff 对象
+            
+        Returns:
+            MD5 字符串，或 None
+        """
+        filename = getattr(file_diff, 'filename', 'unknown')
+        diff_mode = getattr(self.config, 'diff_mode', 'full')
+        
+        if diff_mode == 'full':
+            full_content = _read_file_full_content(self.repo_path, filename)
+            if full_content:
+                return hashlib.md5(full_content.encode('utf-8')).hexdigest()
+            return None
+        else:
+            diff_content = getattr(file_diff, 'diff_content', '')
+            if diff_content:
+                return hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+            return None
+    
+    def _review_file_no_cache(self, file_diff: Any) -> ReviewResult:
+        """审核文件（不检查缓存，直接调 AI）
+        
+        供 review_batch 在第二阶段调用（只对未命中缓存的文件）。
+        
+        Args:
+            file_diff: FileDiff 对象
+            
+        Returns:
+            ReviewResult
+        """
+        filename = getattr(file_diff, 'filename', 'unknown')
+        diff_content = getattr(file_diff, 'diff_content', '')
+        diff_mode = getattr(self.config, 'diff_mode', 'full')
+        
+        # 构建 Prompt
+        if diff_mode == 'full':
+            full_content = _read_file_full_content(self.repo_path, filename)
+            if full_content:
+                prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff)
+                cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
+            else:
+                prompt = self._build_prompt(file_diff)
+                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+        else:
+            prompt = self._build_prompt(file_diff)
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+        
+        try:
+            response = self._call_api(prompt, filename=filename)
+            result = self._parse_response(response, filename)
+            # diff 模式下：把第一个变更行号赋给结果
+            line_numbers = getattr(file_diff, 'line_numbers', [])
+            if line_numbers:
+                result.first_line_number = line_numbers[0]
+            # 保存到缓存
+            self._save_cache(cache_key, result)
+            return result
+        except Exception as e:
+            print(f"[错误] 审核文件 {filename} 失败: {e}")
+            return ReviewResult(
+                filename=filename,
+                summary=f"审核失败: {str(e)}",
+                passed=True,
+                raw_response=str(e),
+            )
+    
     def review_batch(self, file_diffs: List[Any]) -> List[ReviewResult]:
         """
-        批量审核多个文件（并发执行）
+        批量审核多个文件（先检查缓存，再并发调 AI）
         
-        使用线程池并发调用 AI API，每个文件独立审核。
-        缓存命中的文件直接返回，不调 AI。
+        两阶段设计：
+        1. 先批量检查缓存 → 命中的直接打印并收集结果
+        2. 再对没命中的文件并发调 AI → 统一在 spinner 中执行
+        
+        这样缓存命中的打印不会和 AI 调用的日志交错。
         
         Args:
             file_diffs: FileDiff 对象列表
@@ -331,34 +407,55 @@ class AIEngine:
         if not file_diffs:
             return []
         
-        # 单文件直接串行（无需线程池开销）
+        # 单文件直接走原有逻辑
         if len(file_diffs) == 1:
             return [self.review_file(file_diffs[0])]
         
-        # 多文件用线程池并发
         results: List[Optional[ReviewResult]] = [None] * len(file_diffs)
         
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            # 提交所有任务
-            future_to_index = {
-                executor.submit(self.review_file, fd): i
-                for i, fd in enumerate(file_diffs)
-            }
-            
-            # 收集结果（保持原始顺序）
-            for future in as_completed(future_to_index):
-                idx = future_to_index[future]
-                try:
-                    results[idx] = future.result()
-                except Exception as e:
-                    filename = getattr(file_diffs[idx], 'filename', 'unknown')
-                    print(f"[错误] 审核文件 {filename} 并发执行失败: {e}")
-                    results[idx] = ReviewResult(
-                        filename=filename,
-                        summary=f"并发审核失败: {str(e)}",
-                        passed=True,
-                        raw_response=str(e),
-                    )
+        # ===== 第一阶段：批量检查缓存 =====
+        # 分离命中和未命中的文件索引
+        cache_hit_indices: List[int] = []
+        cache_miss_indices: List[int] = []
+        
+        for i, file_diff in enumerate(file_diffs):
+            cache_key = self._get_cache_key_for_file(file_diff)
+            if cache_key:
+                cached = self._check_cache(cache_key)
+                if cached:
+                    cached.filename = getattr(file_diff, 'filename', 'unknown')
+                    results[i] = cached
+                    cache_hit_indices.append(i)
+                    continue
+            cache_miss_indices.append(i)
+        
+        # 打印缓存命中信息（在 spinner 之前）
+        if cache_hit_indices:
+            for idx in cache_hit_indices:
+                filename = getattr(file_diffs[idx], 'filename', 'unknown')
+                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+        
+        # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
+        if cache_miss_indices:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_index = {
+                    executor.submit(self._review_file_no_cache, file_diffs[idx]): idx
+                    for idx in cache_miss_indices
+                }
+                
+                for future in as_completed(future_to_index):
+                    idx = future_to_index[future]
+                    try:
+                        results[idx] = future.result()
+                    except Exception as e:
+                        filename = getattr(file_diffs[idx], 'filename', 'unknown')
+                        print(f"[错误] 审核文件 {filename} 并发执行失败: {e}")
+                        results[idx] = ReviewResult(
+                            filename=filename,
+                            summary=f"并发审核失败: {str(e)}",
+                            passed=True,
+                            raw_response=str(e),
+                        )
         
         return results
     
@@ -976,11 +1073,57 @@ class AIEngine:
                 raw_response=str(e),
             )
     
+    def _get_cache_key_for_source(self, source_file: Any) -> Optional[str]:
+        """计算 SourceFile 的缓存 key
+        
+        Args:
+            source_file: SourceFile 对象
+            
+        Returns:
+            MD5 字符串，或 None
+        """
+        content = getattr(source_file, 'content', '')
+        if content:
+            return hashlib.md5(content.encode('utf-8')).hexdigest()
+        return None
+    
+    def _review_source_no_cache(self, source_file: Any) -> ReviewResult:
+        """审核完整文件（不检查缓存，直接调 AI）
+        
+        供 review_source_batch 在第二阶段调用。
+        
+        Args:
+            source_file: SourceFile 对象
+            
+        Returns:
+            ReviewResult
+        """
+        filename = getattr(source_file, 'filename', 'unknown')
+        content = getattr(source_file, 'content', '')
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()
+        
+        try:
+            prompt = self._build_full_file_prompt(source_file)
+            response = self._call_api(prompt, filename=filename)
+            result = self._parse_response(response, filename)
+            self._save_cache(cache_key, result)
+            return result
+        except Exception as e:
+            print(f"[错误] 审核文件 {filename} 失败: {e}")
+            return ReviewResult(
+                filename=filename,
+                summary=f"审核失败: {str(e)}",
+                passed=True,
+                raw_response=str(e),
+            )
+    
     def review_source_batch(self, source_files: List[Any]) -> List[ReviewResult]:
         """
-        批量审核完整文件（并发执行）
+        批量审核完整文件（先检查缓存，再并发调 AI）
         
-        使用线程池并发调用 AI API，每个文件独立审核。
+        两阶段设计：
+        1. 先批量检查缓存 → 命中的直接打印并收集结果
+        2. 再对没命中的文件并发调 AI
         
         Args:
             source_files: SourceFile 对象列表
@@ -996,25 +1139,48 @@ class AIEngine:
         
         results: List[Optional[ReviewResult]] = [None] * len(source_files)
         
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            future_to_index = {
-                executor.submit(self.review_source, sf): i
-                for i, sf in enumerate(source_files)
-            }
-            
-            for future in as_completed(future_to_index):
-                idx = future_to_index[future]
-                try:
-                    results[idx] = future.result()
-                except Exception as e:
-                    filename = getattr(source_files[idx], 'filename', 'unknown')
-                    print(f"[错误] 审核文件 {filename} 并发执行失败: {e}")
-                    results[idx] = ReviewResult(
-                        filename=filename,
-                        summary=f"并发审核失败: {str(e)}",
-                        passed=True,
-                        raw_response=str(e),
-                    )
+        # ===== 第一阶段：批量检查缓存 =====
+        cache_hit_indices: List[int] = []
+        cache_miss_indices: List[int] = []
+        
+        for i, source_file in enumerate(source_files):
+            cache_key = self._get_cache_key_for_source(source_file)
+            if cache_key:
+                cached = self._check_cache(cache_key)
+                if cached:
+                    cached.filename = getattr(source_file, 'filename', 'unknown')
+                    results[i] = cached
+                    cache_hit_indices.append(i)
+                    continue
+            cache_miss_indices.append(i)
+        
+        # 打印缓存命中信息
+        if cache_hit_indices:
+            for idx in cache_hit_indices:
+                filename = getattr(source_files[idx], 'filename', 'unknown')
+                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+        
+        # ===== 第二阶段：并发调 AI =====
+        if cache_miss_indices:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_index = {
+                    executor.submit(self._review_source_no_cache, source_files[idx]): idx
+                    for idx in cache_miss_indices
+                }
+                
+                for future in as_completed(future_to_index):
+                    idx = future_to_index[future]
+                    try:
+                        results[idx] = future.result()
+                    except Exception as e:
+                        filename = getattr(source_files[idx], 'filename', 'unknown')
+                        print(f"[错误] 审核文件 {filename} 并发执行失败: {e}")
+                        results[idx] = ReviewResult(
+                            filename=filename,
+                            summary=f"并发审核失败: {str(e)}",
+                            passed=True,
+                            raw_response=str(e),
+                        )
         
         return results
     
