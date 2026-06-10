@@ -179,6 +179,7 @@ class ReviewResult:
     passed: bool = True
     raw_response: str = ""
     first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号（文件名头显示用）
+    cache_key: str = ""  # 缓存 MD5，用于文件名头显示
 
 
 class AIEngine:
@@ -284,6 +285,7 @@ class AIEngine:
         cached = self._check_cache(cache_key)
         if cached:
             cached.filename = filename
+            cached.cache_key = cache_key
             print(f"[信息] 缓存命中: {filename}（MD5: {cache_key[:8]}...），跳过 AI 审核")
             return cached
         
@@ -302,6 +304,7 @@ class AIEngine:
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
+            result.cache_key = cache_key
             # 审核成功，保存到缓存
             self._save_cache(cache_key, result)
             return result
@@ -1048,13 +1051,12 @@ class AIEngine:
                 data = _try_parse_json(brace_match.group(0))
         
         if data is None:
-            md5_str = f"[MD5: {cache_key[:8]}...] " if cache_key else ""
-            result.summary = f"JSON 解析失败 {md5_str}"
+            result.summary = "JSON 解析失败"
             result.passed = True
             # 把失败的响应追加到 debug.log 方便排查
             self._write_debug_log(
                 f"{filename}.PARSE_ERROR",
-                f"AI 返回的内容无法解析为 JSON {md5_str}:\n\n{response}\n\n提示: 请检查 prompt 模板是否正确要求 JSON 输出，或调大 max_tokens",
+                f"AI 返回的内容无法解析为 JSON:\n\n{response}\n\n提示: 请检查 prompt 模板是否正确要求 JSON 输出，或调大 max_tokens",
                 append=True
             )
             return result
@@ -1117,6 +1119,7 @@ class AIEngine:
         cached = self._check_cache(content_md5)
         if cached:
             cached.filename = filename
+            cached.cache_key = content_md5
             print(f"[信息] 缓存命中: {filename}（MD5: {content_md5[:8]}...），跳过 AI 审核")
             return cached
         
@@ -1125,6 +1128,7 @@ class AIEngine:
         try:
             response = self._call_api(prompt, filename=filename)
             result = self._parse_response(response, filename, cache_key=content_md5)
+            result.cache_key = content_md5
             # 审核成功，保存到缓存
             self._save_cache(content_md5, result)
             return result

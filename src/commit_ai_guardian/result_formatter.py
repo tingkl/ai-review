@@ -98,7 +98,9 @@ class ResultFormatter:
             line_num = result.issues[0].line_number
         else:
             line_num = result.first_line_number or 1
-        header.append(f"{result.filename}:{line_num}", style="bold white underline")
+        # 文件名:行号 [MD5: abc123...]
+        md5_str = f" [{result.cache_key[:8]}...]" if result.cache_key else ""
+        header.append(f"{result.filename}:{line_num}{md5_str}", style="bold white underline")
         if result.summary:
             header.append(f"\n{result.summary}", style="dim")
         
