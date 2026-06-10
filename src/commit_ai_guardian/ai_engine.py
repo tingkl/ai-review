@@ -1215,9 +1215,11 @@ class AIEngine:
                 raw_content = response.choices[0].message.content or ""
                 
                 # 检测 AI 响应是否可能被截断（JSON 不完整）
-                # <result> 模式下以 }</result> 结尾，旧格式以 } 结尾，两者都是完整的
+                # 完整标志：1) 包含 <result>...</result> 标签对  2) 旧格式以 } 结尾
                 stripped = raw_content.strip()
-                if stripped and not (stripped.endswith('}') or stripped.endswith('</result>')):
+                has_complete_result = re.search(r'<result>.*?</result>', stripped, re.DOTALL) is not None
+                is_complete = has_complete_result or stripped.endswith('}')
+                if stripped and not is_complete:
                     current_max = getattr(self.config, 'max_tokens', 4096)
                     print(f"\n⚠️  AI 返回内容可能被截断（文件: {filename}，当前 max_tokens={current_max}）")
                     print(f"    建议: 运行 'commit-ai-guardian configure' 增加 max_tokens 值")
