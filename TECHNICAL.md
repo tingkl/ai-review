@@ -391,16 +391,23 @@ git commit --no-verify -m "xxx"   # 绕过 AI 审核，直接提交
 - `APIError` — 服务端错误
 - 其他异常 — 网络断开等
 
-### 容错原则
+### 阻断原则
 
 ```
-任何环节失败 → 返回 passed=True → 不阻断 commit
+审核发现问题或系统异常 → 返回 passed=False → 阻断 commit
 
-具体场景：
-  - API Key 未配置 → passed=True, "未配置 API Key"
-  - 客户端初始化失败 → passed=True, "客户端未初始化"
-  - API 调用失败 → passed=True, "审核失败: ..."
-  - JSON 解析失败 → passed=True, "解析失败"
+阻断场景：
+  - AI 发现 severity >= threshold 的问题 → 阻断
+  - API Key 未配置 → 阻断（exit 2）
+  - API 调用失败 → passed=False → 阻断
+  - JSON 解析失败 → passed=False → 阻断
+  - 客户端初始化失败 → passed=False → 阻断
+  - 运行时异常 → 阻断
+
+不阻断场景：
+  - enabled=false（用户主动禁用）→ exit 0
+  - 暂存区没有变更文件 → exit 0
+  - 全部文件审核通过 → exit 0
 ```
 
 ## 配置文件
