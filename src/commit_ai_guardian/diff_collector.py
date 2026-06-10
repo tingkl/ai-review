@@ -330,11 +330,11 @@ class DiffCollector:
 def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bool:
     """支持 ** 递归目录匹配的 glob（兼容 fnmatch）
     
-    Python fnmatch 的 ** 不是递归匹配（等于 * + *），本函数修复此问题：
-    - src/**/*.py 能匹配 src/main.py（0层子目录）✅
-    - src/**/*.py 能匹配 src/a/b/c/main.py（多层子目录）✅
-    - **/*.py 能匹配 main.py（根目录）✅
-    - **/src/**/*.py 能匹配 mcn/src/main.py（** 在路径中间）✅
+    修复 Python fnmatch 的 ** 不一致行为：
+    - deprecated/** → deprecated/old.py ✅, deprecated/sub/a.py ✅
+    - src/**/*.py → src/main.py ✅ (0层), src/a/b/main.py ✅
+    - **/*.py → main.py ✅ (根目录), a/b/c/main.py ✅
+    - **/deprecated/** → src/deprecated/x.py ✅ (中间目录)
     
     实现：递归回溯，逐个处理每个 **，展开为 0~max_depth 层 */
     不含 ** 的模式直接 fallback 到标准 fnmatch。
@@ -352,7 +352,6 @@ def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bo
     if '**' not in pattern:
         return fnmatch(filename, pattern)
     
-    # 递归处理：找到第一个 **，展开为 0~max_depth 层 */ 逐一尝试
     match = re.search(r'\*\*', pattern)
     if not match:
         return fnmatch(filename, pattern)
@@ -362,13 +361,24 @@ def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bo
     
     for depth in range(max_depth + 1):
         if depth == 0:
-            # ** 匹配空（0层目录）
+            if not suffix:
+                # ** 在末尾（如 deprecated/**），depth=0 尝试匹配 prefix 本身
+                expanded = prefix.rstrip('/')
+                if fnmatch(filename, expanded):
+                    return True
+                continue
             expanded = prefix + suffix.lstrip('/')
         else:
-            # ** 匹配 depth 层目录
-            expanded = prefix + ('*/' * depth) + suffix.lstrip('/')
+            if not suffix:
+                # ** 在末尾（如 deprecated/**）: */*, */*/*, ...
+                if depth == 1:
+                    expanded = prefix.rstrip('/') + '/*'
+                else:
+                    expanded = prefix.rstrip('/') + ('/*/' * (depth - 1)) + '*'
+            else:
+                # ** 在中间（如 src/**/*.py, **/src/**/*.py）
+                expanded = prefix + ('*/' * depth) + suffix.lstrip('/')
         
-        # 递归：如果展开后还有 **，继续递归处理
         if _match_with_globstar(filename, expanded):
             return True
     
