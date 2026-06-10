@@ -266,6 +266,13 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.passed = False
         return result
 
+    # 预处理：修复 line_number 的范围格式
+    # AI 可能返回 "80,81" 或 "80-81"，这不是合法 JSON 值
+    # "line_number":80,81 → "line_number":80   （逗号分隔取第一个）
+    # "line_number":"80-81" → "line_number":80 （字符串横线分隔取第一个）
+    json_str = re.sub(r'"line_number"\s*:\s*(\d+)\s*,\s*\d+', r'"line_number": \1', json_str)
+    json_str = re.sub(r'"line_number"\s*:\s*"(\d+)[\-\s,]+\d*"', r'"line_number": \1', json_str)
+
     # 策略 4：正常 JSON 解析（含多种修复尝试）
     data = _try_parse_json(json_str)
 
