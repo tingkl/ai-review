@@ -73,8 +73,9 @@ class Config:
             self.timeout = 60
         if self.max_tokens < 256:
             self.max_tokens = 4096
-        if self.max_tokens > 8192:
-            self.max_tokens = 8192
+        # 上限 128K，覆盖所有主流模型（GPT-4o 16K、Claude 128K 等）
+        if self.max_tokens > 131072:
+            self.max_tokens = 131072
     
     def merge(self, other: 'Config') -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置
@@ -108,6 +109,9 @@ def _parse_token_size(value: str) -> int:
     支持的格式:
         "4K" → 4096
         "8k" → 8192
+        "16k" → 16384
+        "64k" → 65536
+        "128k" → 131072
         "4096" → 4096
         "1.5k" → 1536
     
