@@ -1126,7 +1126,7 @@ class AIEngine:
         
         if not json_str:
             result.summary = "无法从响应中解析 JSON"
-            result.passed = True
+            result.passed = False  # ← 解析失败标记为未通过，让用户知道出问题了
             print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
             return result
         
@@ -1135,7 +1135,7 @@ class AIEngine:
         
         if data is None:
             result.summary = "JSON 解析失败"
-            result.passed = True
+            result.passed = False  # ← 解析失败标记为未通过
             print(f"\n⚠️  JSON 解析失败，完整响应见 .ai-review/logs/{filename.replace('/', '_')}.ai.log")
             print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
             return result
