@@ -90,9 +90,11 @@ class Config:
         result_dict = asdict(self)
         other_dict = asdict(other)
         
-        # other 中非空的字段覆盖 result
+        # other 中非"未配置"的字段覆盖 result
+        # 未配置 = None / "" / []
+        # 注意：False 和 0 是有效配置（如 enabled=false），不能跳过
         for key, value in other_dict.items():
-            if value:  # 非空字符串、非空列表、非 False
+            if value is not None and value != "" and value != []:
                 result_dict[key] = value
         
         return Config(**result_dict)
