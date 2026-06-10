@@ -166,74 +166,97 @@ commit-ai-guardian status
 
 ### 指定审核目录（include_patterns）
 
-默认情况下，工具会审核所有变更文件。你可以通过 `include_patterns` 配置**只审核指定目录或文件**，支持 glob 通配符语法。
+默认审核所有变更文件。通过 `include_patterns` 配置**只审核指定目录或文件类型**，支持 glob 通配符（含 `**` 递归匹配）。
 
-#### 在 `.ai-review/config.yaml` 中配置
+#### 通配符说明
+
+| 通配符 | 含义 | 示例 |
+|--------|------|------|
+| `*` | 匹配任意字符（不含 `/`） | `*.py` 匹配 `main.py` |
+| `**` | 递归匹配任意层目录（含 0 层） | `src/**/*.py` 匹配 `src/main.py` 和 `src/a/b/main.py` |
+| `?` | 匹配单个字符 | `test_?.py` 匹配 `test_a.py` |
+
+> **重要**：`**` 是递归匹配，可以跨任意层目录。`src/**/*.py` 匹配 `src/` 下所有 `.py` 文件，但不会匹配 `mcn/src/main.py`（要求以 `src/` 开头）。要匹配任意位置的 `src/`，用 `**/src/**/*.py`。
+
+#### 配置示例
 
 ```yaml
-# 只审核 src/ 目录下的变更
-include_patterns:
-  - "src/**"
+# .ai-review/config.yaml
 
-# 只审核特定模块
+# 只审核 src/ 下的 Python 文件（含子目录）
 include_patterns:
-  - "src/core/**"
-  - "src/utils/**"
+  - "src/**/*.py"
 
-# 只审核特定类型的文件
+# 审核 src/ 下一级子目录的 Python 文件（不含孙目录）
+include_patterns:
+  - "src/*/*.py"
+
+# 审核多个后缀
 include_patterns:
   - "**/*.py"
   - "**/*.js"
+  - "**/*.vue"
 
 # 审核多个指定目录
 include_patterns:
   - "frontend/**"
   - "backend/**"
+
+# 匹配任意位置的 src/ 目录（如 mcn/src/、packages/core/src/）
+include_patterns:
+  - "**/src/**/*.py"
 ```
 
-#### 常用模式示例
+#### include_patterns + ignore_patterns 配合使用
 
-| 模式 | 说明 |
-|------|------|
-| `["*"]` | 审核所有文件（默认） |
-| `["src/**"]` | 只审核 `src/` 目录下所有文件 |
-| `["**/*.py"]` | 只审核所有 Python 文件 |
-| `["app/**", "lib/**"]` | 只审核 `app/` 和 `lib/` 两个目录 |
-| `["packages/*/src/**"]` | 审核 `packages/` 下各包的 `src/` 目录 |
-
-> **注意**：`include_patterns` 与 `ignore_patterns` 是**叠加关系**——先匹配 `include_patterns` 的目录，再排除 `ignore_patterns` 的内容。
-
-#### 典型场景
-
-**场景 1：前后端分离项目，只审核后端代码**
+两者是**叠加关系**：先匹配 `include_patterns` 的白名单，再排除 `ignore_patterns` 的内容。
 
 ```yaml
 # .ai-review/config.yaml
+# 审核 src/ 下的 Python 文件，但排除测试和废弃代码
+include_patterns:
+  - "src/**/*.py"
+ignore_patterns:
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/deprecated/**"
+  - "**/__pycache__/**"
+```
+
+#### 典型场景
+
+**场景 1：前后端分离，只审核后端**
+
+```yaml
 include_patterns:
   - "backend/**"
   - "server/**"
 ```
 
-**场景 2：Monorepo 项目，只审核指定包**
+**场景 2：Monorepo，只审核指定包**
 
 ```yaml
-# .ai-review/config.yaml
 include_patterns:
   - "packages/core/**"
   - "packages/shared/**"
 ```
 
-**场景 3：混合项目，只审核源码目录**
+**场景 3：按技术栈分类审核**
 
 ```yaml
-# .ai-review/config.yaml
+# Python 项目
 include_patterns:
-  - "src/**"
-  - "lib/**"
-ignore_patterns:
-  - "*.test.js"
-  - "*.spec.py"
-  - "**/__tests__/**"
+  - "**/*.py"
+
+# Vue 前端项目
+include_patterns:
+  - "src/**/*.vue"
+  - "src/**/*.js"
+  - "src/**/*.ts"
+
+# Java 后端项目
+include_patterns:
+  - "src/main/**/*.java"
 ```
 
 ---
