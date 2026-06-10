@@ -104,6 +104,29 @@ def _try_parse_json(json_str: str) -> Optional[Dict]:
     return None
 
 
+def _read_file_full_content(repo_path: str, filename: str) -> str:
+    """读取文件的完整内容（diff_mode=full 时使用）
+    
+    从 repo_path 下读取文件的当前版本内容。
+    文件不存在或读取失败返回空字符串。
+    
+    Args:
+        repo_path: 仓库根目录路径
+        filename: 文件相对路径（如 src/main.py）
+        
+    Returns:
+        文件完整内容字符串
+    """
+    if not repo_path:
+        return ""
+    
+    file_path = Path(repo_path) / filename
+    try:
+        return file_path.read_text(encoding='utf-8')
+    except Exception:
+        return ""
+
+
 def _build_cases_check_instruction() -> str:
     """构建案例检查指令 — 要求 AI 逐条对照检查清单
     
@@ -244,16 +267,32 @@ class AIEngine:
         filename = getattr(file_diff, 'filename', 'unknown')
         diff_content = getattr(file_diff, 'diff_content', '')
         
-        # 检查缓存：用 diff_content 的 MD5 做 key
-        content_md5 = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
-        cached = self._check_cache(content_md5)
+        # 根据 diff_mode 决定审核策略
+        diff_mode = getattr(self.config, 'diff_mode', 'full')
+        
+        # 检查缓存
+        if diff_mode == 'full':
+            # full 模式：用完整文件内容做缓存 key
+            full_content = _read_file_full_content(self.repo_path, filename)
+            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
+        else:
+            # diff 模式：用 diff 内容做缓存 key
+            full_content = ""
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+        
+        cached = self._check_cache(cache_key)
         if cached:
-            cached.filename = filename  # 更新文件名（可能相同内容不同文件名）
-            print(f"[信息] 缓存命中: {filename}（diff MD5: {content_md5[:8]}...），跳过 AI 审核")
+            cached.filename = filename
+            print(f"[信息] 缓存命中: {filename}（diff_mode={diff_mode}），跳过 AI 审核")
             return cached
         
-        # 构建 Prompt 并调用 AI
-        prompt = self._build_prompt(file_diff)
+        # 构建 Prompt：根据 diff_mode 选择策略
+        if diff_mode == 'full' and full_content:
+            # full 模式：审核完整文件内容，但标注变更部分
+            prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff)
+        else:
+            # diff 模式：只审核变更内容
+            prompt = self._build_prompt(file_diff)
         
         try:
             response = self._call_api(prompt, filename=filename)
@@ -263,7 +302,7 @@ class AIEngine:
             if line_numbers:
                 result.first_line_number = line_numbers[0]
             # 审核成功，保存到缓存
-            self._save_cache(content_md5, result)
+            self._save_cache(cache_key, result)
             return result
         except Exception as e:
             # 任何异常都返回降级结果，不阻断用户
@@ -377,6 +416,78 @@ class AIEngine:
         for i, line in enumerate(lines, 1):
             result.append(f"{i:4d} | {line}")
         return '\n'.join(result)
+    
+    def _build_full_file_prompt_for_diff(self, filename: str, full_content: str,
+                                          diff_content: str, file_diff: Any) -> str:
+        """构建 full 模式的 diff 审核 prompt（审核完整文件，标注变更部分）
+        
+        diff_mode=full 时使用。给 AI 看完整文件内容（带行号），
+        并在开头说明哪些行号是本次变更的，让 AI 重点检查。
+        
+        Args:
+            filename: 文件名
+            full_content: 文件完整内容
+            diff_content: diff 文本（用于提取变更行号）
+            file_diff: FileDiff 对象
+            
+        Returns:
+            完整的 prompt 字符串
+        """
+        language = getattr(file_diff, 'language', 'unknown')
+        
+        # 截断过长的文件
+        max_content_length = 8000
+        truncated = False
+        if len(full_content) > max_content_length:
+            full_content = full_content[:max_content_length]
+            truncated = True
+        
+        # 给完整文件加行号
+        annotated_content = self._annotate_content_with_line_numbers(full_content)
+        
+        # 提取变更行号列表
+        line_numbers = getattr(file_diff, 'line_numbers', [])
+        change_lines_str = ", ".join(str(n) for n in line_numbers[:20])
+        if len(line_numbers) > 20:
+            change_lines_str += f" 等共 {len(line_numbers)} 行"
+        
+        language_display = {
+            'python': 'Python', 'javascript': 'JavaScript', 'typescript': 'TypeScript',
+            'java': 'Java', 'go': 'Go', 'rust': 'Rust', 'cpp': 'C++',
+            'c': 'C', 'csharp': 'C#', 'ruby': 'Ruby', 'php': 'PHP',
+        }.get(language, language)
+        
+        # 加载案例
+        cases = self.case_loader.get_cases_for_language(language)
+        cases_text = self.case_loader.format_cases_for_prompt(cases)
+        
+        # 加载模板
+        template = self.prompt_loader.load_diff_review_template()
+        prompt = template.replace("{{filename}}", filename)
+        prompt = prompt.replace("{{language}}", language)
+        prompt = prompt.replace("{{language_display}}", language_display)
+        prompt = prompt.replace("{{status}}", getattr(file_diff, 'status', 'modified'))
+        prompt = prompt.replace("{{diff_content}}", annotated_content)
+        prompt = prompt.replace("{{cases_text}}", cases_text)
+        
+        # 变更行号说明
+        change_note = f"""
+## 本次变更的行号（重点检查这些行）
+{change_lines_str}
+
+注意：
+- 以上是文件的完整内容（带行号），请对整个文件进行全面审核
+- **重点关注行号 {change_lines_str} 的变更部分**，检查是否引入了新问题
+- 也要检查变更对周围代码的影响（如变量作用域、接口兼容性等）
+"""
+        cases_instruction = _build_cases_check_instruction() if cases_text else "- 按通用审核维度进行检查"
+        prompt = prompt.replace("{{cases_note}}", cases_instruction + "\n" + change_note)
+        
+        if truncated:
+            prompt += f"\n- 注意: 文件内容已截断（超过 8000 字符），只审核前 {max_content_length} 字符\n"
+        
+        self._write_debug_log(filename, prompt)
+        return prompt
     
     def _build_prompt(self, file_diff: Any) -> str:
         """

@@ -284,6 +284,13 @@ def configure(config_path):
         type=click.Choice(["info", "warning", "error", "critical"], case_sensitive=False)
     )
     
+    # Diff Mode
+    config.diff_mode = click.prompt(
+        "请输入 diff 审核模式 (full=完整文件, diff=只审变更)",
+        default=config.diff_mode,
+        type=click.Choice(["full", "diff"], case_sensitive=False)
+    )
+    
     # Max File Size
     config.max_file_size = click.prompt("请输入最大审核文件大小 (KB)", default=config.max_file_size, type=int)
     
@@ -331,6 +338,7 @@ def status(repo):
         click.echo(f"  - Model: {config.model}")
         click.echo(f"  - Language: {config.language}")
         click.echo(f"  - Severity Threshold: {config.severity_threshold}")
+        click.echo(f"  - Diff Mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Max Tokens: {config.max_tokens}")

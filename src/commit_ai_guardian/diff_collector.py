@@ -33,6 +33,7 @@ class FileDiff:
     additions: int = 0       # 新增行数（用于统计展示）
     deletions: int = 0       # 删除行数（用于统计展示）
     diff_content: str = ""   # 完整 diff 文本（含上下文，传给 AI 审核）
+    full_content: str = ""   # 文件的完整内容（diff_mode=full 时使用）
     language: str = ""       # 编程语言（从扩展名推断，用于 prompt 中的代码高亮）
     line_numbers: List[int] = field(default_factory=list)  # 变更涉及的行号（AI 指出问题时用）
 

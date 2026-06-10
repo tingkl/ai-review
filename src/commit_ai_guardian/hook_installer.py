@@ -233,6 +233,7 @@ class HookInstaller:
         'model': ('""', '模型名称'),
         'language': ('""', '审核报告语言 (zh-CN/en)'),
         'severity_threshold': ('""', '阻断级别 (info/warning/error/critical)'),
+        'diff_mode': ('""', 'diff 审核模式: full=完整文件(默认), diff=只审变更'),
         'max_file_size': ('0', '最大审核文件大小 (KB)'),
         'timeout': ('0', 'API 超时 (秒)'),
         'max_tokens': ('0', 'AI 最大返回长度 (token 数，支持 4K/8K 写法)'),

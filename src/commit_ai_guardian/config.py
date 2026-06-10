@@ -32,6 +32,7 @@ class Config:
     language: str = "zh-CN"                  # 审核报告语言（默认中文）
     auto_fix: bool = True                    # 自动修复建议
     severity_threshold: str = "warning"      # 阻断级别
+    diff_mode: str = "full"                  # diff 审核模式: full=完整文件, diff=只审变更
     max_file_size: int = 500                 # 最大文件大小（KB）
     ignore_patterns: List[str] = field(default_factory=lambda: [
         "*.lock", "*.json", "*.md", "*.yaml", "*.yml",
@@ -53,6 +54,9 @@ class Config:
         valid_thresholds = ["info", "warning", "error", "critical"]
         if self.severity_threshold not in valid_thresholds:
             self.severity_threshold = "warning"
+        valid_diff_modes = ["full", "diff"]
+        if self.diff_mode not in valid_diff_modes:
+            self.diff_mode = "full"
         if self.max_file_size < 1:
             self.max_file_size = 500
         if self.timeout < 1:
