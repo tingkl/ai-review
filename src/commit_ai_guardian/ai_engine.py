@@ -273,6 +273,13 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     json_str = re.sub(r'"line_number"\s*:\s*(\d+)\s*,\s*\d+', r'"line_number": \1', json_str)
     json_str = re.sub(r'"line_number"\s*:\s*"(\d+)[\-\s,]+\d*"', r'"line_number": \1', json_str)
 
+    # 预处理：修复 code_snippet 以 }" 结尾后缺少逗号的问题
+    # 当 code_snippet 包含 JSON 花括号时，AI 容易漏掉 issue 之间的逗号
+    # "code_snippet":"...undefined"}{"severity": → "code_snippet":"...undefined"}, {"severity":
+    # 正则需要处理转义引号 \"，[^"] 会在 \" 处错误停止
+    # 注意：替换用 }, { 而不是 , }{，否则 } 会跑到逗号后面破坏 JSON 结构
+    json_str = re.sub(r'("code_snippet"\s*:\s*"(?:[^"\\]|\\.)*")(\}\s*\{\s*"severity")', r'\1}, {"severity"', json_str)
+
     # 策略 4：正常 JSON 解析（含多种修复尝试）
     data = _try_parse_json(json_str)
 
