@@ -191,7 +191,7 @@ class ReviewResult:
     passed: bool = True
     raw_response: str = ""
     first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号
-    cache_md5: str = ""  # 缓存 key 的 MD5 短码（文件名头显示用）
+    cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（文件名头显示用，cache 文件名也是前7位）
 
 
 def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
@@ -413,8 +413,10 @@ class AIEngine:
         cached = self._check_cache(cache_key)
         if cached:
             cached.filename = filename
-            cached.cache_md5 = cache_key[:8]
+            cached.cache_md5 = cache_key[:7]
             print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+            print(f"  💾 {cache_path}")
             return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
@@ -432,7 +434,7 @@ class AIEngine:
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
-            result.cache_md5 = cache_key[:8]
+            result.cache_md5 = cache_key[:7]
             # 审核成功，保存到缓存
             self._save_cache(cache_key, result)
             return result
@@ -622,7 +624,7 @@ class AIEngine:
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
-            result.cache_md5 = cache_key[:8]
+            result.cache_md5 = cache_key[:7]
             # 保存到缓存
             self._save_cache(cache_key, result)
             return result
@@ -1082,10 +1084,11 @@ class AIEngine:
     def _check_cache(self, content_md5: str) -> Optional[ReviewResult]:
         """检查缓存是否存在
         
-        缓存文件路径: .ai-review/cache/{md5}.json
+        缓存文件路径: .ai-review/cache/{md5前7位}.json
+        用 MD5 前7位作为文件名（类似 git short hash），节省磁盘空间。
         
         Args:
-            content_md5: 文件内容（diff 或完整内容）的 MD5 哈希
+            content_md5: 文件内容（diff 或完整内容）的完整 MD5 哈希（32位）
             
         Returns:
             ReviewResult（缓存命中），或 None（缓存未命中）
@@ -1093,7 +1096,7 @@ class AIEngine:
         if not self._cache_dir:
             return None
         
-        cache_file = self._cache_dir / f"{content_md5}.json"
+        cache_file = self._cache_dir / f"{content_md5[:7]}.json"
         if not cache_file.exists():
             return None
         
@@ -1128,16 +1131,17 @@ class AIEngine:
     def _save_cache(self, content_md5: str, result: ReviewResult) -> None:
         """将审核结果保存到缓存
         
-        缓存文件路径: .ai-review/cache/{md5}.json
+        缓存文件路径: .ai-review/cache/{md5前7位}.json
+        用 MD5 前7位作为文件名（类似 git short hash），节省磁盘空间。
         
         Args:
-            content_md5: 文件内容（diff 或完整内容）的 MD5 哈希
+            content_md5: 文件内容（diff 或完整内容）的完整 MD5 哈希（32位）
             result: ReviewResult 审核结果
         """
         if not self._cache_dir:
             return
         
-        cache_file = self._cache_dir / f"{content_md5}.json"
+        cache_file = self._cache_dir / f"{content_md5[:7]}.json"
         try:
             data = {
                 'filename': result.filename,
@@ -1321,8 +1325,10 @@ class AIEngine:
         cached = self._check_cache(content_md5)
         if cached:
             cached.filename = filename
-            cached.cache_md5 = content_md5[:8]
+            cached.cache_md5 = content_md5[:7]
             print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
+            print(f"  💾 {cache_path}")
             return cached
         
         prompt = self._build_full_file_prompt(source_file)
@@ -1330,7 +1336,7 @@ class AIEngine:
         try:
             response = self._call_api(prompt, filename=filename)
             result = self._parse_response(response, filename)
-            result.cache_md5 = content_md5[:8]
+            result.cache_md5 = content_md5[:7]
             # 审核成功，保存到缓存
             self._save_cache(content_md5, result)
             return result
