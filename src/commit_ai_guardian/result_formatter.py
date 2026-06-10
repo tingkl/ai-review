@@ -89,12 +89,17 @@ class ResultFormatter:
         else:
             border_style, status_icon = "green", "✅"
         
-        # === 文件头：文件名:MD5 短码 ===
-        # 显示 MD5 方便定位缓存文件 .ai-review/cache/{md5}.json
+        # === 文件头 ===
+        # 文件名单独一行，缓存路径单独一行（VS Code 可点击跳转）
         header = Text()
         header.append(f"{status_icon} ", style="bold")
-        md5_short = result.cache_md5 or "no-cache"
-        header.append(f"{result.filename}:{md5_short}", style="bold white underline")
+        header.append(f"{result.filename}", style="bold white underline")
+        
+        # 缓存文件路径（方便点击跳转到 .ai-review/cache/{md5}.json）
+        if result.cache_md5:
+            cache_path = f".ai-review/cache/{result.cache_md5}.json"
+            header.append(f"\n  💾 {cache_path}", style="dim cyan")
+        
         if result.summary:
             header.append(f"\n{result.summary}", style="dim")
         
