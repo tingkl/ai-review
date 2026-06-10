@@ -38,45 +38,7 @@ class FileDiff:
     line_numbers: List[int] = field(default_factory=list)  # 变更涉及的行号（AI 指出问题时用）
 
 
-# 编程语言映射表
-EXTENSION_LANGUAGE_MAP = {
-    '.py': 'python', '.js': 'javascript', '.ts': 'typescript',
-    '.jsx': 'jsx', '.tsx': 'tsx', '.java': 'java',
-    '.go': 'go', '.rs': 'rust', '.cpp': 'cpp',
-    '.cc': 'cpp', '.cxx': 'cpp', '.c': 'c',
-    '.h': 'c', '.hpp': 'cpp', '.cs': 'csharp',
-    '.rb': 'ruby', '.php': 'php', '.swift': 'swift',
-    '.kt': 'kotlin', '.kts': 'kotlin', '.scala': 'scala',
-    '.r': 'r', '.m': 'objective-c', '.mm': 'objective-c',
-    '.sh': 'bash', '.bash': 'bash', '.zsh': 'zsh',
-    '.ps1': 'powershell', '.pl': 'perl', '.lua': 'lua',
-    '.vim': 'vim', '.el': 'elisp', '.clj': 'clojure',
-    '.hs': 'haskell', '.erl': 'erlang', '.ex': 'elixir',
-    '.exs': 'elixir', '.fs': 'fsharp', '.fsx': 'fsharp',
-    '.dart': 'dart', '.jl': 'julia', '.groovy': 'groovy',
-    '.vue': 'vue', '.svelte': 'svelte', '.html': 'html',
-    '.css': 'css', '.scss': 'scss', '.sass': 'sass',
-    '.less': 'less', '.sql': 'sql', '.yaml': 'yaml',
-    '.yml': 'yaml', '.xml': 'xml', '.toml': 'toml',
-    '.ini': 'ini', '.cfg': 'ini', '.conf': 'ini',
-    '.dockerfile': 'dockerfile', '.makefile': 'makefile',
-    '.cmake': 'cmake', '.graphql': 'graphql', '.proto': 'protobuf',
-    '.tf': 'terraform', '.puppet': 'puppet', '.ansible': 'ansible',
-}
-
-# 常见二进制文件扩展名
-BINARY_EXTENSIONS = {
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg',
-    '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.wav',
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-    '.zip', '.tar', '.gz', '.bz2', '.7z', '.rar',
-    '.exe', '.dll', '.so', '.dylib', '.bin',
-    '.o', '.a', '.lib', '.class', '.jar', '.war', '.ear',
-    '.pkl', '.pickle', '.model', '.onnx', '.pb', '.npy', '.npz',
-    '.parquet', '.arrow', '.feather', '.orc', '.avro',
-    '.woff', '.woff2', '.ttf', '.eot', '.otf',
-    '.db', '.sqlite', '.sqlite3',
-}
+from .utils import get_file_language, is_binary_file
 
 
 def _match_with_globstar(filename: str, pattern: str, max_depth: int = 10) -> bool:
@@ -208,7 +170,7 @@ class DiffCollector:
                     continue
                 
                 # 检查二进制文件
-                if self._is_binary_file(file_diff.filename):
+                if is_binary_file(file_diff.filename, str(self.repo_path)):
                     continue
                 
                 # 检查 include 模式（不在白名单内的跳过）
@@ -227,7 +189,7 @@ class DiffCollector:
                     continue
                 
                 # 推断编程语言
-                file_diff.language = self._get_file_language(file_diff.filename)
+                file_diff.language = get_file_language(file_diff.filename)
                 
                 file_diffs.append(file_diff)
         
@@ -340,52 +302,6 @@ class DiffCollector:
         
         return sorted(set(line_numbers))
     
-    def _get_file_language(self, filename: str) -> str:
-        """
-        根据文件扩展名推断编程语言
-        
-        Args:
-            filename: 文件名
-            
-        Returns:
-            编程语言名称
-        """
-        ext = Path(filename).suffix.lower()
-        return EXTENSION_LANGUAGE_MAP.get(ext, 'unknown')
-    
-    def _is_binary_file(self, filename: str) -> bool:
-        """
-        检查文件是否为二进制文件
-        
-        Args:
-            filename: 文件名
-            
-        Returns:
-            True 如果是二进制文件
-        """
-        # 检查扩展名
-        ext = Path(filename).suffix.lower()
-        if ext in BINARY_EXTENSIONS:
-            return True
-        
-        # 检查文件内容
-        file_path = self.repo_path / filename
-        if file_path.exists():
-            try:
-                with open(file_path, 'rb') as f:
-                    chunk = f.read(8192)
-                    if b'\x00' in chunk:
-                        return True
-                    # 检查是否包含大量非文本字节
-                    non_text = sum(1 for b in chunk if b > 127)
-                    if len(chunk) > 0 and non_text / len(chunk) > 0.3:
-                        return True
-            except OSError:
-                pass
-        
-        return False
-    
-
     def _matches_patterns(self, filename: str, patterns: List[str]) -> bool:
         """
         检查文件名是否匹配任何 glob 模式（支持 ** 递归目录匹配）

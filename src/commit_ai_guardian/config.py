@@ -254,7 +254,7 @@ class ConfigManager:
             key = f.name
             global_val = getattr(global_cfg, key)
             project_val = getattr(project_cfg, key)
-            if project_val and project_val != global_val:
+            if project_val is not None and project_val != global_val:
                 # 不打印敏感信息（api_key）
                 if key == "api_key":
                     overridden.append(f"{key}: ***覆盖***")
