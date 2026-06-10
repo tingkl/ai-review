@@ -21,6 +21,7 @@ import hashlib
 import json
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -316,18 +317,49 @@ class AIEngine:
     
     def review_batch(self, file_diffs: List[Any]) -> List[ReviewResult]:
         """
-        批量审核多个文件
+        批量审核多个文件（并发执行）
+        
+        使用线程池并发调用 AI API，每个文件独立审核。
+        缓存命中的文件直接返回，不调 AI。
         
         Args:
             file_diffs: FileDiff 对象列表
             
         Returns:
-            ReviewResult 列表
+            ReviewResult 列表（按原始文件顺序）
         """
-        results = []
-        for file_diff in file_diffs:
-            result = self.review_file(file_diff)
-            results.append(result)
+        if not file_diffs:
+            return []
+        
+        # 单文件直接串行（无需线程池开销）
+        if len(file_diffs) == 1:
+            return [self.review_file(file_diffs[0])]
+        
+        # 多文件用线程池并发
+        results: List[Optional[ReviewResult]] = [None] * len(file_diffs)
+        
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # 提交所有任务
+            future_to_index = {
+                executor.submit(self.review_file, fd): i
+                for i, fd in enumerate(file_diffs)
+            }
+            
+            # 收集结果（保持原始顺序）
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as e:
+                    filename = getattr(file_diffs[idx], 'filename', 'unknown')
+                    print(f"[错误] 审核文件 {filename} 并发执行失败: {e}")
+                    results[idx] = ReviewResult(
+                        filename=filename,
+                        summary=f"并发审核失败: {str(e)}",
+                        passed=True,
+                        raw_response=str(e),
+                    )
+        
         return results
     
     @staticmethod
@@ -915,18 +947,44 @@ class AIEngine:
     
     def review_source_batch(self, source_files: List[Any]) -> List[ReviewResult]:
         """
-        批量审核完整文件
+        批量审核完整文件（并发执行）
+        
+        使用线程池并发调用 AI API，每个文件独立审核。
         
         Args:
             source_files: SourceFile 对象列表
             
         Returns:
-            ReviewResult 列表
+            ReviewResult 列表（按原始文件顺序）
         """
-        results = []
-        for source_file in source_files:
-            result = self.review_source(source_file)
-            results.append(result)
+        if not source_files:
+            return []
+        
+        if len(source_files) == 1:
+            return [self.review_source(source_files[0])]
+        
+        results: List[Optional[ReviewResult]] = [None] * len(source_files)
+        
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_index = {
+                executor.submit(self.review_source, sf): i
+                for i, sf in enumerate(source_files)
+            }
+            
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as e:
+                    filename = getattr(source_files[idx], 'filename', 'unknown')
+                    print(f"[错误] 审核文件 {filename} 并发执行失败: {e}")
+                    results[idx] = ReviewResult(
+                        filename=filename,
+                        summary=f"并发审核失败: {str(e)}",
+                        passed=True,
+                        raw_response=str(e),
+                    )
+        
         return results
     
     def _build_full_file_prompt(self, source_file: Any) -> str:
