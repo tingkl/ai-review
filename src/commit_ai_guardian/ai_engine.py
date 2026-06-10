@@ -712,12 +712,8 @@ class AIEngine:
         # 提取变更行号列表
         line_numbers = getattr(file_diff, 'line_numbers', [])
         
-        # 智能截断：优先保留变更区域上下文
-        full_content, truncated, truncate_note = self._smart_truncate_content(
-            full_content, line_numbers, max_chars=8000
-        )
-        
-        # 给完整文件加行号
+        # full 模式：不截断文件，传完整内容
+        # 超长时依赖 max_tokens 配置，截断时 AI 会提示
         annotated_content = self._annotate_content_with_line_numbers(full_content)
         
         # 提取变更行号列表
@@ -755,9 +751,6 @@ class AIEngine:
 """
         cases_instruction = _build_cases_check_instruction() if cases_text else "- 按通用审核维度进行检查"
         prompt = prompt.replace("{{cases_note}}", cases_instruction + "\n" + change_note)
-        
-        if truncated:
-            prompt += f"\n- 注意: 文件内容已截断（{truncate_note}）\n"
         
         self._write_debug_log(filename, prompt)
         return prompt

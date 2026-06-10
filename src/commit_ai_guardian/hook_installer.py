@@ -318,6 +318,16 @@ class HookInstaller:
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# 跳过 merge/rebase 操作（别人的代码不审核）
+if [ -f "$REPO_ROOT/.git/MERGE_HEAD" ]; then
+    echo "[信息] 处于 merge 状态，跳过 AI 审核"
+    exit 0
+fi
+if [ -d "$REPO_ROOT/.git/rebase-merge" ] || [ -d "$REPO_ROOT/.git/rebase-apply" ]; then
+    echo "[信息] 处于 rebase 状态，跳过 AI 审核"
+    exit 0
+fi
+
 # 直接调用 commit-ai-guardian 命令（通过 uv tool install 已加入 PATH）
 # 不用 'python -m' 或 'uv run'，避免目标仓库的 Python 环境问题
 commit-ai-guardian audit --repo "$REPO_ROOT"
