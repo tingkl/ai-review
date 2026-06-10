@@ -580,12 +580,12 @@ class AIEngine:
     def _sanitize_log_filename(filename: str) -> str:
         """把文件路径转成安全的日志文件名
         
-        把 / 替换为 _，去掉开头的 ./，去掉 .ai-review/prompts/ 前缀
+        把 / 替换为 _，去掉开头的 ./，去掉 .ai-review/logs/ 前缀
         
         如:
-            src/auth.ts                 → src_auth_ts
-            ./src/auth.ts               → src_auth_ts
-            .ai-review/prompts/test.ts  → test_ts
+            src/auth.ts              → src_auth_ts
+            ./src/auth.ts            → src_auth_ts
+            .ai-review/logs/test.ts  → test_ts
         
         Args:
             filename: 原始文件路径
@@ -593,16 +593,14 @@ class AIEngine:
         Returns:
             安全的日志文件名（不含扩展名，不含路径分隔符）
         """
-        # 去掉已知前缀
         name = filename
-        for prefix in ['.ai-review/prompts/', './']:
+        for prefix in ['.ai-review/logs/', './']:
             if name.startswith(prefix):
                 name = name[len(prefix):]
-        # 替换路径分隔符和点为下划线
         return name.replace('/', '_').replace('\\', '_').replace('.', '_')
     
     def _write_debug_log(self, filename: str, content: str, append: bool = False) -> None:
-        """将 prompt 写入 .ai-review/prompts/{filename}.prompt.log
+        """将 prompt 写入 .ai-review/logs/{filename}.prompt.log
         
         每个文件有独立的 prompt log，避免并发时互相覆盖。
         
@@ -614,8 +612,11 @@ class AIEngine:
         if not self.repo_path:
             return
         
+        logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
         safe_name = self._sanitize_log_filename(filename)
-        prompt_log = Path(self.repo_path) / ".ai-review" / "prompts" / f"{safe_name}.prompt.log"
+        prompt_log = logs_dir / f"{safe_name}.prompt.log"
         try:
             from datetime import datetime
             
@@ -636,7 +637,7 @@ class AIEngine:
             pass
     
     def _write_ai_response_log(self, filename: str, response: str) -> None:
-        """将 AI 审核返回的原始响应写入 .ai-review/prompts/{filename}.ai.log
+        """将 AI 审核返回的原始响应写入 .ai-review/logs/{filename}.ai.log
         
         每个文件有独立的 AI response log，避免并发时互相覆盖。
         
@@ -647,8 +648,11 @@ class AIEngine:
         if not self.repo_path:
             return
         
+        logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
         safe_name = self._sanitize_log_filename(filename)
-        ai_log = Path(self.repo_path) / ".ai-review" / "prompts" / f"{safe_name}.ai.log"
+        ai_log = logs_dir / f"{safe_name}.ai.log"
         try:
             from datetime import datetime
             header = f"""# ================================================
