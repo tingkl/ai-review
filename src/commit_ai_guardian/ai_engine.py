@@ -1357,11 +1357,19 @@ class AIEngine:
         template = self.prompt_loader.load_json_fix_template()
         fix_prompt = PromptLoader.render(template, filename=filename, broken_json=truncated)
 
+        # system message：确保输出干净、可解析的 JSON
+        system_msg = (
+            "你是 JSON 修复专家。只输出合法 JSON 文本，不要解释、不要 <think>、不要 <result> 标签。"
+        )
+
         for attempt in range(2):
             try:
                 resp = self.client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": fix_prompt}],
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": fix_prompt},
+                    ],
                     temperature=0.1,
                     max_tokens=max_tokens,
                 )
