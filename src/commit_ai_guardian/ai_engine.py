@@ -417,24 +417,25 @@ class AIEngine:
         # 根据 diff_mode 决定审核策略
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
-        # 检查缓存
+        # 计算缓存 key（无论是否启用缓存，都用于 ai.log 命名）
         if diff_mode == 'full':
-            # full 模式：用完整文件内容做缓存 key
             full_content = _read_file_full_content(self.repo_path, filename)
             cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
         else:
-            # diff 模式：用 diff 内容做缓存 key
             full_content = ""
             cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
         
-        cached = self._check_cache(cache_key)
-        if cached:
-            cached.filename = filename
-            cached.cache_md5 = cache_key[:7]
-            print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
-            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-            print(f"  {cache_path}")
-            return cached
+        # 检查缓存（可配置关闭）
+        use_cache = getattr(self.config, 'use_cache', True)
+        if use_cache:
+            cached = self._check_cache(cache_key)
+            if cached:
+                cached.filename = filename
+                cached.cache_md5 = cache_key[:7]
+                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+                print(f"  {cache_path}")
+                return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
         if diff_mode == 'full' and full_content:
@@ -452,8 +453,9 @@ class AIEngine:
             if line_numbers:
                 result.first_line_number = line_numbers[0]
             result.cache_md5 = cache_key[:7]
-            # 审核成功，保存到缓存
-            self._save_cache(cache_key, result)
+            # 审核成功，保存到缓存（可配置关闭）
+            if use_cache:
+                self._save_cache(cache_key, result)
             return result
         except Exception as e:
             # API 调用异常 → 让用户知道出问题了
@@ -643,8 +645,9 @@ class AIEngine:
             if line_numbers:
                 result.first_line_number = line_numbers[0]
             result.cache_md5 = cache_key[:7]
-            # 保存到缓存
-            self._save_cache(cache_key, result)
+            # 保存到缓存（可配置关闭）
+            if getattr(self.config, 'use_cache', True):
+                self._save_cache(cache_key, result)
             return result
         except Exception as e:
             print(f"[错误] 审核文件 {filename} 失败: {e}")
@@ -685,31 +688,36 @@ class AIEngine:
         self._clean_expired_cache()
         self._clean_old_logs()
 
-        # ===== 第一阶段：批量检查缓存 =====
-        # 分离命中和未命中的文件索引
+        # 检查是否启用缓存
+        use_cache = getattr(self.config, 'use_cache', True)
+
+        # ===== 第一阶段：批量检查缓存（可配置关闭）=====
         cache_hit_indices: List[int] = []
-        cache_miss_indices: List[int] = []
+        cache_miss_indices: List[int] = list(range(len(file_diffs)))
         
-        for i, file_diff in enumerate(file_diffs):
-            cache_key = self._get_cache_key_for_file(file_diff)
-            if cache_key:
-                cached = self._check_cache(cache_key)
-                if cached:
-                    cached.filename = getattr(file_diff, 'filename', 'unknown')
-                    results[i] = cached
-                    cache_hit_indices.append(i)
-                    continue
-            cache_miss_indices.append(i)
-        
-        # 打印缓存命中信息（在 spinner 之前）
-        if cache_hit_indices:
-            for idx in cache_hit_indices:
-                filename = getattr(file_diffs[idx], 'filename', 'unknown')
-                cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
-                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+        if use_cache:
+            cache_hit_indices = []
+            cache_miss_indices = []
+            for i, file_diff in enumerate(file_diffs):
+                cache_key = self._get_cache_key_for_file(file_diff)
                 if cache_key:
-                    cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                    print(f"  {cache_path}")
+                    cached = self._check_cache(cache_key)
+                    if cached:
+                        cached.filename = getattr(file_diff, 'filename', 'unknown')
+                        results[i] = cached
+                        cache_hit_indices.append(i)
+                        continue
+                cache_miss_indices.append(i)
+            
+            # 打印缓存命中信息（在 spinner 之前）
+            if cache_hit_indices:
+                for idx in cache_hit_indices:
+                    filename = getattr(file_diffs[idx], 'filename', 'unknown')
+                    cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
+                    print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                    if cache_key:
+                        cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+                        print(f"  {cache_path}")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
         if cache_miss_indices:
@@ -1337,16 +1345,20 @@ class AIEngine:
         
         content = getattr(source_file, 'content', '')
         
-        # 检查缓存：用 content 的 MD5 做 key
+        # 计算缓存 key（无论是否启用缓存，都用于 ai.log 命名）
         content_md5 = hashlib.md5(content.encode('utf-8')).hexdigest()
-        cached = self._check_cache(content_md5)
-        if cached:
-            cached.filename = filename
-            cached.cache_md5 = content_md5[:7]
-            print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
-            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
-            print(f"  {cache_path}")
-            return cached
+        
+        # 检查缓存（可配置关闭）
+        use_cache = getattr(self.config, 'use_cache', True)
+        if use_cache:
+            cached = self._check_cache(content_md5)
+            if cached:
+                cached.filename = filename
+                cached.cache_md5 = content_md5[:7]
+                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
+                print(f"  {cache_path}")
+                return cached
         
         prompt = self._build_full_file_prompt(source_file, content_md5[:7])
         
@@ -1354,8 +1366,9 @@ class AIEngine:
             response = self._call_api(prompt, filename=filename, cache_md5=content_md5[:7])
             result = self._parse_response(response, filename, cache_md5=content_md5[:7])
             result.cache_md5 = content_md5[:7]
-            # 审核成功，保存到缓存
-            self._save_cache(content_md5, result)
+            # 审核成功，保存到缓存（可配置关闭）
+            if use_cache:
+                self._save_cache(content_md5, result)
             return result
         except Exception as e:
             print(f"[错误] 审核文件 {filename} 失败: {e}")
@@ -1402,7 +1415,8 @@ class AIEngine:
             prompt = self._build_full_file_prompt(source_file, cache_key[:7])
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
             result = self._parse_response(response, filename, cache_md5=cache_key[:7])
-            self._save_cache(cache_key, result)
+            if getattr(self.config, 'use_cache', True):
+                self._save_cache(cache_key, result)
             return result
         except Exception as e:
             print(f"[错误] 审核文件 {filename} 失败: {e}")
@@ -1439,30 +1453,36 @@ class AIEngine:
         self._clean_expired_cache()
         self._clean_old_logs()
         
-        # ===== 第一阶段：批量检查缓存 =====
+        # 检查是否启用缓存
+        use_cache = getattr(self.config, 'use_cache', True)
+
+        # ===== 第一阶段：批量检查缓存（可配置关闭）=====
         cache_hit_indices: List[int] = []
-        cache_miss_indices: List[int] = []
+        cache_miss_indices: List[int] = list(range(len(source_files)))
         
-        for i, source_file in enumerate(source_files):
-            cache_key = self._get_cache_key_for_source(source_file)
-            if cache_key:
-                cached = self._check_cache(cache_key)
-                if cached:
-                    cached.filename = getattr(source_file, 'filename', 'unknown')
-                    results[i] = cached
-                    cache_hit_indices.append(i)
-                    continue
-            cache_miss_indices.append(i)
-        
-        # 打印缓存命中信息
-        if cache_hit_indices:
-            for idx in cache_hit_indices:
-                filename = getattr(source_files[idx], 'filename', 'unknown')
-                cache_key = self._get_cache_key_for_source(source_files[idx]) or ""
-                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+        if use_cache:
+            cache_hit_indices = []
+            cache_miss_indices = []
+            for i, source_file in enumerate(source_files):
+                cache_key = self._get_cache_key_for_source(source_file)
                 if cache_key:
-                    cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                    print(f"  {cache_path}")
+                    cached = self._check_cache(cache_key)
+                    if cached:
+                        cached.filename = getattr(source_file, 'filename', 'unknown')
+                        results[i] = cached
+                        cache_hit_indices.append(i)
+                        continue
+                cache_miss_indices.append(i)
+            
+            # 打印缓存命中信息
+            if cache_hit_indices:
+                for idx in cache_hit_indices:
+                    filename = getattr(source_files[idx], 'filename', 'unknown')
+                    cache_key = self._get_cache_key_for_source(source_files[idx]) or ""
+                    print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                    if cache_key:
+                        cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+                        print(f"  {cache_path}")
         
         # ===== 第二阶段：并发调 AI =====
         if cache_miss_indices:

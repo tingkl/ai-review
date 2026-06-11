@@ -59,6 +59,7 @@ class Config:
     timeout: int = 60                        # API 超时（秒）
     max_tokens: int = 4096                   # AI 最大返回长度（token 数）
     proxy: Optional[str] = None              # HTTP 代理
+    use_cache: bool = True                   # 是否使用缓存 (false=不检查缓存、不写入缓存)
 
     def __post_init__(self):
         """校验配置值（类型不安全时静默回退到默认值）
@@ -309,6 +310,7 @@ class ConfigManager:
         lines.append(f"  timeout: {config.timeout} 秒")
         lines.append(f"  max_tokens: {config.max_tokens}")
         lines.append(f"  diff_mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
+        lines.append(f"  use_cache: {config.use_cache} (false=不命中缓存)")
         lines.append(f"  proxy: {config.proxy or '(未配置)'}")
         
         print("\n".join(lines) + "\n")
