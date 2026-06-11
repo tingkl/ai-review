@@ -1301,36 +1301,182 @@ class AIEngine:
         
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
+    def _extract_json_str(self, response: str) -> Optional[str]:
+        """从 AI 响应中提取 JSON 字符串（复用 parse_ai_response 的提取逻辑）
+
+        Args:
+            response: AI 返回的原始文本
+
+        Returns:
+            JSON 字符串，或 None
+        """
+        # 策略 0: 从 <result> 标签提取
+        m = re.search(r'<result>(.*?)</result>', response, re.DOTALL)
+        if m:
+            return m.group(1).strip()
+
+        # 策略 1: 过滤 <think> 后从 ```json 提取
+        filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
+        if m:
+            return m.group(1).strip()
+
+        # 策略 2: 找第一个 {...}
+        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+        if m:
+            return m.group(0).strip()
+
+        return None
+
+    def _fix_json_with_ai(self, broken_json: str, filename: str) -> Optional[str]:
+        """AI 修复 JSON 语法错误
+
+        本地所有修复策略都失败后，调用 AI 来修复 JSON。
+        只修复语法（转义、逗号、括号），不修改内容。最多重试 2 次。
+
+        Args:
+            broken_json: 有语法错误的 JSON 字符串
+            filename: 被审核的文件名（用于日志）
+
+        Returns:
+            修复后的 JSON 字符串，或 None
+        """
+        if not self.client:
+            return None
+
+        model = getattr(self.config, 'model', 'gpt-4o-mini')
+        max_tokens = getattr(self.config, 'max_tokens', 4096)
+
+        # 截断过长的 JSON 避免超出 token 限制
+        truncated = broken_json
+        if len(broken_json) > 6000:
+            truncated = broken_json[:6000] + '...（已截断）'
+
+        fix_prompt = (
+            "你是一位 JSON 修复专家。修复以下 JSON 的语法错误，使其成为合法的 JSON。\n"
+            "\n"
+            "要求：\n"
+            "1. 只修复语法错误（引号转义、逗号、括号闭合等），不要修改任何内容\n"
+            "2. 确保 code_snippet 和 suggestion 字段中的特殊字符正确转义\n"
+            "3. 直接输出修复后的 JSON 文本，不要 <result> 标签，不要任何解释\n"
+            "4. 输出前用 JSON 解析器自检，确认可以成功解析\n"
+            "\n"
+            f"文件: {filename}\n"
+            "\n"
+            "需要修复的 JSON：\n"
+            f"{truncated}"
+        )
+
+        for attempt in range(2):
+            try:
+                resp = self.client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": fix_prompt}],
+                    temperature=0.1,
+                    max_tokens=max_tokens,
+                )
+                fixed = resp.choices[0].message.content or ""
+
+                # 从修复后的响应中提取 JSON
+                fixed_json = self._extract_json_str(fixed) or fixed.strip()
+
+                # 验证能解析
+                data = _try_parse_json(fixed_json)
+                if data and isinstance(data, dict):
+                    return fixed_json
+
+            except Exception:
+                continue
+
+        return None
+
+    def _build_result_from_dict(self, data: Dict, filename: str, raw_response: str) -> ReviewResult:
+        """从解析后的 dict 构建 ReviewResult
+
+        Args:
+            data: 解析后的 JSON dict
+            filename: 被审核的文件名
+            raw_response: AI 原始响应文本
+
+        Returns:
+            ReviewResult
+        """
+        result = ReviewResult(filename=filename, raw_response=raw_response)
+        result.summary = data.get('summary', '') or '审核完成'
+        result.passed = bool(data.get('passed', True))
+
+        issues_data = data.get('issues', [])
+        if isinstance(issues_data, list):
+            for issue_data in issues_data:
+                if isinstance(issue_data, dict):
+                    issue = ReviewIssue(
+                        severity=issue_data.get('severity', 'info'),
+                        category=issue_data.get('category', 'best-practice'),
+                        line_number=issue_data.get('line_number'),
+                        message=issue_data.get('message', ''),
+                        suggestion=issue_data.get('suggestion', ''),
+                        code_snippet=issue_data.get('code_snippet', ''),
+                    )
+                    result.issues.append(issue)
+
+        return result
+
     def _parse_response(self, response: str, filename: str, cache_md5: str = "") -> ReviewResult:
         """解析 AI 的响应文本为结构化的 ReviewResult
-        
-        委托给模块级函数 parse_ai_response()，复用同一套解析逻辑。
-        
+
+        解析策略（层层降级）：
+        1. 本地解析（parse_ai_response）
+        2. 本地修复（_try_parse_json 含多种策略）
+        3. AI 修复 JSON（_fix_json_with_ai）
+        4. 都失败 → passed=False
+
         Args:
-            response: AI 返回的原始文本（含 markdown 代码块）
+            response: AI 返回的原始文本
             filename: 被审核的文件名
-            cache_md5: MD5 前7位，用于解析失败时打印正确的日志路径
-            
+            cache_md5: MD5 前7位，用于解析失败时打印日志路径
+
         Returns:
-            ReviewResult。解析失败返回 passed=False（让用户知道出问题了）
+            ReviewResult
         """
+        # ===== 阶段1: 本地解析 =====
         result = parse_ai_response(response, filename)
-        
-        # 解析失败时打印日志提示（线上运行时帮助定位问题）
-        if not result.passed and result.issues == [] and result.raw_response:
+
+        # ===== 阶段2: 本地解析失败 → AI 修复 =====
+        if not result.passed and result.summary in ("JSON 解析失败", "无法从响应中解析 JSON"):
+            broken_json = self._extract_json_str(response)
+
+            if broken_json and self.client:
+                print(f"[信息] JSON 本地解析失败，调用 AI 修复...")
+                fixed_json = self._fix_json_with_ai(broken_json, filename)
+
+                if fixed_json:
+                    # 用修复后的 JSON 重新解析
+                    data = _try_parse_json(fixed_json)
+                    if data and isinstance(data, dict):
+                        result = self._build_result_from_dict(data, filename, response)
+                        print(f"[信息] AI 修复 JSON 成功，解析通过")
+                    else:
+                        print(f"[警告] AI 修复后 JSON 仍无法解析")
+                else:
+                    print(f"[警告] AI 修复 JSON 失败")
+
+            # 打印日志路径（帮助定位问题）
             md5_short = cache_md5[:7] if cache_md5 else "unknown"
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{md5_short}.json"
             ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.ai.log"
-            if "无法从响应中解析 JSON" in result.summary:
-                print(f"\n⚠️  JSON 解析失败")
-            elif "JSON 解析失败" in result.summary:
-                print(f"\n⚠️  JSON 解析失败")
-                print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
             print(f"    {cache_path}")
             print(f"    {ai_log}")
-        
+
+        # ===== 阶段3: 确保必要字段存在 =====
+        if not result.summary:
+            result.summary = "审核完成"
+        if not hasattr(result, 'passed'):
+            result.passed = True
+        if not hasattr(result, 'issues'):
+            result.issues = []
+
         return result
-    
+
     def review_source(self, source_file: Any) -> ReviewResult:
         """
         对完整文件内容进行 AI 审核（非 diff 模式）
