@@ -463,6 +463,7 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过，需排查
                 raw_response=str(e),
+                cache_md5=cache_key[:7],
             )
     
 
@@ -1355,6 +1356,7 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
+                cache_md5=content_md5[:7],
             )
     
     def _get_cache_key_for_source(self, source_file: Any) -> Optional[str]:
