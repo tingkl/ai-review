@@ -439,13 +439,13 @@ class AIEngine:
         # 构建 Prompt：根据 diff_mode 选择策略
         if diff_mode == 'full' and full_content:
             # full 模式：审核完整文件内容，但标注变更部分
-            prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff)
+            prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key[:7])
         else:
             # diff 模式：只审核变更内容
-            prompt = self._build_prompt(file_diff)
+            prompt = self._build_prompt(file_diff, cache_key[:7])
         
         try:
-            response = self._call_api(prompt, filename=filename)
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
             result = self._parse_response(response, filename)
             # diff 模式下：把第一个变更行号和 MD5 赋给结果（文件名头显示用）
             line_numbers = getattr(file_diff, 'line_numbers', [])
@@ -622,21 +622,21 @@ class AIEngine:
         diff_content = getattr(file_diff, 'diff_content', '')
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
-        # 构建 Prompt
+        # 构建 Prompt（先算 cache_key，传给 prompt builder 用于日志命名）
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
             if full_content:
-                prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff)
                 cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
+                prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key[:7])
             else:
-                prompt = self._build_prompt(file_diff)
                 cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+                prompt = self._build_prompt(file_diff, cache_key[:7])
         else:
-            prompt = self._build_prompt(file_diff)
             cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+            prompt = self._build_prompt(file_diff, cache_key[:7])
         
         try:
-            response = self._call_api(prompt, filename=filename)
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
             result = self._parse_response(response, filename)
             # diff 模式下：把第一个变更行号和 MD5 赋给结果
             line_numbers = getattr(file_diff, 'line_numbers', [])
@@ -886,7 +886,8 @@ class AIEngine:
         return truncated_content, True, f"保留变更区域上下文，共 {len(result_lines)} 行"
     
     def _build_full_file_prompt_for_diff(self, filename: str, full_content: str,
-                                          diff_content: str, file_diff: Any) -> str:
+                                          diff_content: str, file_diff: Any,
+                                          cache_md5: str = "") -> str:
         """构建 full 模式的 diff 审核 prompt（审核完整文件，标注变更部分）
         
         diff_mode=full 时使用。给 AI 看完整文件内容（带行号），
@@ -897,6 +898,7 @@ class AIEngine:
             full_content: 文件完整内容
             diff_content: diff 文本（用于提取变更行号）
             file_diff: FileDiff 对象
+            cache_md5: MD5 前7位，用于日志文件名命名
             
         Returns:
             完整的 prompt 字符串
@@ -952,7 +954,7 @@ class AIEngine:
         self._write_debug_log(filename, prompt)
         return prompt
     
-    def _build_prompt(self, file_diff: Any) -> str:
+    def _build_prompt(self, file_diff: Any, cache_md5: str = "") -> str:
         """
         构建 diff 审核提示词（用于 Git pre-commit 场景）
         
@@ -963,6 +965,7 @@ class AIEngine:
         
         Args:
             file_diff: FileDiff 对象
+            cache_md5: MD5 前7位，用于日志文件名命名
             
         Returns:
             完整的 prompt 字符串
@@ -1012,7 +1015,7 @@ class AIEngine:
             else "- 按通用审核维度进行检查")
         
         # 将生成的 prompt 写入 debug.log，方便用户调试
-        self._write_debug_log(filename, prompt)
+        self._write_debug_log(filename, prompt, cache_md5)
         
         return prompt
     
@@ -1039,14 +1042,15 @@ class AIEngine:
                 name = name[len(prefix):]
         return name.replace('/', '_').replace('\\', '_').replace('.', '_')
     
-    def _write_debug_log(self, filename: str, content: str, append: bool = False) -> None:
-        """将 prompt 写入 .ai-review/logs/{filename}.prompt.log
+    def _write_debug_log(self, filename: str, content: str, cache_md5: str = "", append: bool = False) -> None:
+        """将 prompt 写入 .ai-review/logs/{cache_md5}.prompt.log
         
-        每个文件有独立的 prompt log，避免并发时互相覆盖。
+        文件名使用 cache_md5（前7位），与缓存文件命名保持一致。
         
         Args:
-            filename: 被审核的文件名（用于生成日志文件名和头部标识）
+            filename: 被审核的文件名（用于日志头部标识）
             content: 要写入的内容
+            cache_md5: MD5 前7位，用于日志文件名
             append: True=追加，False=覆盖
         """
         if not self.repo_path:
@@ -1055,8 +1059,8 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
         
-        safe_name = self._sanitize_log_filename(filename)
-        prompt_log = logs_dir / f"{safe_name}.prompt.log"
+        name = cache_md5[:7] if cache_md5 else self._sanitize_log_filename(filename)
+        prompt_log = logs_dir / f"{name}.prompt.log"
         try:
             from datetime import datetime
             
@@ -1076,14 +1080,15 @@ class AIEngine:
         except Exception:
             pass
     
-    def _write_ai_response_log(self, filename: str, response: str) -> None:
-        """将 AI 审核返回的原始响应写入 .ai-review/logs/{filename}.ai.log
+    def _write_ai_response_log(self, filename: str, response: str, cache_md5: str = "") -> None:
+        """将 AI 审核返回的原始响应写入 .ai-review/logs/{cache_md5}.ai.log
         
-        每个文件有独立的 AI response log，避免并发时互相覆盖。
+        文件名使用 cache_md5（前7位），与缓存文件命名保持一致。
         
         Args:
-            filename: 被审核的文件名
+            filename: 被审核的文件名（用于日志头部标识）
             response: AI 返回的原始响应文本
+            cache_md5: MD5 前7位，用于日志文件名
         """
         if not self.repo_path:
             return
@@ -1091,8 +1096,8 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
         
-        safe_name = self._sanitize_log_filename(filename)
-        ai_log = logs_dir / f"{safe_name}.ai.log"
+        name = cache_md5[:7] if cache_md5 else self._sanitize_log_filename(filename)
+        ai_log = logs_dir / f"{name}.ai.log"
         try:
             from datetime import datetime
             header = f"""# ================================================
@@ -1194,7 +1199,7 @@ class AIEngine:
             # 缓存写入失败不报错
             pass
     
-    def _call_api(self, prompt: str, filename: str = "unknown") -> str:
+    def _call_api(self, prompt: str, filename: str = "unknown", cache_md5: str = "") -> str:
         """调用 AI API，含指数退避重试
         
         重试策略（最多3次）：
@@ -1211,6 +1216,7 @@ class AIEngine:
         Args:
             prompt: 完整的审核 Prompt（含代码 + 审核维度说明）
             filename: 被审核的文件名（用于 ai.log 标识）
+            cache_md5: MD5 前7位，用于 ai.log 文件名命名
             
         Returns:
             AI 的文本响应（JSON 格式，markdown 包裹）
@@ -1248,7 +1254,7 @@ class AIEngine:
                     print(f"    或:   直接修改 .ai-review/config.yaml 中的 max_tokens\n")
                 
                 # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
-                self._write_ai_response_log(filename, raw_content)
+                self._write_ai_response_log(filename, raw_content, cache_md5)
                 return raw_content
             
             except openai.RateLimitError:  # API 限流（429）
@@ -1348,10 +1354,10 @@ class AIEngine:
             print(f"  💾 {cache_path}")
             return cached
         
-        prompt = self._build_full_file_prompt(source_file)
+        prompt = self._build_full_file_prompt(source_file, content_md5[:7])
         
         try:
-            response = self._call_api(prompt, filename=filename)
+            response = self._call_api(prompt, filename=filename, cache_md5=content_md5[:7])
             result = self._parse_response(response, filename)
             result.cache_md5 = content_md5[:7]
             # 审核成功，保存到缓存
@@ -1399,8 +1405,8 @@ class AIEngine:
         cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()
         
         try:
-            prompt = self._build_full_file_prompt(source_file)
-            response = self._call_api(prompt, filename=filename)
+            prompt = self._build_full_file_prompt(source_file, cache_key[:7])
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
             result = self._parse_response(response, filename)
             self._save_cache(cache_key, result)
             return result
@@ -1488,7 +1494,7 @@ class AIEngine:
         
         return results
     
-    def _build_full_file_prompt(self, source_file: Any) -> str:
+    def _build_full_file_prompt(self, source_file: Any, cache_md5: str = "") -> str:
         """
         构建完整文件审核的提示词
         
@@ -1500,6 +1506,7 @@ class AIEngine:
         
         Args:
             source_file: SourceFile 对象
+            cache_md5: MD5 前7位，用于日志文件名命名
             
         Returns:
             完整的 prompt 字符串
@@ -1550,6 +1557,6 @@ class AIEngine:
             else "- 按通用审核维度进行检查")
         
         # 将生成的 prompt 写入 debug.log，方便用户调试
-        self._write_debug_log(filename, prompt)
+        self._write_debug_log(filename, prompt, cache_md5)
         
         return prompt
