@@ -133,7 +133,7 @@ def audit(repo, output, config_path):
         # Step 3: AI 审核（逐个文件调用 AI API，获取审核结果）
         # 用 Rich 的 status 显示旋转 loading 动画，让用户知道正在进行
         engine = AIEngine(config, repo_path=repo)
-        with console.status("[bold cyan]🤖 AI 正在审核代码，请稍候..."):
+        with console.status("[bold cyan]AI 正在审核代码，请稍候..."):
             results = engine.review_batch(file_diffs)
         
         # Step 4: 终端展示（用 Rich 库美化输出审核报告）
@@ -250,7 +250,7 @@ def review(file, dir, pattern, recursive, max_files, output, config_path):
         repo_path = _find_repo_path(search_path)
         
         engine = AIEngine(config, repo_path=repo_path)
-        with console.status("[bold cyan]🤖 AI 正在审核代码，请稍候..."):
+        with console.status("[bold cyan]AI 正在审核代码，请稍候..."):
             results = engine.review_source_batch(source_files)
         
         # Step 5: 终端展示

@@ -141,11 +141,11 @@ class ResultFormatter:
             ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{name}.ai.log"
             prompt_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{name}.prompt.log"
             file_header.append("\n  ")
-            file_header.append(f"💾 {cache_path}", style="dim cyan")
+            file_header.append(f"{cache_path}", style="dim cyan")
             file_header.append("  ")
-            file_header.append(f"🤖 {ai_log}", style="dim magenta")
+            file_header.append(f"{ai_log}", style="dim magenta")
             file_header.append("  ")
-            file_header.append(f"📝 {prompt_log}", style="dim blue")
+            file_header.append(f"{prompt_log}", style="dim blue")
 
         # 总结语（如果有且没有具体问题时才显示）
         summary_line = None

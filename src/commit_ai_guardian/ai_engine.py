@@ -433,7 +433,7 @@ class AIEngine:
             cached.cache_md5 = cache_key[:7]
             print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-            print(f"  💾 {cache_path}")
+            print(f"  {cache_path}")
             return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
@@ -709,7 +709,7 @@ class AIEngine:
                 print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                 if cache_key:
                     cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                    print(f"  💾 {cache_path}")
+                    print(f"  {cache_path}")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
         if cache_miss_indices:
@@ -1316,9 +1316,9 @@ class AIEngine:
             elif "JSON 解析失败" in result.summary:
                 print(f"\n⚠️  JSON 解析失败")
                 print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
-            print(f"    💾 {cache_path}")
-            print(f"    🤖 {ai_log}")
-            print(f"    📝 {prompt_log}")
+            print(f"    {cache_path}")
+            print(f"    {ai_log}")
+            print(f"    {prompt_log}")
         
         return result
     
@@ -1351,7 +1351,7 @@ class AIEngine:
             cached.cache_md5 = content_md5[:7]
             print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
-            print(f"  💾 {cache_path}")
+            print(f"  {cache_path}")
             return cached
         
         prompt = self._build_full_file_prompt(source_file, content_md5[:7])
@@ -1468,7 +1468,7 @@ class AIEngine:
                 print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                 if cache_key:
                     cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                    print(f"  💾 {cache_path}")
+                    print(f"  {cache_path}")
         
         # ===== 第二阶段：并发调 AI =====
         if cache_miss_indices:
