@@ -145,10 +145,10 @@ class ResultFormatter:
         if result.summary and not result.issues:
             summary_line = Text(f"  {result.summary}", style="dim italic")
 
-        # ── 问题表格 ──
+        # ── 问题列表（纵向布局，不拥挤）──
         if result.issues:
-            issue_table = self._build_issue_table(result)
-            content = Group(file_header, Text(), issue_table)
+            issue_block = self._build_issue_block(result)
+            content = Group(file_header, Text(), issue_block)
         elif summary_line:
             content = Group(file_header, summary_line)
         else:
@@ -165,60 +165,53 @@ class ResultFormatter:
 
         return result.passed
 
-    def _build_issue_table(self, result: "ReviewResult") -> Table:
-        """构建问题详情表格 — 列对齐，精致边框"""
-        table = Table(
-            box=box.SIMPLE_HEAVY,
-            show_header=True,
-            header_style="bold bright_cyan",
-            border_style="dim",
-            padding=(0, 1),
-            expand=True,
-        )
+    def _build_issue_block(self, result: "ReviewResult") -> Text:
+        """构建问题纵向文本块 — 每行一个信息，不拥挤"""
+        block = Text()
 
-        table.add_column("级别", min_width=6, max_width=8, justify="center")
-        table.add_column("类别", min_width=4, max_width=4, justify="center")
-        table.add_column("位置", min_width=25, max_width=35, no_wrap=True)
-        table.add_column("问题描述", ratio=2, no_wrap=False)
-        table.add_column("修复建议", ratio=2, no_wrap=False, style="green")
-
-        for issue in result.issues:
+        for idx, issue in enumerate(result.issues):
             sev = issue.severity
             sev_label = self.SEVERITY_LABELS.get(sev, sev)
             sev_bg = self.SEVERITY_BG.get(sev, "on_white")
+            sev_icon = self.SEVERITY_ICONS.get(sev, "⚪")
             cat_icon = self.CATEGORY_ICONS.get(issue.category, "📌")
             sev_style = self.SEVERITY_STYLES.get(sev, "white")
 
-            # 级别标签：彩色背景 + 白色文字
-            level_cell = Text(f" {sev_label} ", style=f"bold white {sev_bg}")
+            # 问题之间用分隔线隔开
+            if idx > 0:
+                block.append(f"\n  {'─' * 50}\n", style="dim")
+            else:
+                block.append("\n", style="")
 
-            # 类别图标
-            category_cell = Text(cat_icon)
-
-            # 位置：文件名:行号（VS Code 可点击）
+            # 第1行: [级别标签] + 类别图标 + 位置（VS Code 可点击）
+            block.append(f"  {sev_icon} ", style="")
+            block.append(f" {sev_label} ", style=f"bold white {sev_bg}")
+            block.append(f"  {cat_icon}  ", style="")
             if issue.line_number:
                 location = f"{result.filename}:{issue.line_number}"
             else:
                 location = result.filename
-            location_cell = Text(location, style=f"{sev_style} underline")
+            block.append(location, style=f"bold {sev_style} underline")
+            block.append("\n", style="")
 
-            # 问题描述
-            message_cell = Text(issue.message or "-", style="bold white")
+            # 第2行: >> 问题描述（加粗，最醒目）
+            block.append(f"     >> ", style=f"bold {sev_style}")
+            block.append(f"{issue.message or '-'}\n", style="bold white")
 
-            # 修复建议
-            suggestion_cell = Text(issue.suggestion or "-", style="green")
+            # 第3行: 💡 修复建议（绿色）
+            if issue.suggestion:
+                block.append(f"     💡 ", style="bold green")
+                block.append(f"{issue.suggestion}\n", style="green")
 
-            # 代码片段（如果有，附加到问题描述后面）
+            # 第4行: 📍 代码片段（灰色，小字）
             if issue.code_snippet:
                 snippet = issue.code_snippet.strip()
-                if len(snippet) > 60:
-                    snippet = snippet[:57] + "..."
-                message_cell.append("\n", style="")
-                message_cell.append(f"  {snippet}", style="dim")
+                if len(snippet) > 70:
+                    snippet = snippet[:67] + "..."
+                block.append(f"     📍 ", style="dim")
+                block.append(f"{snippet}\n", style="dim")
 
-            table.add_row(level_cell, category_cell, location_cell, message_cell, suggestion_cell)
-
-        return table
+        return block
 
     # ═══════════════════════════════════════════════════════════════
     #  汇总区
