@@ -653,6 +653,7 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
+                cache_md5=cache_key[:7],
             )
     
     def review_batch(self, file_diffs: List[Any]) -> List[ReviewResult]:
@@ -1137,12 +1138,15 @@ class AIEngine:
                         suggestion=issue_data.get('suggestion', ''),
                         code_snippet=issue_data.get('code_snippet', ''),
                     ))
+            # cache_md5 从 JSON 恢复，如果没有则从缓存文件名推断
+            cache_md5 = data.get('cache_md5', '') or content_md5[:7]
             return ReviewResult(
                 filename=data.get('filename', ''),
                 issues=issues,
                 summary=data.get('summary', ''),
                 passed=data.get('passed', True),
                 raw_response=data.get('raw_response', ''),
+                cache_md5=cache_md5,
             )
         except Exception:
             # 缓存文件损坏，删除它
@@ -1172,6 +1176,7 @@ class AIEngine:
                 'summary': result.summary,
                 'passed': result.passed,
                 'raw_response': result.raw_response,
+                'cache_md5': result.cache_md5 or content_md5[:7],
                 'issues': [
                     {
                         'severity': issue.severity,
