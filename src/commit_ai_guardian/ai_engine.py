@@ -446,7 +446,7 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_md5=cache_key[:7])
             # diff 模式下：把第一个变更行号和 MD5 赋给结果（文件名头显示用）
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
@@ -637,7 +637,7 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_md5=cache_key[:7])
             # diff 模式下：把第一个变更行号和 MD5 赋给结果
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
@@ -1328,7 +1328,7 @@ class AIEngine:
         
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
-    def _parse_response(self, response: str, filename: str) -> ReviewResult:
+    def _parse_response(self, response: str, filename: str, cache_md5: str = "") -> ReviewResult:
         """解析 AI 的响应文本为结构化的 ReviewResult
         
         委托给模块级函数 parse_ai_response()，复用同一套解析逻辑。
@@ -1336,6 +1336,7 @@ class AIEngine:
         Args:
             response: AI 返回的原始文本（含 markdown 代码块）
             filename: 被审核的文件名
+            cache_md5: MD5 前7位，用于解析失败时打印正确的日志路径
             
         Returns:
             ReviewResult。解析失败返回 passed=False（让用户知道出问题了）
@@ -1344,10 +1345,10 @@ class AIEngine:
         
         # 解析失败时打印日志提示（线上运行时帮助定位问题）
         if not result.passed and result.issues == [] and result.raw_response:
-            safe_name = filename.replace('/', '_').replace(' ', '_')
-            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{result.cache_md5 or 'unknown'}.json"
-            ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{safe_name}.ai.log"
-            prompt_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{safe_name}.prompt.log"
+            md5_short = cache_md5[:7] if cache_md5 else "unknown"
+            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{md5_short}.json"
+            ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.ai.log"
+            prompt_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.prompt.log"
             if "无法从响应中解析 JSON" in result.summary:
                 print(f"\n⚠️  JSON 解析失败")
             elif "JSON 解析失败" in result.summary:
@@ -1395,7 +1396,7 @@ class AIEngine:
         
         try:
             response = self._call_api(prompt, filename=filename, cache_md5=content_md5[:7])
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_md5=content_md5[:7])
             result.cache_md5 = content_md5[:7]
             # 审核成功，保存到缓存
             self._save_cache(content_md5, result)
@@ -1444,7 +1445,7 @@ class AIEngine:
         try:
             prompt = self._build_full_file_prompt(source_file, cache_key[:7])
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
-            result = self._parse_response(response, filename)
+            result = self._parse_response(response, filename, cache_md5=cache_key[:7])
             self._save_cache(cache_key, result)
             return result
         except Exception as e:
