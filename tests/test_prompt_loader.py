@@ -43,20 +43,8 @@ class TestDefaultSystemMessage:
         assert "规则1" in DEFAULT_SYSTEM_MESSAGE
 
     def test_contains_rule2(self):
-        """包含规则2 - think 精简"""
+        """包含规则2 - JSON 自检"""
         assert "规则2" in DEFAULT_SYSTEM_MESSAGE
-
-    def test_contains_rule3(self):
-        """包含规则3 - think 和 result 分开"""
-        assert "规则3" in DEFAULT_SYSTEM_MESSAGE
-
-    def test_contains_rule4(self):
-        """包含规则4 - 无额外文字"""
-        assert "规则4" in DEFAULT_SYSTEM_MESSAGE
-
-    def test_contains_rule4_json_self_check(self):
-        """包含规则4 - JSON 格式自检"""
-        assert "JSON 格式自检" in DEFAULT_SYSTEM_MESSAGE
 
     def test_contains_result_tag(self):
         """包含 <result> 标签说明"""
@@ -66,14 +54,6 @@ class TestDefaultSystemMessage:
         """包含 <think> 标签说明"""
         assert "<think>" in DEFAULT_SYSTEM_MESSAGE
 
-    def test_contains_correct_example(self):
-        """包含正确示例标记"""
-        assert "正确" in DEFAULT_SYSTEM_MESSAGE
-
-    def test_contains_incorrect_example(self):
-        """包含错误示例标记"""
-        assert "错误" in DEFAULT_SYSTEM_MESSAGE
-
     def test_contains_json_escaped_quotes(self):
         """包含 JSON 引号转义说明"""
         assert "\\\"" in DEFAULT_SYSTEM_MESSAGE
@@ -81,6 +61,14 @@ class TestDefaultSystemMessage:
     def test_contains_line_number_constraint(self):
         """包含 line_number 约束说明"""
         assert "line_number" in DEFAULT_SYSTEM_MESSAGE
+
+    def test_contains_audit_dimensions(self):
+        """包含审核维度说明"""
+        assert "审核维度" in DEFAULT_SYSTEM_MESSAGE
+
+    def test_contains_constraints(self):
+        """包含约束说明"""
+        assert "约束" in DEFAULT_SYSTEM_MESSAGE
 
 
 # ============================================================
@@ -309,10 +297,10 @@ class TestPromptLoaderGetDefaultTemplateFiles:
         result = PromptLoader.get_default_template_files()
         assert isinstance(result, dict)
 
-    def test_returns_three_templates(self):
-        """返回3个模板文件"""
+    def test_returns_four_templates(self):
+        """返回4个模板文件（含 json_fix.md）"""
         result = PromptLoader.get_default_template_files()
-        assert len(result) == 3
+        assert len(result) == 4
 
     def test_contains_system_message(self):
         """包含 system_message.txt"""

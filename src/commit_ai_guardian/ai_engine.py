@@ -1353,20 +1353,9 @@ class AIEngine:
         if len(broken_json) > 6000:
             truncated = broken_json[:6000] + '...（已截断）'
 
-        fix_prompt = (
-            "你是一位 JSON 修复专家。修复以下 JSON 的语法错误，使其成为合法的 JSON。\n"
-            "\n"
-            "要求：\n"
-            "1. 只修复语法错误（引号转义、逗号、括号闭合等），不要修改任何内容\n"
-            "2. 确保 code_snippet 和 suggestion 字段中的特殊字符正确转义\n"
-            "3. 直接输出修复后的 JSON 文本，不要 <result> 标签，不要任何解释\n"
-            "4. 输出前用 JSON 解析器自检，确认可以成功解析\n"
-            "\n"
-            f"文件: {filename}\n"
-            "\n"
-            "需要修复的 JSON：\n"
-            f"{truncated}"
-        )
+        # 从模板加载 JSON 修复 prompt（用户可在 .ai-review/prompts/json_fix.md 自定义）
+        template = self.prompt_loader.load_json_fix_template()
+        fix_prompt = PromptLoader.render(template, filename=filename, broken_json=truncated)
 
         for attempt in range(2):
             try:
