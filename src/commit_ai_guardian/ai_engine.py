@@ -1329,7 +1329,70 @@ class AIEngine:
 
         return None
 
-    def _fix_json_with_ai(self, broken_json: str, filename: str) -> Optional[str]:
+    def _write_json_fix_log(self, filename: str, cache_md5: str,
+                             system_message: str, user_message: str,
+                             ai_response: str) -> None:
+        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{md5}.json.log
+
+        格式与 ai.log 一致：system + user + ai response，用分隔线标注。
+
+        Args:
+            filename: 被审核的文件名
+            cache_md5: MD5 前7位，用于日志文件名
+            system_message: system 角色消息
+            user_message: user 角色消息
+            ai_response: AI 返回的文本
+        """
+        if not self.repo_path or not cache_md5:
+            return
+
+        logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        md5_short = cache_md5[:7]
+        log_file = logs_dir / f"{md5_short}.json.log"
+        try:
+            from datetime import datetime
+            sep_line = "=" * 60
+
+            parts = [
+                f"# ================================================\n"
+                f"# JSON Fix Log\n"
+                f"# 文件: {filename}\n"
+                f"# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"# ================================================\n"
+            ]
+
+            if system_message:
+                parts.append(
+                    f"\n{sep_line}\n"
+                    f"--- SYSTEM MESSAGE ---\n"
+                    f"{sep_line}\n\n"
+                    f"{system_message}"
+                )
+
+            if user_message:
+                parts.append(
+                    f"\n{sep_line}\n"
+                    f"--- USER MESSAGE ---\n"
+                    f"{sep_line}\n\n"
+                    f"{user_message}"
+                )
+
+            if ai_response:
+                parts.append(
+                    f"\n{sep_line}\n"
+                    f"--- AI RESPONSE ---\n"
+                    f"{sep_line}\n\n"
+                    f"{ai_response}"
+                )
+
+            log_file.write_text("\n".join(parts), encoding='utf-8')
+        except Exception:
+            pass
+
+    def _fix_json_with_ai(self, broken_json: str, filename: str,
+                           cache_md5: str = "") -> Optional[str]:
         """AI 修复 JSON 语法错误
 
         本地所有修复策略都失败后，调用 AI 来修复 JSON。
@@ -1337,7 +1400,8 @@ class AIEngine:
 
         Args:
             broken_json: 有语法错误的 JSON 字符串
-            filename: 被审核的文件名（用于日志）
+            filename: 被审核的文件名
+            cache_md5: MD5 前7位，用于 json_fix 日志文件名
 
         Returns:
             修复后的 JSON 字符串，或 None
@@ -1353,14 +1417,10 @@ class AIEngine:
         if len(broken_json) > 6000:
             truncated = broken_json[:6000] + '...（已截断）'
 
-        # 从模板加载 JSON 修复 prompt（用户可在 .ai-review/prompts/json_fix.md 自定义）
+        # 从模板加载 system message 和 user prompt
+        system_msg = self.prompt_loader.load_json_fix_system_message()
         template = self.prompt_loader.load_json_fix_template()
         fix_prompt = PromptLoader.render(template, filename=filename, broken_json=truncated)
-
-        # system message：确保输出干净、可解析的 JSON
-        system_msg = (
-            "你是 JSON 修复专家。只输出合法 JSON 文本，不要解释、不要 <think>、不要 <result> 标签。"
-        )
 
         for attempt in range(2):
             try:
@@ -1374,6 +1434,11 @@ class AIEngine:
                     max_tokens=max_tokens,
                 )
                 fixed = resp.choices[0].message.content or ""
+
+                # 写入 json_fix 日志（system + user + ai response）
+                if cache_md5:
+                    self._write_json_fix_log(filename, cache_md5,
+                                             system_msg, fix_prompt, fixed)
 
                 # 从修复后的响应中提取 JSON
                 fixed_json = self._extract_json_str(fixed) or fixed.strip()
@@ -1445,7 +1510,7 @@ class AIEngine:
 
             if broken_json and self.client:
                 print(f"[信息] JSON 本地解析失败，调用 AI 修复...")
-                fixed_json = self._fix_json_with_ai(broken_json, filename)
+                fixed_json = self._fix_json_with_ai(broken_json, filename, cache_md5=cache_md5)
 
                 if fixed_json:
                     # 用修复后的 JSON 重新解析

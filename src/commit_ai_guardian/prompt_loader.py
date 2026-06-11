@@ -96,13 +96,15 @@ DEFAULT_FULL_FILE_TEMPLATE = """你是一位资深代码审核专家。请对以
 - 尽量给出具体的修复建议，不要泛泛而谈
 - JSON 自检: 输出前确认字符串引号已转义、issue 之间有逗号、code_snippet 不破坏 JSON 结构"""
 
-DEFAULT_JSON_FIX_TEMPLATE = """你是一位 JSON 修复专家。修复以下 JSON 的语法错误，使其成为合法的 JSON。
+DEFAULT_JSON_FIX_SYSTEM_MESSAGE = (
+    "你是 JSON 修复专家。只输出合法 JSON 文本，不要解释、不要 <think>、不要 <result> 标签。"
+)
+DEFAULT_JSON_FIX_TEMPLATE = """修复以下 JSON 的语法错误，使其成为合法的 JSON。
 
 要求：
-1. 只修复语法错误（引号转义、逗号、括号闭合等），不要修改任何内容
+1. 只修复语法（引号转义、逗号、括号闭合），不要修改任何内容
 2. 确保 code_snippet 和 suggestion 字段中的特殊字符正确转义
-3. 直接输出修复后的 JSON 文本，不要 <result> 标签，不要任何解释
-4. 输出前用 JSON 解析器自检，确认可以成功解析
+3. 输出前用 JSON 解析器自检，确认可以成功解析
 
 文件: {{filename}}
 
@@ -212,6 +214,10 @@ class PromptLoader:
             result = result.replace(placeholder, str(value))
         return result
     
+    def load_json_fix_system_message(self) -> str:
+        """加载 JSON 修复 system message 模板"""
+        return self._load_file("system_message_json_fix.txt", DEFAULT_JSON_FIX_SYSTEM_MESSAGE)
+    
     def load_json_fix_template(self) -> str:
         """加载 JSON 修复 prompt 模板"""
         return self._load_file("json_fix.md", DEFAULT_JSON_FIX_TEMPLATE)
@@ -227,5 +233,6 @@ class PromptLoader:
             "system_message.txt": DEFAULT_SYSTEM_MESSAGE,
             "diff_review.md": DEFAULT_DIFF_REVIEW_TEMPLATE,
             "full_file_review.md": DEFAULT_FULL_FILE_TEMPLATE,
+            "system_message_json_fix.txt": DEFAULT_JSON_FIX_SYSTEM_MESSAGE,
             "json_fix.md": DEFAULT_JSON_FIX_TEMPLATE,
         }

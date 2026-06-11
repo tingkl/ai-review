@@ -297,10 +297,10 @@ class TestPromptLoaderGetDefaultTemplateFiles:
         result = PromptLoader.get_default_template_files()
         assert isinstance(result, dict)
 
-    def test_returns_four_templates(self):
-        """返回4个模板文件（含 json_fix.md）"""
+    def test_returns_five_templates(self):
+        """返回5个模板文件（含 json_fix 的 system + user）"""
         result = PromptLoader.get_default_template_files()
-        assert len(result) == 4
+        assert len(result) == 5
 
     def test_contains_system_message(self):
         """包含 system_message.txt"""
