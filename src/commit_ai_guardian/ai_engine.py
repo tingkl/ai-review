@@ -1080,37 +1080,71 @@ class AIEngine:
         except Exception:
             pass
     
-    def _write_ai_response_log(self, filename: str, response: str, cache_md5: str = "") -> None:
-        """将 AI 审核返回的原始响应写入 .ai-review/logs/{cache_md5}.ai.log
-        
-        文件名使用 cache_md5（前7位），与缓存文件命名保持一致。
-        
+    def _write_ai_response_log(self, filename: str, response: str,
+                                cache_md5: str = "",
+                                system_message: str = "",
+                                user_message: str = "") -> None:
+        """将 AI 审核的完整对话记录写入 .ai-review/logs/{cache_md5}.ai.log
+
+        记录完整的 API 调用上下文：system message + user message + AI response，
+        用分隔线清晰标注各部分，方便调试时定位问题。
+
         Args:
             filename: 被审核的文件名（用于日志头部标识）
             response: AI 返回的原始响应文本
             cache_md5: MD5 前7位，用于日志文件名
+            system_message: system 角色的消息内容
+            user_message: user 角色的消息内容
         """
         if not self.repo_path:
             return
-        
+
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
-        
+
         name = cache_md5[:7] if cache_md5 else self._sanitize_log_filename(filename)
         ai_log = logs_dir / f"{name}.ai.log"
         try:
             from datetime import datetime
-            header = f"""# ================================================
-# AI Response Log
-# 文件: {filename}
-# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-# ================================================
+            sep_line = "=" * 60
 
-"""
-            ai_log.write_text(header + response, encoding='utf-8')
+            parts = [
+                f"# ================================================\n"
+                f"# AI Response Log\n"
+                f"# 文件: {filename}\n"
+                f"# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"# ================================================\n"
+            ]
+
+            if system_message:
+                parts.append(
+                    f"\n{sep_line}\n"
+                    f"--- SYSTEM MESSAGE ---\n"
+                    f"{sep_line}\n\n"
+                    f"{system_message}"
+                )
+
+            if user_message:
+                parts.append(
+                    f"\n{sep_line}\n"
+                    f"--- USER MESSAGE ---\n"
+                    f"{sep_line}\n\n"
+                    f"{user_message}"
+                )
+
+            if response:
+                parts.append(
+                    f"\n{sep_line}\n"
+                    f"--- AI RESPONSE ---\n"
+                    f"{sep_line}\n\n"
+                    f"{response}"
+                )
+
+            ai_log.write_text("\n".join(parts), encoding='utf-8')
         except Exception:
             pass
-    
+
+
     def _check_cache(self, content_md5: str) -> Optional[ReviewResult]:
         """检查缓存是否存在
         
@@ -1227,13 +1261,16 @@ class AIEngine:
         model = getattr(self.config, 'model', 'gpt-4o-mini')
         max_retries = 3
         
+        # 加载 system message（只加载一次，所有 retry 共用）
+        system_msg = self.prompt_loader.load_system_message()
+
         for attempt in range(max_retries):
             try:
                 response = self.client.chat.completions.create(
                     model=model,
                     messages=[
                         # system 消息从模板加载（.ai-review/prompts/system_message.txt）
-                        {"role": "system", "content": self.prompt_loader.load_system_message()},
+                        {"role": "system", "content": system_msg},
                         # user 消息是真正的审核请求（从模板渲染）
                         {"role": "user", "content": prompt}
                     ],
@@ -1254,7 +1291,7 @@ class AIEngine:
                     print(f"    或:   直接修改 .ai-review/config.yaml 中的 max_tokens\n")
                 
                 # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
-                self._write_ai_response_log(filename, raw_content, cache_md5)
+                self._write_ai_response_log(filename, raw_content, cache_md5, system_message=system_msg, user_message=prompt)
                 return raw_content
             
             except openai.RateLimitError:  # API 限流（429）

@@ -123,16 +123,22 @@ class TestDefaultDiffReviewTemplate:
         """包含 {{cases_note}} 占位符"""
         assert "{{cases_note}}" in DEFAULT_DIFF_REVIEW_TEMPLATE
 
-    def test_contains_severity_levels(self):
-        """包含严重级别定义"""
-        assert "critical" in DEFAULT_DIFF_REVIEW_TEMPLATE
-        assert "error" in DEFAULT_DIFF_REVIEW_TEMPLATE
-        assert "warning" in DEFAULT_DIFF_REVIEW_TEMPLATE
-        assert "info" in DEFAULT_DIFF_REVIEW_TEMPLATE
+    def test_contains_severity_levels_in_system(self):
+        """严重级别定义已移到 system message"""
+        assert "critical" in DEFAULT_SYSTEM_MESSAGE
+        assert "error" in DEFAULT_SYSTEM_MESSAGE
+        assert "warning" in DEFAULT_SYSTEM_MESSAGE
+        assert "info" in DEFAULT_SYSTEM_MESSAGE
+        assert "严重级别定义" in DEFAULT_SYSTEM_MESSAGE
 
-    def test_contains_review_dimensions(self):
-        """包含审核维度说明"""
-        assert "Bug 检测" in DEFAULT_DIFF_REVIEW_TEMPLATE
+    def test_contains_review_dimensions_in_system(self):
+        """审核维度说明已移到 system message"""
+        assert "Bug 检测" in DEFAULT_SYSTEM_MESSAGE
+        assert "审核维度" in DEFAULT_SYSTEM_MESSAGE
+
+    def test_template_refers_to_system_message(self):
+        """模板提示 AI 参考 system message 中的规则"""
+        assert "system message" in DEFAULT_DIFF_REVIEW_TEMPLATE.lower()
 
 
 # ============================================================
