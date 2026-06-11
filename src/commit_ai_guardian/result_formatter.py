@@ -134,11 +134,11 @@ class ResultFormatter:
         file_header.append("  ")
         file_header.append(result.filename, style="bold white underline")
 
-        # 缓存路径（小字、折叠到一行末尾）
+        # 缓存路径（绝对路径，VS Code 可点击跳转）
         if result.cache_md5:
-            cache_file = f"{result.cache_md5}.json"
+            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{result.cache_md5}.json"
             file_header.append("  ")
-            file_header.append(f"💾 {cache_file}", style="dim cyan")
+            file_header.append(f"💾 {cache_path}", style="dim cyan")
 
         # 总结语（如果有且没有具体问题时才显示）
         summary_line = None
