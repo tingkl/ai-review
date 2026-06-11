@@ -80,6 +80,13 @@ def _try_parse_json(json_str: str) -> Optional[Dict]:
     if no_comment != json_str.strip():
         candidates.append(no_comment)
     
+    # 修复非法 JSON 转义（AI 在正则表达式中常产生 \] \' 等非法转义）
+    # JSON 标准只支持: \" \\ \/ \b \f \n \r \t \uXXXX
+    fixed_escapes = json_str.strip().replace("\\'", "'")
+    fixed_escapes = re.sub(r'\\([^"\\/bfnrtu])', r'\\\\\1', fixed_escapes)
+    if fixed_escapes != json_str.strip():
+        candidates.append(fixed_escapes)
+    
     for candidate in candidates:
         try:
             parsed = json.loads(candidate)
