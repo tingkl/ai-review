@@ -951,7 +951,7 @@ class AIEngine:
         cases_instruction = _build_cases_check_instruction() if cases_text else "- 按通用审核维度进行检查"
         prompt = prompt.replace("{{cases_note}}", cases_instruction + "\n" + change_note)
         
-        self._write_debug_log(filename, prompt)
+        self._write_debug_log(filename, prompt, cache_md5)
         return prompt
     
     def _build_prompt(self, file_diff: Any, cache_md5: str = "") -> str:
