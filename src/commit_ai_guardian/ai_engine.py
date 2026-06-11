@@ -951,7 +951,6 @@ class AIEngine:
         cases_instruction = _build_cases_check_instruction() if cases_text else "- 按通用审核维度进行检查"
         prompt = prompt.replace("{{cases_note}}", cases_instruction + "\n" + change_note)
         
-        self._write_debug_log(filename, prompt, cache_md5)
         return prompt
     
     def _build_prompt(self, file_diff: Any, cache_md5: str = "") -> str:
@@ -1014,9 +1013,6 @@ class AIEngine:
             _build_cases_check_instruction() if cases_text
             else "- 按通用审核维度进行检查")
         
-        # 将生成的 prompt 写入 debug.log，方便用户调试
-        self._write_debug_log(filename, prompt, cache_md5)
-        
         return prompt
     
     @staticmethod
@@ -1041,44 +1037,6 @@ class AIEngine:
             if name.startswith(prefix):
                 name = name[len(prefix):]
         return name.replace('/', '_').replace('\\', '_').replace('.', '_')
-    
-    def _write_debug_log(self, filename: str, content: str, cache_md5: str = "", append: bool = False) -> None:
-        """将 prompt 写入 .ai-review/logs/{cache_md5}.prompt.log
-        
-        文件名使用 cache_md5（前7位），与缓存文件命名保持一致。
-        
-        Args:
-            filename: 被审核的文件名（用于日志头部标识）
-            content: 要写入的内容
-            cache_md5: MD5 前7位，用于日志文件名
-            append: True=追加，False=覆盖
-        """
-        if not self.repo_path:
-            return
-        
-        logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        
-        name = cache_md5[:7] if cache_md5 else self._sanitize_log_filename(filename)
-        prompt_log = logs_dir / f"{name}.prompt.log"
-        try:
-            from datetime import datetime
-            
-            if append:
-                separator = f"\n\n# --- [{datetime.now().strftime('%H:%M:%S')}] {filename} ---\n\n"
-                existing = prompt_log.read_text(encoding='utf-8') if prompt_log.exists() else ""
-                prompt_log.write_text(existing + separator + content, encoding='utf-8')
-            else:
-                header = f"""# ================================================
-# Prompt Log
-# 文件: {filename}
-# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-# ================================================
-
-"""
-                prompt_log.write_text(header + content, encoding='utf-8')
-        except Exception:
-            pass
     
     def _write_ai_response_log(self, filename: str, response: str,
                                 cache_md5: str = "",
@@ -1348,7 +1306,6 @@ class AIEngine:
             md5_short = cache_md5[:7] if cache_md5 else "unknown"
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{md5_short}.json"
             ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.ai.log"
-            prompt_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.prompt.log"
             if "无法从响应中解析 JSON" in result.summary:
                 print(f"\n⚠️  JSON 解析失败")
             elif "JSON 解析失败" in result.summary:
@@ -1356,7 +1313,6 @@ class AIEngine:
                 print(f"    可能原因: 1.max_tokens 不够(JSON被截断) 2.AI未按JSON格式输出")
             print(f"    {cache_path}")
             print(f"    {ai_log}")
-            print(f"    {prompt_log}")
         
         return result
     
@@ -1593,8 +1549,5 @@ class AIEngine:
         prompt = prompt.replace("{{cases_note}}",
             _build_cases_check_instruction() if cases_text
             else "- 按通用审核维度进行检查")
-        
-        # 将生成的 prompt 写入 debug.log，方便用户调试
-        self._write_debug_log(filename, prompt, cache_md5)
         
         return prompt
