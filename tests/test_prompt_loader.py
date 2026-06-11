@@ -54,9 +54,9 @@ class TestDefaultSystemMessage:
         """包含规则4 - 无额外文字"""
         assert "规则4" in DEFAULT_SYSTEM_MESSAGE
 
-    def test_contains_rule5(self):
-        """包含规则5 - JSON 格式自检"""
-        assert "规则5" in DEFAULT_SYSTEM_MESSAGE
+    def test_contains_rule4_json_self_check(self):
+        """包含规则4 - JSON 格式自检"""
+        assert "JSON 格式自检" in DEFAULT_SYSTEM_MESSAGE
 
     def test_contains_result_tag(self):
         """包含 <result> 标签说明"""

@@ -134,11 +134,18 @@ class ResultFormatter:
         file_header.append("  ")
         file_header.append(result.filename, style="bold white underline")
 
-        # 缓存路径（绝对路径，VS Code 可点击跳转）
+        # 日志路径（绝对路径，VS Code 可点击跳转）
         if result.cache_md5:
+            safe_name = result.filename.replace('/', '_').replace(' ', '_')
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{result.cache_md5}.json"
-            file_header.append("  ")
+            ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{safe_name}.ai.log"
+            prompt_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{safe_name}.prompt.log"
+            file_header.append("\n  ")
             file_header.append(f"💾 {cache_path}", style="dim cyan")
+            file_header.append("  ")
+            file_header.append(f"🤖 {ai_log}", style="dim magenta")
+            file_header.append("  ")
+            file_header.append(f"📝 {prompt_log}", style="dim blue")
 
         # 总结语（如果有且没有具体问题时才显示）
         summary_line = None
