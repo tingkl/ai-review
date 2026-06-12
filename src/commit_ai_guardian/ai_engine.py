@@ -1491,6 +1491,76 @@ class AIEngine:
         except Exception:
             pass
 
+    def _validate_review_schema(self, data: dict) -> list:
+        """校验审核结果 JSON 是否满足 schema 要求
+        
+        返回具体的错误信息列表，用于反馈给 JSON 修复 AI。
+        空列表表示校验通过。
+        
+        Args:
+            data: 解析后的 JSON dict
+            
+        Returns:
+            错误信息列表（空列表表示通过）
+        """
+        errors = []
+        
+        # 1. 顶层必填字段
+        for field in ['summary', 'passed', 'issues']:
+            if field not in data:
+                errors.append(f"缺少顶层必填字段: '{field}'")
+        
+        if errors:
+            return errors  # 缺少顶层字段，不再检查 issues
+        
+        # 2. 类型检查
+        if not isinstance(data.get('summary'), str):
+            errors.append("'summary' 必须是字符串")
+        if not isinstance(data.get('passed'), bool):
+            errors.append("'passed' 必须是布尔值 (true/false)")
+        if not isinstance(data.get('issues'), list):
+            errors.append("'issues' 必须是数组")
+            return errors
+        
+        # 3. issues 数组中每个 issue 的校验
+        for i, issue in enumerate(data['issues']):
+            if not isinstance(issue, dict):
+                errors.append(f"issues[{i}] 必须是对象")
+                continue
+            
+            # 必填字段
+            for field in ['severity', 'category', 'line_number', 'message']:
+                if field not in issue:
+                    errors.append(f"issues[{i}] 缺少必填字段: '{field}'")
+            
+            # severity 枚举值
+            sev = issue.get('severity')
+            if sev and sev not in ['critical', 'error', 'warning', 'info']:
+                errors.append(f"issues[{i}].severity 值非法: '{sev}'，必须是 critical/error/warning/info 之一")
+            
+            # category 枚举值
+            cat = issue.get('category')
+            if cat and cat not in ['bug', 'security', 'style', 'performance', 'best-practice', 'documentation']:
+                errors.append(f"issues[{i}].category 值非法: '{cat}'")
+            
+            # line_number 类型
+            ln = issue.get('line_number')
+            if ln is not None and not isinstance(ln, int):
+                errors.append(f"issues[{i}].line_number 必须是整数，当前类型: {type(ln).__name__}")
+            
+            # message 非空
+            msg = issue.get('message')
+            if msg is not None and (not isinstance(msg, str) or not msg.strip()):
+                errors.append(f"issues[{i}].message 不能为空字符串")
+            
+            # 禁止的字段名（别名）
+            invalid_fields = {'description', 'fix_suggestion', 'fix', 'advice', 'title', 'desc', 'code'}
+            found_invalid = invalid_fields & set(issue.keys())
+            if found_invalid:
+                errors.append(f"issues[{i}] 使用了非标准字段名: {found_invalid}，请改为标准名称: message/suggestion/code_snippet")
+        
+        return errors
+
     def _fix_json_with_ai(self, broken_json: str, filename: str,
                            cache_md5: str = "") -> Optional[str]:
         """AI 修复 JSON 语法错误
@@ -1525,34 +1595,53 @@ class AIEngine:
         template = self.prompt_loader.load_json_fix_template()
         fix_prompt = PromptLoader.render(template, filename=filename, broken_json=truncated)
 
-        for attempt in range(2):
+        # 记录上次修复的错误反馈，用于下次修复时告诉 AI 哪里错了
+        last_error = ""
+
+        for attempt in range(3):
             try:
+                # 构造 messages，如果有上次错误则追加反馈
+                messages = [
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": fix_prompt},
+                ]
+                if last_error:
+                    messages.append({"role": "user", "content": f"上次修复结果不满足 schema 要求，具体错误：\n{last_error}\n\n请根据以上错误修正 JSON，确保满足 schema 约束。"})
+
                 resp = self._call_api_safe(
                     model=model,
-                    messages=[
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": fix_prompt},
-                    ],
+                    messages=messages,
                     temperature=0.1,
                     max_tokens=max_tokens,
-                    **extra_params,      # 主流模型禁用 think 的额外参数
+                    **extra_params,
                 )
                 fixed = resp.choices[0].message.content or ""
 
-                # 写入 json_fix 日志（system + user + ai response）
+                # 写入 json_fix 日志
                 if cache_md5:
                     self._write_json_fix_log(filename, cache_md5,
                                              system_msg, fix_prompt, fixed)
 
-                # 从修复后的响应中提取 JSON
+                # 提取 JSON
                 fixed_json = self._extract_json_str(fixed) or fixed.strip()
 
-                # 验证能解析
+                # 验证：先解析，再校验 schema
                 data = _try_parse_json(fixed_json)
-                if data and isinstance(data, dict):
-                    return fixed_json
+                if not data or not isinstance(data, dict):
+                    last_error = "JSON 语法解析失败，请确保是合法的 JSON 格式"
+                    continue
 
-            except Exception:
+                # Schema 校验
+                schema_errors = self._validate_review_schema(data)
+                if not schema_errors:
+                    return fixed_json  # 校验通过，返回修复后的 JSON
+
+                # 校验失败，收集错误信息给下次修复
+                last_error = "\n".join(schema_errors)
+                print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{schema_errors[0]}")
+
+            except Exception as e:
+                last_error = f"处理异常: {e}"
                 continue
 
         return None
