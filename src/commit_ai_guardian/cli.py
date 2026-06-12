@@ -406,7 +406,7 @@ def validate_cases(repo):
 
 @main.command('debug-log')
 @click.argument('log_file', type=click.Path(exists=True))
-@click.option('--filename', '-f', default='debug.log', help='模拟的文件名（用于展示）')
+@click.option('--filename', '-f', default=None, help='模拟的文件名（用于展示，默认从 ai.log header 提取）')
 @click.option('--repo', default='.', help='项目路径（用于加载配置）')
 def debug_log(log_file, filename, repo):
     """调试 AI 响应日志 - 传入 ai.log 文件，直接看格式化结果（不调用 AI）
@@ -431,6 +431,11 @@ def debug_log(log_file, filename, repo):
         
         click.echo(f"📄 日志文件: {log_path.absolute()}")
         click.echo(f"📄 文件大小: {len(log_content)} 字符\n")
+        
+        # 从 ai.log header 中提取文件名（如未指定 --filename）
+        if filename is None:
+            file_match = re.search(r'# 文件: (.+)', log_content)
+            filename = file_match.group(1).strip() if file_match else 'unknown'
         
         # 从 ai.log 中提取 --- AI RESPONSE --- 后面的内容
         # ai.log 格式: header + system + user + ai_response
