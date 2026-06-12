@@ -69,23 +69,25 @@ git commit -m "feat: add new feature"
 ### 从 GitHub 安装（推荐）
 
 ```bash
-uv pip install git+https://github.com/tingkl/ai-review.git@main
+uv tool install git+https://github.com/tingkl/ai-review.git@main
 
 # 升级
-uv pip install --upgrade git+https://github.com/tingkl/ai-review.git@main
+uv tool upgrade commit-ai-guardian
 ```
 
 ### 从 GitLab 安装（内网）
 
 ```bash
-uv pip install http://124.223.189.152:7080/gaoq/ai-review.git@main
+uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
 ```
 
 ### 从 PyPI 安装
 
 ```bash
-uv pip install commit-ai-guardian
+uv tool install commit-ai-guardian
 ```
+
+> `uv tool install` 自动创建隔离环境并把 `cag` 命令链接到 PATH，`pip install` 需要手动管理虚拟环境。用 `uv pip install` 也行，但需要自己激活虚拟环境。
 
 ### 项目初始化
 
