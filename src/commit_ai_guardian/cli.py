@@ -4,6 +4,7 @@
 # Path: 用于处理文件路径（比字符串拼接更可靠）
 # click: Python 的命令行框架，用装饰器定义命令和选项
 
+import re
 import sys
 from pathlib import Path
 
@@ -426,10 +427,26 @@ def debug_log(log_file, filename, repo):
     try:
         # 读取 AI 原始响应
         log_path = Path(log_file)
-        raw_response = log_path.read_text(encoding='utf-8')
+        log_content = log_path.read_text(encoding='utf-8')
         
         click.echo(f"📄 日志文件: {log_path.absolute()}")
-        click.echo(f"📄 文件大小: {len(raw_response)} 字符\n")
+        click.echo(f"📄 文件大小: {len(log_content)} 字符\n")
+        
+        # 从 ai.log 中提取 --- AI RESPONSE --- 后面的内容
+        # ai.log 格式: header + system + user + ai_response
+        ai_response_match = re.search(
+            r'--- AI RESPONSE ---\n={40,}\n\n(.*)',
+            log_content, re.DOTALL
+        )
+        if ai_response_match:
+            raw_response = ai_response_match.group(1).strip()
+            click.echo(f"📄 AI 响应长度: {len(raw_response)} 字符\n")
+        elif '<result>' in log_content:
+            # 兼容旧格式（没有分隔线的 ai.log，直接找 <result>）
+            raw_response = log_content
+            click.echo("📄 使用兼容模式（旧格式 ai.log）\n")
+        else:
+            raw_response = log_content
         
         # 使用与线上完全一致的解析逻辑
         result = parse_ai_response(raw_response, filename)
