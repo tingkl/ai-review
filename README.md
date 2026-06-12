@@ -78,7 +78,7 @@ pip install --upgrade git+https://github.com/tingkl/ai-review.git@main
 ### 从 GitLab 安装（内网）
 
 ```bash
-pip install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git@main
+pip install http://124.223.189.152:7080/gaoq/ai-review.git@main
 ```
 
 ### 从 PyPI 安装
@@ -378,7 +378,7 @@ git push github main   # GitHub
 # 或配置 all 分组一次推两个
 git remote add all https://github.com/tingkl/ai-review.git
 git remote set-url --add --push all https://github.com/tingkl/ai-review.git
-git remote set-url --add --push all ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+git remote set-url --add --push all http://124.223.189.152:7080/gaoq/ai-review.git
 git push all main
 ```
 
