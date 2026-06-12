@@ -202,20 +202,6 @@ class ReviewResult:
     cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（文件名头显示用，cache 文件名也是前7位）
 
 
-def _pick_field(data: dict, keys: list, default: str = '') -> str:
-    """从 dict 中按优先级选取第一个非空字段值
-    
-    AI 可能返回不同的字段名（如 description/message/title），
-    用此函数兼容各种情况，映射到标准字段名。
-    空字符串视为不存在，继续查找下一个候选字段。
-    """
-    for key in keys:
-        val = data.get(key)
-        if val is not None and str(val).strip():
-            return str(val).strip()
-    return default
-
-
 def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     """解析 AI 的原始响应文本为结构化的 ReviewResult（纯函数，不依赖 AIEngine）
 
@@ -300,23 +286,29 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     result.summary = data.get('summary', '审核完成')
     result.passed = bool(data.get('passed', True))
 
-    # 解析 issues 列表（兼容 AI 可能返回的各种字段名）
+    # 解析 issues 列表
+    # issue 字段名校验：AI 必须返回标准字段名，否则视为 JSON 格式错误
+    # 由 JSON 修复机制处理（见 _fix_json_with_ai）
+    _INVALID_ISSUE_FIELDS = {'description', 'fix_suggestion', 'fix', 'advice', 'title', 'desc', 'code'}
     issues_data = data.get('issues', [])
     if isinstance(issues_data, list):
         for issue_data in issues_data:
             if isinstance(issue_data, dict):
-                # 字段名映射：AI 可能返回 description/fix_suggestion/title 等
-                # 统一映射到标准字段 message/suggestion/code_snippet
-                message = _pick_field(issue_data, ['message', 'description', 'title', 'desc'], default='')
-                suggestion = _pick_field(issue_data, ['suggestion', 'fix_suggestion', 'fix', 'advice'], default='')
-                code_snippet = _pick_field(issue_data, ['code_snippet', 'code', 'snippet'], default='')
+                # 检查 AI 是否用了非标准字段名
+                invalid_found = _INVALID_ISSUE_FIELDS & set(issue_data.keys())
+                if invalid_found:
+                    result.summary = f"JSON 字段名错误: issue 用了非标准字段 {invalid_found}，必须是 message/suggestion/code_snippet"
+                    result.passed = False
+                    result.raw_response = response
+                    return result
+                
                 issue = ReviewIssue(
                     severity=issue_data.get('severity', 'info'),
                     category=issue_data.get('category', 'best-practice'),
                     line_number=issue_data.get('line_number'),
-                    message=message,
-                    suggestion=suggestion,
-                    code_snippet=code_snippet,
+                    message=issue_data.get('message', ''),
+                    suggestion=issue_data.get('suggestion', ''),
+                    code_snippet=issue_data.get('code_snippet', ''),
                 )
                 result.issues.append(issue)
 
