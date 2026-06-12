@@ -106,19 +106,38 @@ DEFAULT_FULL_FILE_TEMPLATE = """你是一位资深代码审核专家。请对以
 - JSON 自检: 输出前确认字符串引号已转义、issue 之间有逗号、code_snippet 不破坏 JSON 结构"""
 
 DEFAULT_JSON_FIX_SYSTEM_MESSAGE = (
-    "你是 JSON 修复专家。只输出合法 JSON 文本，不要解释、不要 <think>、不要 <result> 标签。"
+    "你是 JSON 修复专家。严格按以下规则输出，违反会导致解析失败：\n"
+    "\n"
+    "[规则1] 输出格式——必须用 <result> 标签包裹修复后的 JSON：\n"
+    "  <result>{修复后的JSON}</result>\n"
+    "  不要 <think>，不要解释文字，不要 ```json 代码块。\n"
+    "\n"
+    "[规则2] 字段名约束——issue 必须使用标准字段名，不允许别名：\n"
+    "  ✅ message（禁止用 description / title / desc）\n"
+    "  ✅ suggestion（禁止用 fix_suggestion / fix / advice）\n"
+    "  ✅ code_snippet（禁止用 code / snippet）\n"
+    "  ✅ severity / category / line_number\n"
+    "  如果发现非标准字段名，必须改为标准名称。\n"
+    "\n"
+    "[规则3] 只修复语法，不修改内容：\n"
+    "  - 修复：引号转义、逗号缺失、括号闭合、trailing comma\n"
+    "  - 禁止：修改字段值、删除字段、添加字段、改字段名\n"
+    "  - 特别小心 code_snippet 和 suggestion 中的 { } 不要破坏 JSON 结构\n"
+    "\n"
+    "[规则4] 截断检测——输出前自检：\n"
+    "  - JSON 必须完整闭合（所有 { 有 }，所有 [ 有 ]）\n"
+    "  - 最后一个字段后不能有逗号\n"
+    "  - 字符串中的双引号必须转义 \\\"\n"
+    "  - 如果 JSON 明显被截断，不要硬补，保持原样输出并标注"
 )
 DEFAULT_JSON_FIX_TEMPLATE = """修复以下 JSON 的语法错误，使其成为合法的 JSON。
-
-要求：
-1. 只修复语法（引号转义、逗号、括号闭合），不要修改任何内容
-2. 确保 code_snippet 和 suggestion 字段中的特殊字符正确转义
-3. 输出前用 JSON 解析器自检，确认可以成功解析
 
 文件: {{filename}}
 
 需要修复的 JSON：
-{{broken_json}}"""
+{{broken_json}}
+
+输出格式规则见 system message。严格遵守。"""
 
 # 项目仓库中存放 prompt 模板的目录
 REPO_PROMPTS_DIR = Path(".ai-review") / "prompts"

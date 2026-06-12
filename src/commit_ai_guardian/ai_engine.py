@@ -1497,7 +1497,7 @@ class AIEngine:
         return None
 
     def _build_result_from_dict(self, data: Dict, filename: str, raw_response: str) -> ReviewResult:
-        """从解析后的 dict 构建 ReviewResult
+        """从解析后的 dict 构建 ReviewResult（含字段名校验）
 
         Args:
             data: 解析后的 JSON dict
@@ -1511,15 +1511,24 @@ class AIEngine:
         result.summary = data.get('summary', '') or '审核完成'
         result.passed = bool(data.get('passed', True))
 
+        # issue 字段名校验：必须有 message 字段且非空
         issues_data = data.get('issues', [])
         if isinstance(issues_data, list):
             for issue_data in issues_data:
                 if isinstance(issue_data, dict):
+                    # 检查必填字段 message
+                    message_val = issue_data.get('message', '')
+                    if not message_val or not str(message_val).strip():
+                        result.summary = "JSON 字段缺失: issue 缺少必填字段 message"
+                        result.passed = False
+                        result.raw_response = raw_response
+                        return result
+                    
                     issue = ReviewIssue(
                         severity=issue_data.get('severity', 'info'),
                         category=issue_data.get('category', 'best-practice'),
                         line_number=issue_data.get('line_number'),
-                        message=issue_data.get('message', ''),
+                        message=message_val,
                         suggestion=issue_data.get('suggestion', ''),
                         code_snippet=issue_data.get('code_snippet', ''),
                     )
