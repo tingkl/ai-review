@@ -1,4 +1,4 @@
-# 🤖 Commit AI Guardian
+# Commit AI Guardian
 
 <p align="center">
   <strong>Git Pre-commit Hook AI 代码审核系统</strong><br>
@@ -6,11 +6,9 @@
 </p>
 
 <p align="center">
-  <a href="#"><img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status"></a>
-  <a href="#"><img src="https://img.shields.io/badge/coverage-85%25-green" alt="Coverage"></a>
-  <a href="#"><img src="https://img.shields.io/badge/python-3.9%2B-blue" alt="Python 3.9+"></a>
+  <a href="#"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python 3.8+"></a>
   <a href="#"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-  <a href="#"><img src="https://img.shields.io/badge/pypi-v0.1.0-orange" alt="PyPI"></a>
+  <a href="#"><img src="https://img.shields.io/badge/version-0.2.0-orange" alt="Version"></a>
 </p>
 
 ---
@@ -22,10 +20,11 @@
 - [安装](#安装)
 - [命令参考](#命令参考)
 - [配置说明](#配置说明)
+- [审核规则](#审核规则)
 - [案例驱动审核](#案例驱动审核)
+- [日志系统](#日志系统)
 - [工作原理](#工作原理)
 - [常见问题](#常见问题)
-- [开源协议](#开源协议)
 
 ---
 
@@ -33,68 +32,65 @@
 
 | 特性 | 说明 |
 |------|------|
-| 🔍 **自动审核** | `git commit` 前自动触发 AI 代码审核，发现问题阻断提交 |
-| 📁 **手动审核** | 指定文件或目录随时审核，不依赖 git 流程 |
-| 📚 **案例驱动** | 自定义"坏代码/好代码"案例，AI 按你的标准检查 |
-| ⚙️ **项目级配置** | 每个仓库独立配置规则，团队协作一致 |
-| 🏠 **两级配置** | 全局配置 + 项目配置，项目覆盖全局 |
-| ⚡ **并发审核** | 多文件变更时并行调用 AI，减少等待 |
-| 💾 **智能缓存** | 审核过的文件自动缓存，内容未变直接复用结果 |
-| 🛡️ **严格阻断** | API 异常、配置缺失、解析失败均阻断 commit，确保问题不被遗漏 |
+| **自动审核** | `git commit` 前自动触发 AI 代码审核，发现问题阻断提交 |
+| **手动审核** | 指定文件或目录随时审核，不依赖 git 流程 |
+| **案例驱动** | 自定义"坏代码/好代码"案例，AI 按你的标准检查 |
+| **项目级配置** | 每个仓库独立配置规则，团队协作一致 |
+| **两级配置** | 全局配置 + 项目配置，项目覆盖全局 |
+| **并发审核** | 多文件变更时并行调用 AI，减少等待 |
+| **智能缓存** | 审核过的文件自动缓存，内容未变直接复用结果 |
+| **缓存可控** | `use_cache: false` 关闭缓存，每次强制重新审核 |
+| **JSON 容错** | AI 返回的 JSON 语法错误时，自动调用 AI 修复再解析 |
+| **严格阻断** | API 异常、配置缺失、解析失败均阻断 commit |
 
 ---
 
 ## 快速开始
 
 ```bash
-# 1. 安装工具
-uv tool install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+# 1. 安装
+pip install git+https://github.com/tingkl/ai-review.git@main
 
-# 2. 进入你的项目，初始化
+# 2. 进入项目，初始化
 commit-ai-guardian install
 
 # 3. 配置 API 密钥
 commit-ai-guardian configure
 
-# 4. 正常提交代码，AI 自动审核
-
+# 4. 正常提交，AI 自动审核
 git add .
 git commit -m "feat: add new feature"
-# AI 审核通过 → 提交成功
-# AI 发现问题 → 阻断提交，输出修改建议
 ```
 
 ---
 
 ## 安装
 
-### 方式一：uv 安装（推荐）
+### 从 GitHub 安装（推荐）
 
 ```bash
-uv tool install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+pip install git+https://github.com/tingkl/ai-review.git@main
+
+# 升级
+pip install --upgrade git+https://github.com/tingkl/ai-review.git@main
 ```
 
-### 方式二：pip 安装（PyPI）
+### 从 GitLab 安装（内网）
+
+```bash
+pip install git+ssh://git@124.223.189.152:7022/tingkl/ai-review.git@main
+```
+
+### 从 PyPI 安装
 
 ```bash
 pip install commit-ai-guardian
 ```
 
-### 方式三：源码安装
-
-```bash
-git clone ssh://git@124.223.189.152:7022/tingkl/ai-review.git
-cd ai-review
-pip install -e .
-```
-
 ### 项目初始化
 
 ```bash
-# 进入目标项目目录
 cd your-project
-
-# 安装 hook 并创建配置目录
 commit-ai-guardian install
 ```
 
@@ -106,8 +102,13 @@ your-project/
 │   ├── cases/          # 启用的审核案例
 │   ├── example/        # 示例模板
 │   ├── prompts/        # Prompt 模板（可自定义）
+│   │   ├── system_message.txt          # 主审核 system message
+│   │   ├── diff_review.md              # diff 审核 user prompt
+│   │   ├── full_file_review.md         # 完整文件审核 user prompt
+│   │   ├── system_message_json_fix.txt # JSON 修复 AI system message
+│   │   └── json_fix.md                 # JSON 修复 AI user prompt
 │   └── config.yaml     # 项目级配置
-└── .git/hooks/pre-commit  # 自动安装的 hook 脚本
+└── .git/hooks/pre-commit
 ```
 
 ---
@@ -116,16 +117,18 @@ your-project/
 
 | 命令 | 说明 |
 |------|------|
-| `commit-ai-guardian install` | 安装 pre-commit hook，创建 `.ai-review/` 目录 |
-| `commit-ai-guardian install --force` | 强制重新安装，补全缺失配置 |
-| `commit-ai-guardian uninstall` | 卸载 hook |
-| `commit-ai-guardian audit` | 审核暂存区变更（hook 自动调用） |
-| `commit-ai-guardian review -f <文件>` | 审核指定文件 |
-| `commit-ai-guardian review -d <目录>` | 审核指定目录 |
-| `commit-ai-guardian configure` | 交互式配置向导 |
-| `commit-ai-guardian status` | 查看当前配置状态 |
-| `commit-ai-guardian validate-cases` | 校验案例文件格式 |
-| `commit-ai-guardian debug-log <ai.log>` | 调试 AI 响应日志（本地解析，不调用 AI） |
+| `cag install` | 安装 pre-commit hook |
+| `cag install --force` | 强制重新安装 |
+| `cag uninstall` | 卸载 hook |
+| `cag audit` | 审核暂存区变更 |
+| `cag review -f <文件>` | 审核指定文件 |
+| `cag review -d <目录>` | 审核指定目录 |
+| `cag configure` | 交互式配置向导 |
+| `cag status` | 查看当前配置状态 |
+| `cag validate-cases` | 校验案例文件格式 |
+| `cag debug-log <ai.log>` | 本地解析 AI 响应日志 |
+
+> `cag` 是 `commit-ai-guardian` 的短别名。
 
 ---
 
@@ -133,9 +136,10 @@ your-project/
 
 ### 两级配置体系
 
-**全局配置** `~/.commit-ai-guardian/config.yaml` —— 默认基准配置
-
-**项目配置** `.ai-review/config.yaml` —— 项目专属规则，优先级高于全局
+| 级别 | 路径 | 作用 |
+|------|------|------|
+| 全局 | `~/.commit-ai-guardian/config.yaml` | 默认基准配置 |
+| 项目 | `.ai-review/config.yaml` | 项目专属规则，覆盖全局 |
 
 ### 配置项
 
@@ -145,187 +149,78 @@ your-project/
 | `api_base` | API 地址 | `https://api.openai.com/v1` |
 | `model` | 模型名称 | `gpt-4o-mini` |
 | `language` | 审核语言 | `zh-CN` |
-| `severity_threshold` | 阻断级别（`critical`/`warning`/`info`） | `warning` |
-| `diff_mode` | 审核模式（`full` 全文件 / `diff` 仅变更） | `full` |
+| `enabled` | 是否启用 | `true` |
+| `severity_threshold` | 阻断级别 | `warning` |
+| `diff_mode` | 审核模式 (`full`/`diff`) | `full` |
 | `max_tokens` | AI 最大返回 token 数 | `4096` |
+| `max_file_size` | 最大文件大小 (KB) | `500` |
+| `timeout` | API 超时 (秒) | `60` |
+| `proxy` | HTTP 代理 | `null` |
 | `cache_ttl` | 缓存存活时间 | `1d` |
-| `include_patterns` | 指定要审核的目录/文件（glob 模式） | `["*"]` |
+| `log_ttl` | 日志存活时间 | `1h` |
+| `use_cache` | 是否使用缓存 | `true` |
+| `include_patterns` | 审核目录/文件 (glob) | `["*"]` |
 | `ignore_patterns` | 忽略的文件模式 | 见默认列表 |
-| `case_format` | 案例格式化级别（`default`/`compact`/`minimal`） | `default` |
+| `case_format` | 案例级别 (`default`/`compact`/`minimal`) | `default` |
 
-### 快速配置
-
-```bash
-# 交互式配置向导
-commit-ai-guardian configure
-
-# 查看当前状态
-commit-ai-guardian status
-```
-
----
-
-### 指定审核目录（include_patterns）
-
-默认审核所有变更文件。通过 `include_patterns` 配置**只审核指定目录或文件类型**，支持 glob 通配符（含 `**` 递归匹配）。
-
-#### 通配符说明
-
-| 通配符 | 含义 | 示例 |
-|--------|------|------|
-| `*` | 匹配任意字符（不含 `/`） | `*.py` 匹配 `main.py` |
-| `**` | 递归匹配任意层目录（含 0 层） | `src/**/*.py` 匹配 `src/main.py` 和 `src/a/b/main.py` |
-| `?` | 匹配单个字符 | `test_?.py` 匹配 `test_a.py` |
-
-> **重要**：`**` 是递归匹配，可以跨任意层目录。`src/**/*.py` 匹配 `src/` 下所有 `.py` 文件，但不会匹配 `mcn/src/main.py`（要求以 `src/` 开头）。要匹配任意位置的 `src/`，用 `**/src/**/*.py`。
-
-#### 配置示例
+### use_cache — 关闭缓存
 
 ```yaml
 # .ai-review/config.yaml
+use_cache: false  # 不检查缓存、不写入缓存，每次强制重新审核
+```
 
-# 只审核 src/ 下的 Python 文件（含子目录）
+### include_patterns — 指定审核范围
+
+支持 glob 通配符，包括 `**` 递归匹配。
+
+```yaml
+# 只审核 src/ 下的 Python 和 Vue 文件
 include_patterns:
   - "src/**/*.py"
-
-# 审核 src/ 下一级子目录的 Python 文件（不含孙目录）
-include_patterns:
-  - "src/*/*.py"
-
-# 审核多个后缀
-include_patterns:
-  - "**/*.py"
-  - "**/*.js"
-  - "**/*.vue"
+  - "src/**/*.vue"
 
 # 审核多个指定目录
 include_patterns:
   - "frontend/**"
   - "backend/**"
-
-# 匹配任意位置的 src/ 目录（如 mcn/src/、packages/core/src/）
-include_patterns:
-  - "**/src/**/*.py"
 ```
 
-#### include_patterns + ignore_patterns 配合使用
+### case_format — 案例格式化级别
 
-两者是**叠加关系**：先匹配 `include_patterns` 的白名单，再排除 `ignore_patterns` 的内容。
-
-```yaml
-# .ai-review/config.yaml
-# 审核 src/ 下的 Python 文件，但排除测试和废弃代码
-include_patterns:
-  - "src/**/*.py"
-ignore_patterns:
-  - "**/test/**"
-  - "**/tests/**"
-  - "**/deprecated/**"
-  - "**/__pycache__/**"
-```
-
-#### 典型场景
-
-**场景 1：前后端分离，只审核后端**
-
-```yaml
-include_patterns:
-  - "backend/**"
-  - "server/**"
-```
-
-**场景 2：Monorepo，只审核指定包**
-
-```yaml
-include_patterns:
-  - "packages/core/**"
-  - "packages/shared/**"
-```
-
-**场景 3：按技术栈分类审核**
-
-```yaml
-# Python 项目
-include_patterns:
-  - "**/*.py"
-
-# Vue 前端项目
-include_patterns:
-  - "src/**/*.vue"
-  - "src/**/*.js"
-  - "src/**/*.ts"
-
-# Java 后端项目
-include_patterns:
-  - "src/main/**/*.java"
-```
-
----
-
-### 案例格式化级别（case_format）
-
-控制案例文件发给 AI 前的格式化级别，影响 prompt 长度和审核详细程度。
-
-| 级别 | 保留内容 | 去掉内容 | token 节省 |
-|------|---------|---------|-----------|
-| `default` | 全部（说明 + 坏代码 + 好代码 + 原因 + 后果 + 检查点） | — | 0% |
+| 级别 | 保留 | 去掉 | token 节省 |
+|------|------|------|-----------|
+| `default` | 全部 | - | 0% |
 | `compact` | 说明 + 坏代码 + 好代码 + 检查点 | 原因 + 后果 | ~35% |
-| `minimal` | 坏代码 + 检查点 | 说明 + 好代码 + 原因 + 后果 | ~55% |
-
-```yaml
-# .ai-review/config.yaml
-# 案例较多时建议 compact 或 minimal，减少 prompt 长度
-case_format: compact
-
-# 追求最高审核质量时用 default（默认）
-case_format: default
-```
-
-**选择建议：**
-- `default`（默认）：案例少（< 5 个）或追求详细审核时用
-- `compact`：案例较多（5-15 个）时的平衡选择
-- `minimal`：案例很多（> 15 个）或 prompt 接近 token 上限时用
-
-非法值自动 fallback 到 `default`。
+| `minimal` | 坏代码 + 检查点 | 其他全部 | ~55% |
 
 ---
 
-### 调试 AI 响应（debug-log）
+## 审核规则
 
-无需 API Key，不花钱，本地解析 AI 响应文件看结果。
+AI 审核只覆盖以下 5 个维度，不在此范围内的问题不报：
 
-```bash
-# 基本用法
-commit-ai-guardian debug-log ai.log
+1. **Bug 检测**: 逻辑错误、边界条件、资源泄漏、并发问题（不包含空指针）
+2. **代码风格**: 命名规范、代码格式、注释质量、代码组织
+3. **性能问题**: 算法复杂度、内存泄漏、不必要的计算
+4. **最佳实践**: 设计模式、代码复用、错误处理、日志规范
+5. **文档完整**: 函数文档、参数说明、复杂逻辑注释
 
-# 指定模拟的文件名（展示用）
-commit-ai-guardian debug-log ai.log --filename src/main.py
-```
+### 明确不报的问题
 
-**使用场景：**
-- 线上 JSON 解析失败，本地排查 `<think>` 标签、截断、格式错误
-- 调整展示格式后验证效果
-- 开发新功能时mock AI响应
-
-**ai.log 获取方式：**
-
-```bash
-# 方式1：从日志目录复制
-cp .ai-review/logs/xxx.ai.log ~/debug.ai.log
-
-# 方式2：手动保存 AI 的原始响应到文件
-echo 'AI返回的原始文本...' > ai.log
-```
+- 安全漏洞（SQL 注入、XSS 等）—— 普通代码中太常见，误报率高
+- 空指针（除非非常明显：显式 null 赋值后使用、已知为 null 的调用链）
+- 函数参数的防御性类型检查（typeof、isNaN 等）—— 来源不明的参数视为合法值
+- 基于猜测的业务场景推断（金融、医疗等）
+- window.location 属性读取（protocol、host 等）—— 正常操作
 
 ---
 
 ## 案例驱动审核
 
-Commit AI Guardian 的核心设计理念是**案例驱动**。你可以在 `.ai-review/cases/` 下编写案例，AI 会参照这些案例来检查代码。
+在 `.ai-review/cases/` 下编写案例，AI 会参照案例检查代码。
 
 ### 案例文件格式
-
-案例使用 **Markdown + YAML frontmatter** 格式：
 
 ```markdown
 ---
@@ -333,47 +228,70 @@ title: "SQL 注入"
 severity: 9
 level: critical
 category: "安全漏洞"
-tags: [SQL, 注入]
+tags: [SQL]
 languages: [python, java]
 ---
 
 ## 问题描述
-直接拼接用户输入到 SQL 语句，存在 SQL 注入风险。
+直接拼接用户输入到 SQL 语句。
 
 ## 坏代码
-
-### 场景1
 ```python
 query = f"SELECT * FROM users WHERE id = {user_id}"
 ```
 
 ## 好代码
-
-### 场景1
 ```python
 cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 ```
 
 ## 检查清单
 - [ ] 是否有字符串拼接构建 SQL
-  - 使用参数化查询替代字符串拼接
 ```
-
-### 案例字段说明
-
-| 字段 | 说明 |
-|------|------|
-| `title` | 案例标题 |
-| `severity` | 严重程度（1-10） |
-| `level` | 阻断级别：`critical` / `warning` / `info` |
-| `category` | 分类名称 |
-| `tags` | 标签列表 |
-| `languages` | 适用的编程语言 |
 
 ### 验证案例格式
 
 ```bash
-commit-ai-guardian validate-cases
+cag validate-cases
+```
+
+---
+
+## 日志系统
+
+审核过程产生的日志文件存放在 `.ai-review/logs/`，命名使用 MD5 前 7 位：
+
+| 文件 | 说明 |
+|------|------|
+| `{md5}.ai.log` | 主审核 AI 的完整对话记录（system + user + AI response） |
+| `{md5}.json.log` | JSON 修复 AI 的完整对话记录（system + user + AI response） |
+| `{md5}.json` | 审核结果缓存文件 |
+
+### ai.log 格式
+
+```
+# AI Response Log
+# 文件: src/main.py
+# 时间: 2026-06-12 10:30:00
+============================================================
+--- SYSTEM MESSAGE ---
+============================================================
+[system message 内容]
+============================================================
+--- USER MESSAGE ---
+============================================================
+[user prompt 内容]
+============================================================
+--- AI RESPONSE ---
+============================================================
+<result>{"summary":"..."}</result>
+```
+
+### 调试日志
+
+```bash
+# 本地解析 ai.log，不调用 AI，不花钱
+cag debug-log .ai-review/logs/abc1234.ai.log
 ```
 
 ---
@@ -384,60 +302,39 @@ commit-ai-guardian validate-cases
 git commit
     │
     ▼
-┌─────────────────┐
-│  pre-commit hook │  ← 自动触发
-│  (commit-ai-guardian audit)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  获取暂存区 diff  │
-│  (git diff --cached)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  缓存检查         │  ← 已审核且未变更 → 直接返回
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  加载项目配置     │  ← .ai-review/config.yaml
-│  加载审核案例     │  ← .ai-review/cases/
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  AI 审核（并发）  │  ← 调用 LLM API
-│  对比案例检查代码 │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
- 通过 ✓     阻断 ✗
-    │         │
-    ▼         ▼
- 提交成功   输出修改建议
-           用户修改后重新提交
+pre-commit hook
+    │
+    ▼
+获取暂存区 diff
+    │
+    ▼
+缓存检查（use_cache=true 时）
+    │ 命中 → 直接返回
+    │ 未命中 → 继续
+    ▼
+加载配置 + 案例
+    │
+    ▼
+AI 审核（并发 4 文件）
+    │
+    ▼
+JSON 解析
+    │ 成功 → 提取 issues
+    │ 失败 → AI 修复 JSON → 再解析
+    ▼
+  通过 / 阻断
 ```
 
-### 阻断原则
+### 阻断条件
 
-> **审核发现问题或系统异常时阻断 commit，确保代码质量。**
->
-> 以下情况会阻断提交：
-> - AI 发现 severity >= threshold 的问题
-> - API Key 未配置
-> - API 调用失败、JSON 解析失败
-> - 其他运行时异常
->
-> 只有以下情况不阻断：enabled=false（主动禁用）、暂存区无变更。
+- AI 发现 severity >= threshold 的问题
+- API Key 未配置、API 调用失败
+- JSON 解析失败（含 AI 修复后仍失败）
+- 其他运行时异常
 
-需要临时跳过审核？使用：
+不阻断的情况：`enabled=false`、`暂存区无变更`。
 
-```bash
-git commit --no-verify
-```
+临时跳过：`git commit --no-verify`
 
 ---
 
@@ -445,17 +342,11 @@ git commit --no-verify
 
 ### Q: 安装后为什么没有生效？
 
-确认 hook 已正确安装：
-
 ```bash
 ls -la .git/hooks/pre-commit
-commit-ai-guardian status
-```
-
-如果缺失，重新安装：
-
-```bash
-commit-ai-guardian install --force
+cag status
+# 缺失则重新安装
+cag install --force
 ```
 
 ### Q: 如何跳过 AI 审核？
@@ -466,34 +357,33 @@ git commit --no-verify
 
 ### Q: 支持哪些 AI 模型？
 
-任何兼容 OpenAI API 格式的模型均可，包括但不限于：
-
-- OpenAI: `gpt-4o`, `gpt-4o-mini`
-- 自定义: 填写 `api_base` 指向你的 API 网关
-
-### Q: 项目配置和全局配置如何共存？
-
-项目配置 `.ai-review/config.yaml` 会**覆盖**全局配置 `~/.commit-ai-guardian/config.yaml` 的同名项。建议：
-
-- **全局配置**：放 API 密钥、模型等通用项
-- **项目配置**：放 severity_threshold、language 等项目专属规则
-
-### Q: 缓存文件存在哪里？
-
-缓存存储在全局配置目录下，默认 TTL 为 1 天。可通过 `cache_ttl` 配置项调整。
+任何兼容 OpenAI API 格式的模型：OpenAI GPT 系列、Azure OpenAI、自部署模型等。
 
 ### Q: 如何自定义审核 Prompt？
 
-编辑 `.ai-review/prompts/` 目录下的模板文件即可。项目初始化时会自动创建默认模板。
+编辑 `.ai-review/prompts/` 下的模板文件：
+- `system_message.txt` — 主审核 system message
+- `diff_review.md` — diff 审核 user prompt
+- `full_file_review.md` — 完整文件审核 user prompt
+- `system_message_json_fix.txt` — JSON 修复 AI system message
+- `json_fix.md` — JSON 修复 AI user prompt
+
+### Q: 双 remote 推送（GitLab + GitHub）
+
+```bash
+# 分别推
+git push origin main   # GitLab
+git push github main   # GitHub
+
+# 或配置 all 分组一次推两个
+git remote add all https://github.com/tingkl/ai-review.git
+git remote set-url --add --push all https://github.com/tingkl/ai-review.git
+git remote set-url --add --push all ssh://git@124.223.189.152:7022/tingkl/ai-review.git
+git push all main
+```
 
 ---
 
 ## 开源协议
 
-[MIT License](LICENSE)
-
----
-
-<p align="center">
-  Made with ❤️ by tingkl
-</p>
+MIT License
