@@ -49,13 +49,13 @@
 
 ```bash
 # 1. 安装
-pip install git+https://github.com/tingkl/ai-review.git@main
+uv tool install git+https://github.com/tingkl/ai-review.git@main
 
 # 2. 进入项目，初始化
-commit-ai-guardian install
+cag install
 
 # 3. 配置 API 密钥
-commit-ai-guardian configure
+cag configure
 
 # 4. 正常提交，AI 自动审核
 git add .
