@@ -1706,8 +1706,10 @@ class AIEngine:
         # ===== 阶段1: 本地解析 =====
         result = parse_ai_response(response, filename)
 
-        # ===== 阶段2: 本地解析失败 → AI 修复 =====
-        if not result.passed and result.summary in ("JSON 解析失败", "无法从响应中解析 JSON"):
+        # ===== 阶段2: 解析或校验失败 → AI 修复 =====
+        # JSON 语法解析失败 或 schema 校验不通过（字段缺失/别名/类型错误）都触发修复
+        json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误")
+        if not result.passed and any(kw in result.summary for kw in json_error_keywords):
             broken_json = self._extract_json_str(response)
 
             if broken_json and self.client:
