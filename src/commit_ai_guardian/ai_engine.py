@@ -1217,6 +1217,32 @@ class AIEngine:
             # 缓存写入失败不报错
             pass
     
+    def _call_api_safe(self, **kwargs) -> Any:
+        """安全调用 API，自动处理 response_format 不支持的情况
+        
+        先尝试带 response_format={"type": "json_object"} 调用，
+        如果模型不支持则自动回退到普通调用。
+        
+        Args:
+            **kwargs: 传给 chat.completions.create 的参数
+            
+        Returns:
+            API 响应对象
+        """
+        # 先尝试带 response_format 调用
+        try:
+            kwargs_with_format = {**kwargs, "response_format": {"type": "json_object"}}
+            return self.client.chat.completions.create(**kwargs_with_format)
+        except openai.APIError as e:
+            error_msg = str(e).lower()
+            # 判断是否是 response_format 不支持的错
+            if any(kw in error_msg for kw in ['response_format', 'json_object', 'unsupported']):
+                print(f"[信息] 模型不支持 response_format，回退到普通调用")
+                # 去掉 response_format 再试
+                kwargs_clean = {k: v for k, v in kwargs.items() if k != 'response_format'}
+                return self.client.chat.completions.create(**kwargs_clean)
+            raise
+
     def _get_disable_thinking_params(self, model: str) -> dict:
         """根据模型名称返回禁用 think/thinking 的 extra_api_params
         
@@ -1276,7 +1302,7 @@ class AIEngine:
 
         for attempt in range(max_retries):
             try:
-                response = self.client.chat.completions.create(
+                response = self._call_api_safe(
                     model=model,
                     messages=[
                         # system 消息从模板加载（.ai-review/prompts/system_message.txt）
@@ -1466,7 +1492,7 @@ class AIEngine:
 
         for attempt in range(2):
             try:
-                resp = self.client.chat.completions.create(
+                resp = self._call_api_safe(
                     model=model,
                     messages=[
                         {"role": "system", "content": system_msg},
