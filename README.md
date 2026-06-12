@@ -69,22 +69,22 @@ git commit -m "feat: add new feature"
 ### 从 GitHub 安装（推荐）
 
 ```bash
-pip install git+https://github.com/tingkl/ai-review.git@main
+uv pip install git+https://github.com/tingkl/ai-review.git@main
 
 # 升级
-pip install --upgrade git+https://github.com/tingkl/ai-review.git@main
+uv pip install --upgrade git+https://github.com/tingkl/ai-review.git@main
 ```
 
 ### 从 GitLab 安装（内网）
 
 ```bash
-pip install http://124.223.189.152:7080/gaoq/ai-review.git@main
+uv pip install http://124.223.189.152:7080/gaoq/ai-review.git@main
 ```
 
 ### 从 PyPI 安装
 
 ```bash
-pip install commit-ai-guardian
+uv pip install commit-ai-guardian
 ```
 
 ### 项目初始化
