@@ -28,6 +28,7 @@ DEFAULT_SYSTEM_MESSAGE = (
     "  - 多个 issue 之间有逗号分隔，无 trailing comma\n"
     "  - line_number 是单个整数（如 80），不写范围\n"
     "  - code_snippet 中的 { } 不会破坏 JSON 结构\n"
+    "  - message 必须是有意义的描述，不能为空或 '-' \n"
     "\n"
     "=== 审核维度（只审以下5类，其他不要报） ===\n"
     "1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题等\n"

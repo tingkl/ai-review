@@ -166,6 +166,7 @@ class ResultFormatter:
             box=box.ROUNDED,
             border_style=border_style,
             padding=(1, 2),
+            expand=True,
         )
         self.console.print(panel)
         self.console.print()
