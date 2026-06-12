@@ -202,6 +202,20 @@ class ReviewResult:
     cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（文件名头显示用，cache 文件名也是前7位）
 
 
+def _pick_field(data: dict, keys: list, default: str = '') -> str:
+    """从 dict 中按优先级选取第一个非空字段值
+    
+    AI 可能返回不同的字段名（如 description/message/title），
+    用此函数兼容各种情况，映射到标准字段名。
+    空字符串视为不存在，继续查找下一个候选字段。
+    """
+    for key in keys:
+        val = data.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return default
+
+
 def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     """解析 AI 的原始响应文本为结构化的 ReviewResult（纯函数，不依赖 AIEngine）
 
@@ -233,6 +247,12 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
 
     # ===== JSON 提取策略（层层降级） =====
 
+    # 先过滤 <think> 标签（避免其内容干扰后续提取，也减少 token 占用）
+    filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+    if filtered_response != response:
+        response = filtered_response
+        print(f"[信息] 已过滤 <think> 推理标签")
+
     # 策略 0（最优先）：从 <result> 标签中提取 JSON
     # prompt 已要求 AI 把 JSON 包裹在 <result></result> 中，这是最可靠的提取方式
     json_str = None
@@ -240,14 +260,8 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     if result_match:
         json_str = result_match.group(1).strip()
 
-    # 策略 1：过滤 <think> 标签后，从 ```json ... ``` 代码块中提取（兼容旧格式）
+    # 策略 1：从 ```json ... ``` 代码块中提取（兼容旧格式）
     if json_str is None:
-        # 过滤 DeepSeek 等模型的 <think>...</think> 推理标签
-        filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
-        if filtered_response != response:
-            response = filtered_response
-            print(f"[信息] 已过滤 <think> 推理标签")
-
         json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
         if json_match:
             json_str = json_match.group(1).strip()
@@ -286,18 +300,23 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     result.summary = data.get('summary', '审核完成')
     result.passed = bool(data.get('passed', True))
 
-    # 解析 issues 列表
+    # 解析 issues 列表（兼容 AI 可能返回的各种字段名）
     issues_data = data.get('issues', [])
     if isinstance(issues_data, list):
         for issue_data in issues_data:
             if isinstance(issue_data, dict):
+                # 字段名映射：AI 可能返回 description/fix_suggestion/title 等
+                # 统一映射到标准字段 message/suggestion/code_snippet
+                message = _pick_field(issue_data, ['message', 'description', 'title', 'desc'], default='')
+                suggestion = _pick_field(issue_data, ['suggestion', 'fix_suggestion', 'fix', 'advice'], default='')
+                code_snippet = _pick_field(issue_data, ['code_snippet', 'code', 'snippet'], default='')
                 issue = ReviewIssue(
                     severity=issue_data.get('severity', 'info'),
                     category=issue_data.get('category', 'best-practice'),
                     line_number=issue_data.get('line_number'),
-                    message=issue_data.get('message', ''),
-                    suggestion=issue_data.get('suggestion', ''),
-                    code_snippet=issue_data.get('code_snippet', ''),
+                    message=message,
+                    suggestion=suggestion,
+                    code_snippet=code_snippet,
                 )
                 result.issues.append(issue)
 
@@ -1311,19 +1330,21 @@ class AIEngine:
         Returns:
             JSON 字符串，或 None
         """
+        # 先过滤 <think> 标签
+        filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        
         # 策略 0: 从 <result> 标签提取
-        m = re.search(r'<result>(.*?)</result>', response, re.DOTALL)
+        m = re.search(r'<result>(.*?)</result>', filtered, re.DOTALL)
         if m:
             return m.group(1).strip()
 
-        # 策略 1: 过滤 <think> 后从 ```json 提取
-        filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        # 策略 1: 从 ```json 代码块提取
         m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
         if m:
             return m.group(1).strip()
 
         # 策略 2: 找第一个 {...}
-        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
         if m:
             return m.group(0).strip()
 
