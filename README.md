@@ -361,6 +361,24 @@ git commit --no-verify
 
 任何兼容 OpenAI API 格式的模型：OpenAI GPT 系列、Azure OpenAI、自部署模型等。
 
+#### Think 输出控制
+
+工具会根据配置的 `model` 名称**自动**向 API 传入禁用 think 的参数，无需手动配置：
+
+| 模型厂商 | 匹配关键字 | 传入参数 |
+|---------|-----------|---------|
+| DeepSeek | `deepseek` | `enable_thinking: false` |
+| MiniMax | `minimax` / `abab` | `thinking: false` |
+| Moonshot / Kimi | `moonshot` / `kimi` | `thinking: false` |
+| 通义千问 (Qwen) | `qwen` / `qwq` | `thinking: false` |
+| 智谱 (GLM) | `glm` / `chatglm` | `thinking: false` |
+| 腾讯混元 | `hunyuan` | `thinking: false` |
+| 字节豆包 | `doubao` | `thinking: false` |
+| 零一万物 (Yi) | `yi-` 开头 | `thinking: false` |
+| GPT / Claude | 以上都不匹配 | 不传额外参数 |
+
+如需适配新模型，修改源码中 `_get_disable_thinking_params()` 方法即可。
+
 ### Q: 如何自定义审核 Prompt？
 
 编辑 `.ai-review/prompts/` 下的模板文件：
