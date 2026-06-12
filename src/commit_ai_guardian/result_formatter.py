@@ -208,15 +208,21 @@ class ResultFormatter:
             # 第3行: 💡 修复建议（绿色）
             if issue.suggestion:
                 block.append(f"     💡 ", style="bold green")
-                block.append(f"{issue.suggestion}\n", style="green")
+                # 多行建议：逐行显示，避免截断
+                sug_lines = issue.suggestion.strip().split('\n')
+                for i, line in enumerate(sug_lines):
+                    prefix = "        " if i > 0 else ""
+                    block.append(f"{prefix}{line}\n", style="green")
 
             # 第4行: 📍 代码片段（灰色，小字）
             if issue.code_snippet:
                 snippet = issue.code_snippet.strip()
-                if len(snippet) > 70:
-                    snippet = snippet[:67] + "..."
                 block.append(f"     📍 ", style="dim")
-                block.append(f"{snippet}\n", style="dim")
+                # 多行代码：逐行显示，不截断
+                code_lines = snippet.split('\n')
+                for i, line in enumerate(code_lines):
+                    prefix = "        " if i > 0 else ""
+                    block.append(f"{prefix}{line}\n", style="dim")
 
         return block
 
