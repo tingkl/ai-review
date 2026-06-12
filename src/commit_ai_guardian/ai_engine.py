@@ -287,17 +287,16 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     result.passed = bool(data.get('passed', True))
 
     # 解析 issues 列表
-    # issue 字段名校验：AI 必须返回标准字段名，否则视为 JSON 格式错误
-    # 由 JSON 修复机制处理（见 _fix_json_with_ai）
-    _INVALID_ISSUE_FIELDS = {'description', 'fix_suggestion', 'fix', 'advice', 'title', 'desc', 'code'}
+    # 校验：每个 issue 必须有 message 字段且非空，否则触发 JSON 修复
+    _REQUIRED_ISSUE_FIELDS = {'message'}
     issues_data = data.get('issues', [])
     if isinstance(issues_data, list):
         for issue_data in issues_data:
             if isinstance(issue_data, dict):
-                # 检查 AI 是否用了非标准字段名
-                invalid_found = _INVALID_ISSUE_FIELDS & set(issue_data.keys())
-                if invalid_found:
-                    result.summary = f"JSON 字段名错误: issue 用了非标准字段 {invalid_found}，必须是 message/suggestion/code_snippet"
+                # 检查必填字段是否存在且非空
+                missing = {f for f in _REQUIRED_ISSUE_FIELDS if not issue_data.get(f) or not str(issue_data[f]).strip()}
+                if missing:
+                    result.summary = f"JSON 字段缺失: issue 缺少必填字段 {missing}"
                     result.passed = False
                     result.raw_response = response
                     return result
