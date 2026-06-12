@@ -1217,6 +1217,53 @@ class AIEngine:
             # 缓存写入失败不报错
             pass
     
+    def _get_disable_thinking_params(self, model: str) -> dict:
+        """根据模型名称返回禁用 think/thinking 的 extra_api_params
+        
+        主流国产模型思考过程参数各不相同，在此统一适配。
+        匹配不到的模型返回空 dict（不额外传参）。
+        
+        适配列表：
+        - DeepSeek: enable_thinking=false
+        - MiniMax/Moonshot/Kimi/Qwen/GLM/混元/豆包: thinking=false
+        """
+        m = model.lower()
+        
+        # DeepSeek 系列（deepseek-chat, deepseek-coder, deepseek-reasoner 等）
+        if 'deepseek' in m:
+            return {"extra_body": {"enable_thinking": False}}
+        
+        # MiniMax 系列
+        if 'minimax' in m or 'abab' in m:
+            return {"extra_body": {"thinking": False}}
+        
+        # Moonshot / Kimi 系列
+        if 'moonshot' in m or 'kimi' in m:
+            return {"extra_body": {"thinking": False}}
+        
+        # 通义千问 (Qwen) 系列
+        if 'qwen' in m or 'qwq' in m:
+            return {"extra_body": {"thinking": False}}
+        
+        # 智谱 (GLM / ChatGLM) 系列
+        if 'glm' in m or 'chatglm' in m:
+            return {"extra_body": {"thinking": False}}
+        
+        # 腾讯混元
+        if 'hunyuan' in m:
+            return {"extra_body": {"thinking": False}}
+        
+        # 字节豆包
+        if 'doubao' in m:
+            return {"extra_body": {"thinking": False}}
+        
+        # 零一万物 (Yi)
+        if m.startswith('yi-'):
+            return {"extra_body": {"thinking": False}}
+        
+        # GPT / Claude 等海外模型默认不输出 think，不传参
+        return {}
+    
     def _call_api(self, prompt: str, filename: str = "unknown", cache_md5: str = "") -> str:
         """调用 AI API，含指数退避重试
         
@@ -1244,6 +1291,8 @@ class AIEngine:
         """
         model = getattr(self.config, 'model', 'gpt-4o-mini')
         max_retries = 3
+        # 根据模型名称获取禁用 think 的额外参数
+        extra_params = self._get_disable_thinking_params(model)
         
         # 加载 system message（只加载一次，所有 retry 共用）
         system_msg = self.prompt_loader.load_system_message()
@@ -1260,6 +1309,7 @@ class AIEngine:
                     ],
                     temperature=0.3,     # 低温度 = 输出更确定、更可预测
                     max_tokens=getattr(self.config, 'max_tokens', 4096),  # 从配置读取，默认 4096
+                    **extra_params,      # 主流模型禁用 think 的额外参数（如 enable_thinking=false）
                 )
                 raw_content = response.choices[0].message.content or ""
                 
@@ -1429,6 +1479,9 @@ class AIEngine:
         if len(broken_json) > 6000:
             truncated = broken_json[:6000] + '...（已截断）'
 
+        # 根据模型名称获取禁用 think 的额外参数
+        extra_params = self._get_disable_thinking_params(model)
+        
         # 从模板加载 system message 和 user prompt
         system_msg = self.prompt_loader.load_json_fix_system_message()
         template = self.prompt_loader.load_json_fix_template()
@@ -1444,6 +1497,7 @@ class AIEngine:
                     ],
                     temperature=0.1,
                     max_tokens=max_tokens,
+                    **extra_params,      # 主流模型禁用 think 的额外参数
                 )
                 fixed = resp.choices[0].message.content or ""
 
