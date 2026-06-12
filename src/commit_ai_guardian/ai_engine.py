@@ -1217,11 +1217,49 @@ class AIEngine:
             # 缓存写入失败不报错
             pass
     
+    # 审核结果的 JSON Schema，精确约束 AI 输出格式
+    REVIEW_JSON_SCHEMA = {
+        "name": "code_review_result",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string", "description": "总体评价（2-3句话）"},
+                "passed": {"type": "boolean", "description": "true=通过 false=不通过"},
+                "issues": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "severity": {
+                                "type": "string",
+                                "enum": ["critical", "error", "warning", "info"],
+                                "description": "严重级别"
+                            },
+                            "category": {
+                                "type": "string",
+                                "enum": ["bug", "security", "style", "performance", "best-practice", "documentation"],
+                                "description": "问题类别"
+                            },
+                            "line_number": {"type": "integer", "description": "行号（单个整数）"},
+                            "message": {"type": "string", "description": "问题描述（必填，不能为空）"},
+                            "suggestion": {"type": "string", "description": "修复建议"},
+                            "code_snippet": {"type": "string", "description": "相关代码片段"}
+                        },
+                        "required": ["severity", "category", "line_number", "message"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["summary", "passed", "issues"],
+            "additionalProperties": False
+        }
+    }
+
     def _call_api_safe(self, **kwargs) -> Any:
         """安全调用 API，自动处理 response_format 不支持的情况
         
-        先尝试带 response_format={"type": "json_object"} 调用，
-        如果模型不支持则自动回退到普通调用。
+        先尝试 json_schema 精确约束，再降级到 json_object，最后回退到普通调用。
         
         Args:
             **kwargs: 传给 chat.completions.create 的参数
@@ -1229,19 +1267,38 @@ class AIEngine:
         Returns:
             API 响应对象
         """
-        # 先尝试带 response_format 调用
+        # 第1步: 尝试 json_schema 精确约束（最严格，字段名/类型/必填都校验）
         try:
-            kwargs_with_format = {**kwargs, "response_format": {"type": "json_object"}}
-            return self.client.chat.completions.create(**kwargs_with_format)
+            kwargs_schema = {
+                **kwargs,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": self.REVIEW_JSON_SCHEMA
+                }
+            }
+            return self.client.chat.completions.create(**kwargs_schema)
         except openai.APIError as e:
             error_msg = str(e).lower()
-            # 判断是否是 response_format 不支持的错
-            if any(kw in error_msg for kw in ['response_format', 'json_object', 'unsupported']):
-                print(f"[信息] 模型不支持 response_format，回退到普通调用")
-                # 去掉 response_format 再试
-                kwargs_clean = {k: v for k, v in kwargs.items() if k != 'response_format'}
-                return self.client.chat.completions.create(**kwargs_clean)
-            raise
+            if not any(kw in error_msg for kw in ['response_format', 'json_schema', 'unsupported']):
+                raise  # 不是格式不支持的错，抛出去
+            # 是格式不支持的错，继续降级
+        
+        # 第2步: 降级到 json_object（只确保返回 JSON，不精确约束字段）
+        try:
+            kwargs_object = {
+                **kwargs,
+                "response_format": {"type": "json_object"}
+            }
+            return self.client.chat.completions.create(**kwargs_object)
+        except openai.APIError as e:
+            error_msg = str(e).lower()
+            if not any(kw in error_msg for kw in ['response_format', 'json_object', 'unsupported']):
+                raise
+            print(f"[信息] 模型不支持 response_format，回退到普通调用")
+        
+        # 第3步: 回退到普通调用（最宽松，靠 prompt + 代码解析兜底）
+        kwargs_clean = {k: v for k, v in kwargs.items() if k != 'response_format'}
+        return self.client.chat.completions.create(**kwargs_clean)
 
     def _get_disable_thinking_params(self, model: str) -> dict:
         """根据模型名称返回禁用 think/thinking 的 extra_api_params
