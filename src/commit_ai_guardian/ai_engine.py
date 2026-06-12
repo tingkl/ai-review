@@ -1223,45 +1223,22 @@ class AIEngine:
         主流国产模型思考过程参数各不相同，在此统一适配。
         匹配不到的模型返回空 dict（不额外传参）。
         
-        适配列表：
-        - DeepSeek: enable_thinking=false
-        - MiniMax/Moonshot/Kimi/Qwen/GLM/混元/豆包: thinking=false
+        适配列表（已验证）：
+        - DeepSeek: enable_thinking=false (boolean)
+        
+        待验证（暂不启用，避免 API 400 错误）：
+        - MiniMax/Moonshot/Kimi/Qwen/GLM/混元/豆包 的 thinking 参数格式
+          可能是对象格式 {"type": "disabled"} 而非 boolean
         """
         m = model.lower()
         
-        # DeepSeek 系列（deepseek-chat, deepseek-coder, deepseek-reasoner 等）
+        # DeepSeek 系列 — 确认支持 enable_thinking (boolean)
         if 'deepseek' in m:
             return {"extra_body": {"enable_thinking": False}}
         
-        # MiniMax 系列
-        if 'minimax' in m or 'abab' in m:
-            return {"extra_body": {"thinking": False}}
-        
-        # Moonshot / Kimi 系列
-        if 'moonshot' in m or 'kimi' in m:
-            return {"extra_body": {"thinking": False}}
-        
-        # 通义千问 (Qwen) 系列
-        if 'qwen' in m or 'qwq' in m:
-            return {"extra_body": {"thinking": False}}
-        
-        # 智谱 (GLM / ChatGLM) 系列
-        if 'glm' in m or 'chatglm' in m:
-            return {"extra_body": {"thinking": False}}
-        
-        # 腾讯混元
-        if 'hunyuan' in m:
-            return {"extra_body": {"thinking": False}}
-        
-        # 字节豆包
-        if 'doubao' in m:
-            return {"extra_body": {"thinking": False}}
-        
-        # 零一万物 (Yi)
-        if m.startswith('yi-'):
-            return {"extra_body": {"thinking": False}}
-        
-        # GPT / Claude 等海外模型默认不输出 think，不传参
+        # 其他模型暂不传入 thinking 参数（格式不确定，传入 boolean 会导致 API 400）
+        # 如需适配其他模型，请先确认其 API 的 thinking 参数格式
+        # 典型错误: Mismatch type ThinkingConfig with value bool
         return {}
     
     def _call_api(self, prompt: str, filename: str = "unknown", cache_md5: str = "") -> str:

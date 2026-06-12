@@ -365,19 +365,19 @@ git commit --no-verify
 
 工具会根据配置的 `model` 名称**自动**向 API 传入禁用 think 的参数，无需手动配置：
 
-| 模型厂商 | 匹配关键字 | 传入参数 |
-|---------|-----------|---------|
-| DeepSeek | `deepseek` | `enable_thinking: false` |
-| MiniMax | `minimax` / `abab` | `thinking: false` |
-| Moonshot / Kimi | `moonshot` / `kimi` | `thinking: false` |
-| 通义千问 (Qwen) | `qwen` / `qwq` | `thinking: false` |
-| 智谱 (GLM) | `glm` / `chatglm` | `thinking: false` |
-| 腾讯混元 | `hunyuan` | `thinking: false` |
-| 字节豆包 | `doubao` | `thinking: false` |
-| 零一万物 (Yi) | `yi-` 开头 | `thinking: false` |
-| GPT / Claude | 以上都不匹配 | 不传额外参数 |
+| 模型厂商 | 匹配关键字 | 传入参数 | 状态 |
+|---------|-----------|---------|------|
+| DeepSeek | `deepseek` | `enable_thinking: false` | ✅ 已验证 |
+| MiniMax | `minimax` / `abab` | — | ⏳ 待验证（格式不确定） |
+| Moonshot / Kimi | `moonshot` / `kimi` | — | ⏳ 待验证 |
+| 通义千问 (Qwen) | `qwen` / `qwq` | — | ⏳ 待验证 |
+| 智谱 (GLM) | `glm` / `chatglm` | — | ⏳ 待验证 |
+| 腾讯混元 | `hunyuan` | — | ⏳ 待验证 |
+| 字节豆包 | `doubao` | — | ⏳ 待验证 |
+| 零一万物 (Yi) | `yi-` 开头 | — | ⏳ 待验证 |
+| GPT / Claude | 以上都不匹配 | 不传额外参数 | ✅ 默认不输出 think |
 
-如需适配新模型，修改源码中 `_get_disable_thinking_params()` 方法即可。
+**注意**：非 DeepSeek 模型的 `thinking` 参数格式不确定（可能是对象 `{"type": "disabled"}` 而非 boolean），直接传入 `thinking: false` 会导致 API 400 错误。如需适配其他模型，请先确认其 API 的 thinking 参数格式，再修改源码中 `_get_disable_thinking_params()` 方法。
 
 ### Q: 如何自定义审核 Prompt？
 
