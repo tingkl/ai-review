@@ -192,10 +192,16 @@ class HookInstaller:
             existing = '\n'.join(new_lines).strip()
         
         # 生成要追加的命令
-        # || exit $? 确保 audit 失败时阻断 commit
+        # 和无 husky 场景保持统一写法：先存 exit code，再判断
         command = f"""
 {marker}
-commit-ai-guardian audit || exit $?
+commit-ai-guardian audit
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
+    exit $EXIT_CODE
+fi
 # === end commit-ai-guardian ==="""
         
         # 追加到文件末尾

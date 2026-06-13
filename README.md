@@ -438,6 +438,92 @@ git push all main
 
 ---
 
+## Pre-commit Hook 技术实现
+
+### 阻断 commit 的原理
+
+Git 的 pre-commit hook 是一个脚本，在 `git commit` 执行前运行。**脚本返回非 0 的 exit code，Git 就会阻断 commit**。利用这个机制，工具在 hook 中调用 `commit-ai-guardian audit`，根据审核结果返回不同的 exit code：
+
+| Exit Code | 含义 | Git 行为 |
+|-----------|------|---------|
+| 0 | 审核通过 或 无变更 | 放行 commit |
+| 1 | 发现问题，阻断提交 | 阻断 commit |
+| 2 | 配置异常（如 API Key 未设置） | 阻断 commit |
+| 其他 | 运行时异常 | 阻断 commit |
+
+### 两种安装场景
+
+#### 场景 A：无 husky（原生 hook）
+
+安装位置：`.git/hooks/pre-commit`
+
+```bash
+#!/bin/bash
+# ... 省略变量设置 ...
+
+# 运行 AI 审核
+commit-ai-guardian audit --repo "$REPO_ROOT"
+
+# 保存 exit code（关键步骤，必须立即保存）
+EXIT_CODE=$?
+
+# 判断审核结果
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
+    exit $EXIT_CODE   # 返回非 0，Git 阻断 commit
+fi
+
+exit 0  # 返回 0，Git 放行 commit
+```
+
+**关键点**：`EXIT_CODE=$?` 必须在 `commit-ai-guardian audit` 之后**立即**执行，因为 `$?` 只表示上一个命令的返回值。
+
+#### 场景 B：有 husky v9+（兼容模式）
+
+husky v9+ 设置 `core.hooksPath = .husky/_`，此时 Git 不再执行 `.git/hooks/pre-commit`，而是执行 `.husky/_/pre-commit`（husky 的入口脚本），该脚本会调用 `.husky/pre-commit`。
+
+工具检测到 husky 时，将命令追加到 `.husky/pre-commit`，与 lint-staged 等工具共存：
+
+```bash
+# .husky/pre-commit（多命令共存示例）
+npx lint-staged                    # 先格式化代码
+
+# === commit-ai-guardian ===       # 工具 marker，用于 uninstall 定位
+commit-ai-guardian audit           # 再 AI 审核
+EXIT_CODE=$?                       # 保存 exit code
+if [ $EXIT_CODE -ne 0 ]; then      # 判断是否阻断
+    echo ""
+    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
+    exit $EXIT_CODE                # 阻断 commit
+fi
+# === end commit-ai-guardian ===
+```
+
+**两种场景的阻断逻辑完全一致**：都是先存 `EXIT_CODE=$?`，再用 `if [ $EXIT_CODE -ne 0 ]` 判断，最后 `exit $EXIT_CODE` 传递给 Git。
+
+### 为什么不用 `audit || exit $?`
+
+`||` 写法虽然简洁，但 `exit $?` 中的 `$?` 存的是 `||` 左边命令的结果，如果中间有其他命令干扰会不准确。统一用 `EXIT_CODE=$?` + `if` 判断更直观可靠。
+
+### 常见问题：husky 和本工具都安装了，但只执行了一个
+
+husky v9+ 设置 `core.hooksPath = .husky/_` 后，Git 完全忽略 `.git/hooks/` 目录。如果之前用本工具安装过原生 hook，它还在 `.git/hooks/pre-commit` 里，但不会被执行。
+
+**解决方案**：
+```bash
+# 检测当前生效的 hooks 目录
+git config core.hooksPath
+
+# 如果输出 .husky/_ 或 .husky
+# 说明 husky 在控制，本工具会自动安装到 .husky/pre-commit
+
+# 如果输出为空
+# 说明是原生 hook，本工具安装到 .git/hooks/pre-commit
+```
+
+---
+
 ## 开源协议
 
 MIT License
