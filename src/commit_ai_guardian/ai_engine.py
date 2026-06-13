@@ -537,8 +537,8 @@ class AIEngine:
 
         now = time.time()
         cleaned = 0
-        # 同时清理 .json 和 .json.broken 文件
-        for cache_file in list(self._cache_dir.glob('*.json')) + list(self._cache_dir.glob('*.json.broken')):
+        # 同时清理 .json 和 broken 缓存（{md5}_MMDDHHMMSS.json）
+        for cache_file in list(self._cache_dir.glob('*.json')):
             try:
                 if now - cache_file.stat().st_mtime > ttl_seconds:
                     cache_file.unlink()
@@ -1156,10 +1156,11 @@ class AIEngine:
             return None
         
         cache_file = self._cache_dir / f"{content_md5[:7]}.json"
-        broken_file = self._cache_dir / f"{content_md5[:7]}.json.broken"
+        # broken 缓存格式: {md5}_MMDDHHMMSS.json
+        broken_files = list(self._cache_dir.glob(f"{content_md5[:7]}_*.json"))
         
         # 上次 JSON 解析失败，当作缓存未命中，下次重新审核
-        if broken_file.exists():
+        if broken_files:
             return None
         
         if not cache_file.exists():
@@ -1210,14 +1211,20 @@ class AIEngine:
         if not self._cache_dir:
             return
         
+        from datetime import datetime
+        
         # 判断是否是 broken 缓存（JSON 解析失败，不是真正的审核结果）
         is_broken = not result.passed and any(
             kw in result.summary for kw in 
             ("JSON 解析失败", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
         )
         
-        suffix = ".json.broken" if is_broken else ".json"
-        cache_file = self._cache_dir / f"{content_md5[:7]}{suffix}"
+        # broken 缓存用时间戳标记：{md5}_MMDDHHMMSS.json
+        if is_broken:
+            ts = datetime.now().strftime("%m%d%H%M%S")
+            cache_file = self._cache_dir / f"{content_md5[:7]}_{ts}.json"
+        else:
+            cache_file = self._cache_dir / f"{content_md5[:7]}.json"
         try:
             data = {
                 'filename': result.filename,
@@ -2025,3 +2032,4 @@ class AIEngine:
             else "- 按通用审核维度进行检查")
         
         return prompt
+                         
