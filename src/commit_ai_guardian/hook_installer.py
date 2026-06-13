@@ -39,24 +39,77 @@ class HookInstaller:
         self.git_dir = self.repo_path / ".git"           # .git 目录
         self.hooks_dir = self.git_dir / "hooks"          # hooks 目录
         self.hook_path = self.hooks_dir / "pre-commit"   # pre-commit 文件路径
+        
+        # 检测 husky：如果 core.hooksPath 指向 .husky/_，说明用了 husky
+        self._detect_husky()
+    
+    def _detect_husky(self):
+        """检测是否安装了 husky（通过 core.hooksPath）
+        
+        husky v9+ 会设置 core.hooksPath = .husky/_
+        此时 Git 不再执行 .git/hooks/pre-commit，而是执行 .husky/_/pre-commit
+        
+        检测到 husky 时，我们的命令要追加到 .husky/pre-commit，而不是 .git/hooks/pre-commit
+        """
+        self.husky_dir = None          # .husky/ 目录
+        self.husky_hook_path = None    # .husky/pre-commit 文件路径
+        self.has_husky = False
+        
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["git", "-C", str(self.repo_path), "config", "core.hooksPath"],
+                capture_output=True, text=True, timeout=5
+            )
+            hooks_path = result.stdout.strip() if result.returncode == 0 else ""
+            
+            # husky v9+ 设置 core.hooksPath = .husky/_
+            if hooks_path and ".husky" in hooks_path:
+                # 解析 hooksPath（可能是相对路径或绝对路径）
+                if hooks_path.startswith("/"):
+                    husky_base = Path(hooks_path).parent  # .husky/_/ → .husky
+                else:
+                    husky_base = self.repo_path / hooks_path.replace("/_", "").replace("/_default", "")
+                
+                self.husky_dir = husky_base
+                self.husky_hook_path = husky_base / "pre-commit"
+                self.has_husky = True
+        except Exception:
+            pass  # git 命令失败，当作没有 husky
     
     def is_git_repo(self) -> bool:
         """检查目标路径是否为 Git 仓库（判断依据：有没有 .git/ 目录）"""
         return self.git_dir.is_dir()
     
     def get_hook_path(self) -> str:
-        """获取 pre-commit hook 的绝对路径"""
+        """获取 pre-commit hook 的绝对路径
+        
+        有 husky 时返回 .husky/pre-commit，无 husky 时返回 .git/hooks/pre-commit
+        """
+        if self.has_husky and self.husky_hook_path:
+            return str(self.husky_hook_path)
         return str(self.hook_path)
     
     def is_hook_installed(self) -> bool:
         """检查 pre-commit hook 是否已由本工具安装
         
-        判断逻辑：文件存在 且 内容包含 HOOK_MARKER
+        判断逻辑：
+        - 有 husky：检查 .husky/pre-commit 是否包含我们的 marker
+        - 无 husky：检查 .git/hooks/pre-commit 是否包含 HOOK_MARKER
         
         Returns:
             True = 是本工具安装的，可以安全覆盖/卸载
             False = 不存在 或 是其他工具/用户自定义的
         """
+        # 场景 A：有 husky，检查 .husky/pre-commit
+        if self.has_husky and self.husky_hook_path and self.husky_hook_path.exists():
+            try:
+                content = self.husky_hook_path.read_text(encoding='utf-8')
+                return "# === commit-ai-guardian ===" in content
+            except (OSError, UnicodeDecodeError):
+                return False
+        
+        # 场景 B：无 husky，检查 .git/hooks/pre-commit
         if not self.hook_path.exists():
             return False
         try:
@@ -70,8 +123,8 @@ class HookInstaller:
         
         执行流程：
         1. 检查是否为 Git 仓库
-        2. 如果已有用户自定义 hook → 拒绝（或 --force 备份后覆盖）
-        3. 从模板读取脚本内容，写入 .git/hooks/pre-commit
+        2. 检测 husky：如果用了 husky v9+，命令追加到 .husky/pre-commit
+        3. 如果没有 husky，写入 .git/hooks/pre-commit
         4. chmod +x 赋予执行权限
         
         Args:
@@ -87,13 +140,89 @@ class HookInstaller:
         if not self.is_git_repo():
             raise RuntimeError(f"'{self.repo_path}' 不是 Git 仓库")
         
+        # 场景 A：检测到 husky v9+（core.hooksPath 指向 .husky/_）
+        if self.has_husky and self.husky_hook_path:
+            return self._install_to_husky(force=force)
+        
+        # 场景 B：没有 husky，直接写入 .git/hooks/pre-commit
+        return self._install_to_git_hooks(force=force)
+    
+    def _install_to_husky(self, force: bool = False) -> bool:
+        """安装到 husky 的 .husky/pre-commit（husky v9+ 兼容）
+        
+        husky v9+ 设置 core.hooksPath = .husky/_
+        Git 执行的是 .husky/_/pre-commit，它会调用 .husky/pre-commit
+        所以我们的命令要追加到 .husky/pre-commit
+        
+        多命令共存策略：
+        - lint-staged 等工具通常写在 .husky/pre-commit
+        - 我们追加 `commit-ai-guardian audit`，确保 lint-staged 之后再审核
+        """
+        husky_file = self.husky_hook_path
+        
+        # 确保 .husky/ 目录存在
+        husky_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 读取现有内容（可能有 lint-staged 等命令）
+        existing = ""
+        if husky_file.exists():
+            existing = husky_file.read_text(encoding='utf-8').strip()
+        
+        # 检查是否已安装
+        marker = "# === commit-ai-guardian ==="
+        if marker in existing:
+            if not force:
+                print(f"[信息] commit-ai-guardian 已在 husky 中安装")
+                print(f"        路径: {husky_file}")
+                print(f"        使用 --force 重新安装")
+                return False
+            # force：去掉旧的，重新追加
+            lines = existing.split('\n')
+            new_lines = []
+            skip = False
+            for line in lines:
+                if line.strip() == marker:
+                    skip = True
+                    continue
+                if skip and line.startswith('# === end ') and 'commit-ai-guardian' in line:
+                    skip = False
+                    continue
+                if not skip:
+                    new_lines.append(line)
+            existing = '\n'.join(new_lines).strip()
+        
+        # 生成要追加的命令
+        command = f"""
+{marker}
+commit-ai-guardian audit
+# === end commit-ai-guardian ==="""
+        
+        # 追加到文件末尾
+        if existing:
+            new_content = existing + "\n" + command
+        else:
+            new_content = command.lstrip()
+        
+        husky_file.write_text(new_content + "\n", encoding='utf-8')
+        husky_file.chmod(husky_file.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        
+        print(f"[成功] commit-ai-guardian 已追加到 husky: {husky_file}")
+        if existing:
+            print(f"[信息] 已保留现有命令（如 lint-staged），追加在末尾")
+        
+        # 安装 hook 时顺便初始化 .ai-review/ 案例目录
+        self._init_review_dir(force=force)
+        
+        return True
+    
+    def _install_to_git_hooks(self, force: bool = False) -> bool:
+        """安装到 .git/hooks/pre-commit（传统方式，无 husky）"""
         # 确保 hooks 目录存在（mkdir -p 的效果）
         self.hooks_dir.mkdir(parents=True, exist_ok=True)
         
-        # 场景 3：已有用户自定义 hook（不含 HOOK_MARKER）
+        # 场景：已有用户自定义 hook（不含 HOOK_MARKER）
         if self.hook_path.exists() and not self.is_hook_installed():
             if not force:
-                # 不加 --force：拒绝操作，保护用户配置
                 print(f"[警告] 已存在自定义 pre-commit hook")
                 print(f"        路径: {self.hook_path}")
                 print(f"        使用 --force 覆盖，或先手动备份")
@@ -107,7 +236,7 @@ class HookInstaller:
         hook_script = self._get_hook_script()
         self.hook_path.write_text(hook_script, encoding='utf-8')
         
-        # Git 要求 hook 必须有执行权限，否则 commit 时会报错 "permission denied"
+        # Git 要求 hook 必须有执行权限
         self.hook_path.chmod(self.hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         
         print(f"[成功] pre-commit hook 已安装到: {self.hook_path}")
@@ -121,14 +250,62 @@ class HookInstaller:
         """卸载 pre-commit hook
         
         执行流程：
-        1. 如果 hook 不存在 → 无需操作
-        2. 如果 hook 不是本工具生成的 → 拒绝删除（保护用户配置）
-        3. 删除 hook 文件，如果有 .backup 则恢复
+        1. 如果检测到 husky → 从 .husky/pre-commit 移除命令块
+        2. 如果没有 husky → 删除 .git/hooks/pre-commit
+        3. 如果 hook 不是本工具生成的 → 拒绝删除（保护用户配置）
         
         Returns:
             True = 卸载成功（或无需卸载）
-            False = 卸载失败（如不是本工具生成的 hook）
+            False = 卸载失败
         """
+        # 场景 A：检测到 husky → 从 .husky/pre-commit 移除命令块
+        if self.has_husky and self.husky_hook_path and self.husky_hook_path.exists():
+            return self._uninstall_from_husky()
+        
+        # 场景 B：没有 husky → 删除 .git/hooks/pre-commit
+        return self._uninstall_from_git_hooks()
+    
+    def _uninstall_from_husky(self) -> bool:
+        """从 husky 的 .husky/pre-commit 移除命令块"""
+        husky_file = self.husky_hook_path
+        
+        if not husky_file.exists():
+            print("[信息] husky pre-commit 不存在，无需卸载")
+            return True
+        
+        content = husky_file.read_text(encoding='utf-8')
+        marker = "# === commit-ai-guardian ==="
+        
+        if marker not in content:
+            print("[信息] commit-ai-guardian 不在 husky pre-commit 中")
+            return True
+        
+        # 移除命令块（保留其他命令如 lint-staged）
+        lines = content.split('\n')
+        new_lines = []
+        skip = False
+        for line in lines:
+            if line.strip() == marker:
+                skip = True
+                continue
+            if skip and line.startswith('# === end ') and 'commit-ai-guardian' in line:
+                skip = False
+                continue
+            if not skip:
+                new_lines.append(line)
+        
+        new_content = '\n'.join(new_lines).strip()
+        if new_content:
+            husky_file.write_text(new_content + "\n", encoding='utf-8')
+        else:
+            husky_file.unlink()
+        
+        print(f"[成功] 已从 husky 卸载: {husky_file}")
+        print("[信息] 保留了其他命令（如 lint-staged）")
+        return True
+    
+    def _uninstall_from_git_hooks(self) -> bool:
+        """卸载 .git/hooks/pre-commit"""
         # 场景 1：没有 hook
         if not self.hook_path.exists():
             print("[信息] 没有找到 pre-commit hook，无需卸载")
@@ -142,7 +319,7 @@ class HookInstaller:
         
         # 场景 2：本工具生成的 → 删除，并恢复备份（如果有）
         try:
-            self.hook_path.unlink()  # 删除文件
+            self.hook_path.unlink()
             print("[成功] pre-commit hook 已卸载")
             
             # 卸载时恢复之前备份的自定义 hook（如果存在）
