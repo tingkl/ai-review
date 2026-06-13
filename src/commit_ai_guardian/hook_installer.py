@@ -191,6 +191,11 @@ class HookInstaller:
                     new_lines.append(line)
             existing = '\n'.join(new_lines).strip()
         
+        # 修正 lint-staged：如果没有保存 exit code，自动补全
+        # （lint-staged 简化版只有一行命令，追加其他命令后 exit code 会丢失）
+        if existing:
+            existing = self._fix_lint_staged_if_needed(existing)
+        
         # 生成要追加的命令
         # 和无 husky 场景保持统一写法：先存 exit code，再判断
         command = f"""
@@ -221,6 +226,72 @@ fi
         self._init_review_dir(force=force)
         
         return True
+    
+    def _fix_lint_staged_if_needed(self, content: str) -> str:
+        """检测 lint-staged 是否保存了 exit code，如果没有则自动修正
+        
+        问题场景：lint-staged 简写为 `npx lint-staged` 一行，没有保存 exit code。
+        当后面追加了其他命令（如本工具），lint-staged 失败时不会阻断 commit。
+        
+        检测方式：找到 lint-staged 命令行，检查其后 3 行内是否有 $?
+        保存或 if 判断。没有则自动修正为完整版（保存 exit code + if 判断）。
+        
+        支持的命令格式：
+            npx lint-staged
+            yarn lint-staged
+            pnpm lint-staged / pnpm exec lint-staged
+            bunx lint-staged
+            ./node_modules/.bin/lint-staged
+        
+        Args:
+            content: .husky/pre-commit 的现有内容
+            
+        Returns:
+            修正后的内容（如果不需要修正则原样返回）
+        """
+        lines = content.split('\n')
+        
+        # 匹配 lint-staged 命令行（排除注释和空行）
+        lint_staged_pattern = re.compile(
+            r'^(\s*)((?:npx|yarn|pnpm|pnpm exec|bunx)\s+lint-staged'
+            r'|\.\/node_modules\/\.bin\/lint-staged'
+            r'|lint-staged\b)'
+        )
+        
+        # 已保存 exit code 的标志
+        exit_code_saved_pattern = re.compile(
+            r'(\$\?|\bLINT_EXIT\b|\bexit\b|\bif\b)'
+        )
+        
+        for i, line in enumerate(lines):
+            if lint_staged_pattern.match(line):
+                # 找到了 lint-staged 命令，检查后面几行是否保存了 exit code
+                # 看后面 3 行（跳过空行和注释）
+                found_save = False
+                for j in range(i + 1, min(i + 4, len(lines))):
+                    next_line = lines[j].strip()
+                    if not next_line or next_line.startswith('#'):
+                        continue
+                    if exit_code_saved_pattern.search(next_line):
+                        found_save = True
+                        break
+                
+                if not found_save:
+                    # lint-staged 没有保存 exit code，自动修正为完整版
+                    indent = lint_staged_pattern.match(line).group(1)
+                    fixed_lines = [
+                        line,  # 原 lint-staged 命令
+                        f"{indent}LINT_EXIT=$?",
+                        f"{indent}if [ $LINT_EXIT -ne 0 ]; then",
+                        f"{indent}    exit $LINT_EXIT",
+                        f"{indent}fi",
+                    ]
+                    lines[i:i+1] = fixed_lines
+                    print(f"[信息] 自动修正 lint-staged：补充 exit code 保存逻辑")
+                    return '\n'.join(lines)
+        
+        # 没有找到 lint-staged，或已经保存了 exit code
+        return content
     
     def _install_to_git_hooks(self, force: bool = False) -> bool:
         """安装到 .git/hooks/pre-commit（传统方式，无 husky）"""
