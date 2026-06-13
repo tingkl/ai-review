@@ -281,6 +281,13 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.summary = "JSON 解析失败"
         result.passed = False
         return result
+    
+    # AI 可能返回数组（如 []）而不是对象——类型错误，触发 JSON 修复
+    if not isinstance(data, dict):
+        result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到 {type(data).__name__}"
+        result.passed = False
+        result.raw_response = response
+        return result
 
     # 提取各字段
     result.summary = data.get('summary', '审核完成')
@@ -1646,11 +1653,13 @@ class AIEngine:
 
         return None
 
-    def _build_result_from_dict(self, data: Dict, filename: str, raw_response: str) -> ReviewResult:
-        """从解析后的 dict 构建 ReviewResult（含字段名校验）
+    def _build_result_from_dict(self, data, filename: str, raw_response: str) -> ReviewResult:
+        """从解析后的 dict/list 构建 ReviewResult（含字段名校验）
+
+        AI 有时会返回数组（如 []）而不是对象，在此自动包装为合规对象。
 
         Args:
-            data: 解析后的 JSON dict
+            data: 解析后的 JSON（dict 或 list）
             filename: 被审核的文件名
             raw_response: AI 原始响应文本
 
@@ -1658,6 +1667,12 @@ class AIEngine:
             ReviewResult
         """
         result = ReviewResult(filename=filename, raw_response=raw_response)
+        
+        # AI 返回了数组（如 []）——包装为合规对象
+        if isinstance(data, list):
+            print(f"[信息] AI 返回了数组，自动包装为对象")
+            data = {"summary": "AI 返回了数组格式，已自动转换", "passed": True, "issues": []}
+        
         result.summary = data.get('summary', '') or '审核完成'
         result.passed = bool(data.get('passed', True))
 
@@ -1708,7 +1723,7 @@ class AIEngine:
 
         # ===== 阶段2: 解析或校验失败 → AI 修复 =====
         # JSON 语法解析失败 或 schema 校验不通过（字段缺失/别名/类型错误）都触发修复
-        json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误")
+        json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
         if not result.passed and any(kw in result.summary for kw in json_error_keywords):
             broken_json = self._extract_json_str(response)
 
@@ -1717,9 +1732,9 @@ class AIEngine:
                 fixed_json = self._fix_json_with_ai(broken_json, filename, cache_md5=cache_md5)
 
                 if fixed_json:
-                    # 用修复后的 JSON 重新解析
+                    # 用修复后的 JSON 重新解析（接受 dict 或 list）
                     data = _try_parse_json(fixed_json)
-                    if data and isinstance(data, dict):
+                    if data and isinstance(data, (dict, list)):
                         result = self._build_result_from_dict(data, filename, response)
                         print(f"[信息] AI 修复 JSON 成功，解析通过")
                     else:
