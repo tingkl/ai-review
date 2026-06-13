@@ -483,7 +483,22 @@ exit 0  # 返回 0，Git 放行 commit
 
 husky v9+ 设置 `core.hooksPath = .husky/_`，此时 Git 不再执行 `.git/hooks/pre-commit`，而是执行 `.husky/_/pre-commit`（husky 的入口脚本），该脚本会调用 `.husky/pre-commit`。
 
-工具检测到 husky 时，将命令追加到 `.husky/pre-commit`，与 lint-staged 等工具共存：
+工具检测到 husky 时，将命令追加到 `.husky/pre-commit`，与 lint-staged 等工具共存。
+
+**lint-staged 和 commit-ai-guardian 的 exit code 设计：**
+
+| 工具 | Exit Code | 含义 | 触发条件 |
+|------|-----------|------|---------|
+| **lint-staged** | 0 | 所有文件 lint 通过 | eslint/prettier 全部成功 |
+| | 1 | 有文件 lint 失败 | eslint 报错或 prettier 格式化失败 |
+| **commit-ai-guardian** | 0 | 审核通过或无变更 | AI 认为代码没问题，或暂存区无变更 |
+| | 1 | 发现问题，阻断提交 | AI 发现 severity >= threshold 的问题 |
+| | 2 | 配置异常 | API Key 未设置、模型不可达、JSON 解析失败等 |
+| | 130 | 用户取消 | Ctrl+C 中断 |
+
+两个工具都遵循**"非 0 即阻断"**的约定，Git 收到非 0 exit code 就会停止 commit。
+
+lint-staged 的 `.husky/pre-commit`（简化版）：
 
 ```bash
 #!/bin/sh
@@ -491,22 +506,34 @@ husky v9+ 设置 `core.hooksPath = .husky/_`，此时 Git 不再执行 `.git/hoo
 
 # 第1步：lint-staged（格式化代码 + 检查）
 npx lint-staged
-LINT_EXIT=$?                          # 保存 lint-staged 的 exit code
+LINT_EXIT=$?                          # 保存 exit code（关键步骤）
 if [ $LINT_EXIT -ne 0 ]; then       # lint 失败 → 阻断 commit
     echo "lint-staged 检查未通过"
-    exit $LINT_EXIT
+    exit $LINT_EXIT                 # 把 lint-staged 的 exit code 传给 Git
 fi
 
 # === commit-ai-guardian ===
 # 第2步：AI 审核
 commit-ai-guardian audit
-AUDIT_EXIT=$?                         # 保存 audit 的 exit code
+AUDIT_EXIT=$?                         # 保存 exit code（关键步骤）
 if [ $AUDIT_EXIT -ne 0 ]; then      # 审核失败 → 阻断 commit
     echo ""
     echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
-    exit $AUDIT_EXIT
+    exit $AUDIT_EXIT                # 把 cag 的 exit code 传给 Git
 fi
 # === end commit-ai-guardian ===
+```
+
+**为什么必须立即保存 `$?`**：
+
+```bash
+npx lint-staged
+LINT_EXIT=$?           # ← 必须在下一行立即保存，因为 $? 只表示上一个命令
+
+# 如果中间加了 echo 等其他命令，$? 就被覆盖了
+npx lint-staged
+echo "lint 完成"       # ← 这行会改变 $? 为 0
+echo $?                # ← 输出 0（echo 的 exit code），不是 lint-staged 的
 ```
 
 **和 lint-staged 的对比**：
@@ -519,9 +546,12 @@ lint-staged 的 `.husky/pre-commit` 是简化版（只有一行命令）：
 npx lint-staged        # 最后一行命令，exit code 直接返回给 Git
 ```
 
-lint-staged 没有显式的 `if` 判断，是因为 `npx lint-staged` 是脚本里**最后一行命令**，它的 exit code 直接成为整个脚本的返回值。
+lint-staged 没有显式的 `if` 判断，是因为 `npx lint-staged` 是脚本里**最后一行命令**，它的 exit code 直接成为整个脚本的返回值。但如果后面追加了其他命令（如本工具），lint-staged 的 exit code 就**不会自动返回给 Git 了**，必须显式保存和判断。
 
-本工具不能用这种写法，因为后面可能还有其他命令（或用户手动添加了其他命令），所以必须用 `if` 显式判断。
+**三个关键步骤缺一不可**：
+1. `npx lint-staged` — 运行命令
+2. `LINT_EXIT=$?` — **立即**保存 exit code
+3. `if [ $LINT_EXIT -ne 0 ]; then exit $LINT_EXIT; fi` — 判断是否阻断
 
 **两种场景的阻断逻辑完全一致**：都是先存 `EXIT_CODE=$?`，再用 `if [ $EXIT_CODE -ne 0 ]` 判断，最后 `exit $EXIT_CODE` 传递给 Git。
 
