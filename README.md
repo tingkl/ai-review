@@ -340,6 +340,38 @@ JSON 解析
 
 ---
 
+## 设计哲学
+
+> **AI 写代码很强，通用对话不行。用工程手段弥补，而不是 prompt 工程。**
+
+### 为什么不用 prompt 约束？
+
+prompt 约束 AI 的效果有限：
+- AI 会遗忘长 prompt 中的规则
+- AI 对"不要 xxx"的遵守率远低于"必须 xxx"
+- 不同模型对 prompt 的理解差异大
+
+### 工程兜底策略
+
+| AI 的短板 | 工程手段 | 说明 |
+|-----------|---------|------|
+| 输出格式不稳定 | **JSON Schema 硬约束** | `strict: true` + `additionalProperties: false`，字段名和类型强制校验 |
+| 字段名乱用（description/fix_suggestion） | **`additionalProperties: false`** | schema 直接拒绝非标准字段 |
+| message 为空 | **代码层必填校验** | `_validate_review_schema()` 检查 message 非空，缺失触发 JSON 修复 |
+| 输出 think 挤占 token | **`enable_thinking: false`** | DeepSeek 等模型 API 参数禁用，不是 prompt 约束 |
+| 不遵守 `<result>` 标签 | **多层提取降级** | `<result>` → `{...}` → 整段文本，层层兜底 |
+| JSON 被截断 | **截断检测** | 过滤 think 后检查 JSON 完整性 |
+| 重复犯同样格式错误 | **Schema 校验 + 错误反馈** | 告诉 AI 具体哪个字段错了，针对性修复 |
+| prompt 太长导致遗忘 | **持续精简** | 去掉 schema/代码已约束的内容，只留 AI 真正需要记住的 |
+
+### 核心原则
+
+1. **让 AI 做填空题（schema），不是作文题（自由文本）**
+2. **Prompt 只放 AI 记不住的东西**（业务规则、案例），不放 AI 会自然遵守的东西（JSON 格式）
+3. **代码兜底比 prompt 约束可靠 100 倍**
+
+---
+
 ## 常见问题
 
 ### Q: 安装后为什么没有生效？
