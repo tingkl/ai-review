@@ -111,14 +111,18 @@ DEFAULT_JSON_FIX_SYSTEM_MESSAGE = (
     "  - 根据具体错误精准修复，不要忽略反馈\n"
     "  - 常见错误：字段缺失、类型不对、用了别名（description/fix_suggestion）"
 )
-DEFAULT_JSON_FIX_TEMPLATE = """修复以下 JSON 的语法错误，使其成为合法的 JSON。
+DEFAULT_JSON_FIX_TEMPLATE = """修复以下 JSON 的语法错误。
 
 文件: {{filename}}
 
 需要修复的 JSON：
 {{broken_json}}
 
-输出格式规则见 system message。严格遵守。"""
+修复要求：
+1. 如果 JSON 是数组 [] 或不完整的对象，改为完整对象格式：
+   {"summary":"修复说明","passed":true,"issues":[]}
+2. 如果 JSON 语法错误（引号、逗号、括号），修复语法保持内容不变
+3. 输出必须用 <result> 标签包裹修复后的 JSON"""
 
 # 项目仓库中存放 prompt 模板的目录
 REPO_PROMPTS_DIR = Path(".ai-review") / "prompts"
