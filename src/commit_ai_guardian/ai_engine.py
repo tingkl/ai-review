@@ -763,7 +763,7 @@ class AIEngine:
                         results[idx] = ReviewResult(
                             filename=filename,
                             summary=f"并发审核失败: {str(e)}",
-                            passed=True,
+                            passed=False,  # 异常默认阻断
                             raw_response=str(e),
                         )
         
@@ -1965,7 +1965,7 @@ class AIEngine:
                         results[idx] = ReviewResult(
                             filename=filename,
                             summary=f"并发审核失败: {str(e)}",
-                            passed=True,
+                            passed=False,  # 异常默认阻断
                             raw_response=str(e),
                         )
         

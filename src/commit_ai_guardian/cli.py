@@ -148,11 +148,22 @@ def audit(repo, output, config_path):
         threshold_value = threshold_map.get(threshold_level, 1)
         
         # 判断是否阻断 commit
-        # 逻辑：只要有一个 issue 的严重级别 >= threshold 就阻断
+        # 逻辑1：只要有一个 issue 的严重级别 >= threshold 就阻断
+        # 逻辑2（兜底）：result.passed=False 时也阻断（JSON解析失败/API异常等）
         # severity_threshold=warning 时：warning/error/critical 都阻断
         # severity_threshold=error 时：error/critical 阻断
         has_blocking_issue = False
+        has_system_error = False
         for result in results:
+            # 检查1：AI 审核未通过（passed=False）→ 阻断
+            # 这包括 JSON 解析失败、API 异常、字段缺失等所有非成功场景
+            if not result.passed:
+                has_system_error = True
+                # 打印具体原因（帮助用户定位问题）
+                if not result.issues:
+                    click.echo(f"  ⚠️  {result.filename}: {result.summary}")
+                break
+            # 检查2：有 issue 且 severity >= threshold → 阻断
             for issue in result.issues:
                 issue_value = threshold_map.get(issue.severity, 0)
                 if issue_value >= threshold_value:
@@ -162,6 +173,10 @@ def audit(repo, output, config_path):
                 break
         
         # exit(0) = 放行，exit(1) = 阻断 commit
+        if has_system_error:
+            click.echo("\n❌ 审核过程中出现系统异常，已阻断提交")
+            click.echo("   请查看上方日志定位问题，或运行 'cag debug-log .ai-review/logs/xxx.ai.log' 调试")
+            sys.exit(1)
         if has_blocking_issue:
             sys.exit(1)
         sys.exit(0)
