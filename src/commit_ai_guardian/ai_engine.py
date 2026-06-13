@@ -1735,10 +1735,11 @@ class AIEngine:
             print(f"    {ai_log}")
 
         # ===== 阶段3: 确保必要字段存在 =====
+        # 默认 passed=False（绝对阻断），只有在明确通过时才设为 True
         if not result.summary:
-            result.summary = "审核完成"
+            result.summary = "审核完成（系统异常，默认阻断）"
         if not hasattr(result, 'passed'):
-            result.passed = True
+            result.passed = False
         if not hasattr(result, 'issues'):
             result.issues = []
 
