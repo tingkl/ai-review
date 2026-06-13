@@ -192,9 +192,10 @@ class HookInstaller:
             existing = '\n'.join(new_lines).strip()
         
         # 生成要追加的命令
+        # || exit $? 确保 audit 失败时阻断 commit
         command = f"""
 {marker}
-commit-ai-guardian audit
+commit-ai-guardian audit || exit $?
 # === end commit-ai-guardian ==="""
         
         # 追加到文件末尾
