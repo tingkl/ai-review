@@ -367,9 +367,7 @@ prompt 约束 AI 的效果有限：
 | JSON 被截断 | **截断检测** | 过滤 think 后检查 JSON 完整性 |
 | 重复犯同样格式错误 | **Schema 校验 + 错误反馈** | 告诉 AI 具体哪个字段错了，针对性修复 |
 | prompt 太长导致遗忘 | **持续精简** | 去掉 schema/代码已约束的内容，只留 AI 真正需要记住的 |
-| 所有异常未处理 | **默认阻断** | 解析失败/修复失败/字段缺失 → `passed=False`，绝不静默放行 |
-| 阻断逻辑遗漏 | **双重检查** | cli.py 同时检查 `result.passed`（系统异常）和 `issue.severity`（业务问题）|
-| 并发异常放行 | **passed=False** | 并发执行异常也返回 `passed=False`，不静默放行 |
+| 阻断覆盖不全 | **双重检查 + 默认阻断** | cli.py 同时检查 `result.passed`（系统异常）和 `issue.severity`（业务问题），并发异常也返回 `passed=False` |
 
 ### 核心原则
 
