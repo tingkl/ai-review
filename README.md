@@ -329,10 +329,14 @@ JSON 解析
 
 ### 阻断条件
 
-- AI 发现 severity >= threshold 的问题
-- API Key 未配置、API 调用失败
-- JSON 解析失败（含 AI 修复后仍失败）
-- 其他运行时异常
+双重检查机制：
+
+1. **AI 发现问题**：`issue.severity >= severity_threshold`（如 warning/error/critical）
+2. **系统异常兜底**：`result.passed = False` 时一律阻断（无论 issues 是否为空）
+   - JSON 解析失败（含 AI 修复后仍失败）
+   - API 调用超时、限流、网络异常
+   - 并发执行异常
+   - 字段缺失/类型错误等 schema 校验失败
 
 不阻断的情况：`enabled=false`、`暂存区无变更`。
 
@@ -364,6 +368,8 @@ prompt 约束 AI 的效果有限：
 | 重复犯同样格式错误 | **Schema 校验 + 错误反馈** | 告诉 AI 具体哪个字段错了，针对性修复 |
 | prompt 太长导致遗忘 | **持续精简** | 去掉 schema/代码已约束的内容，只留 AI 真正需要记住的 |
 | 所有异常未处理 | **默认阻断** | 解析失败/修复失败/字段缺失 → `passed=False`，绝不静默放行 |
+| 阻断逻辑遗漏 | **双重检查** | cli.py 同时检查 `result.passed`（系统异常）和 `issue.severity`（业务问题）|
+| 并发异常放行 | **passed=False** | 并发执行异常也返回 `passed=False`，不静默放行 |
 
 ### 核心原则
 
@@ -514,6 +520,10 @@ if not config.api_key:
 # exit 0 —— 暂存区无变更
 if not file_diffs:
     sys.exit(0)
+
+# exit 1 —— 系统异常（JSON解析失败/API异常等），阻断commit
+if has_system_error:
+    sys.exit(1)
 
 # exit 1 —— 发现问题，阻断 commit
 if has_blocking_issue:
