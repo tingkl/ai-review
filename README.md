@@ -498,6 +498,39 @@ husky v9+ 设置 `core.hooksPath = .husky/_`，此时 Git 不再执行 `.git/hoo
 
 两个工具都遵循**"非 0 即阻断"**的约定，Git 收到非 0 exit code 就会停止 commit。
 
+**commit-ai-guardian 返回 exit code 的代码（`cli.py`）：**
+
+```python
+# cli.py audit 命令的 exit code 逻辑
+
+# exit 0 —— 审核已禁用，跳过
+if not config.enabled:
+    sys.exit(0)
+
+# exit 2 —— API Key 未配置
+if not config.api_key:
+    sys.exit(2)
+
+# exit 0 —— 暂存区无变更
+if not file_diffs:
+    sys.exit(0)
+
+# exit 1 —— 发现问题，阻断 commit
+if has_blocking_issue:
+    sys.exit(1)
+
+# exit 0 —— 全部通过，放行
+sys.exit(0)
+
+# exit 2 —— 运行时异常（RuntimeError）
+except RuntimeError:
+    sys.exit(2)
+
+# exit 130 —— 用户取消（Ctrl+C）
+except KeyboardInterrupt:
+    sys.exit(130)
+```
+
 lint-staged 的 `.husky/pre-commit`（简化版）：
 
 ```bash
