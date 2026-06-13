@@ -215,8 +215,34 @@ class PromptLoader:
         return default_content
     
     def load_system_message(self) -> str:
-        """加载 system message 模板"""
-        return self._load_file("system_message.txt", DEFAULT_SYSTEM_MESSAGE)
+        """加载 system message 模板（含用户自定义规则）
+        
+        加载默认 system message，如果存在 custom_prompt.md 则追加到末尾。
+        自定义规则优先级高于默认规则，可覆盖或补充默认约束。
+        """
+        base = self._load_file("system_message.txt", DEFAULT_SYSTEM_MESSAGE)
+        custom = self.load_custom_prompt()
+        if custom:
+            return f"{base}\n\n=== 用户自定义规则 ===\n{custom}"
+        return base
+    
+    def load_custom_prompt(self) -> str:
+        """加载用户自定义 prompt（custom_prompt.md）
+        
+        从 .ai-review/prompts/custom_prompt.md 加载。
+        如果文件不存在或为空，返回空字符串。
+        
+        Returns:
+            自定义 prompt 内容，或空字符串
+        """
+        custom_path = self.prompts_dir / "custom_prompt.md"
+        if not custom_path.exists():
+            return ""
+        content = custom_path.read_text(encoding='utf-8').strip()
+        # 去掉 HTML 注释（<!-- ... -->）
+        import re
+        content = re.sub(r'<!--.*?-->', '', content, flags=re.DOTALL).strip()
+        return content
     
     def load_diff_review_template(self) -> str:
         """加载 diff 审核 prompt 模板"""

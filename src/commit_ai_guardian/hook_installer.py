@@ -226,6 +226,22 @@ class HookInstaller:
                     if force and template_path.exists():
                         print(f"[信息] prompt 模板已更新: {template_name}")
             
+            # 创建用户自定义 prompt 文件（custom_prompt.md）
+            # 此文件不会被 install --force 覆盖，用户可在此添加自己的审核规则
+            custom_prompt_path = prompts_dir / "custom_prompt.md"
+            if not custom_prompt_path.exists():
+                custom_prompt_path.write_text(
+                    "<!-- 自定义审核规则 -->\n"
+                    "<!-- 此文件内容会在每次审核前作为 system message 的一部分发送给 AI -->\n"
+                    "<!-- 可以在此添加团队特定的编码规范、业务规则等 -->\n"
+                    "\n"
+                    "## 团队自定义规则\n"
+                    "\n"
+                    "在此添加你的自定义审核规则...\n",
+                    encoding='utf-8'
+                )
+                print(f"[信息] 自定义 prompt 模板已创建: custom_prompt.md（不会被覆盖）")
+            
             # 创建或补全项目配置文件 config.yaml
             self._ensure_config_file(review_dir / "config.yaml")
             
