@@ -486,19 +486,42 @@ husky v9+ 设置 `core.hooksPath = .husky/_`，此时 Git 不再执行 `.git/hoo
 工具检测到 husky 时，将命令追加到 `.husky/pre-commit`，与 lint-staged 等工具共存：
 
 ```bash
-# .husky/pre-commit（多命令共存示例）
-npx lint-staged                    # 先格式化代码
+#!/bin/sh
+# .husky/pre-commit（完整脚本，lint-staged 和 AI 审核共存）
 
-# === commit-ai-guardian ===       # 工具 marker，用于 uninstall 定位
-commit-ai-guardian audit           # 再 AI 审核
-EXIT_CODE=$?                       # 保存 exit code
-if [ $EXIT_CODE -ne 0 ]; then      # 判断是否阻断
+# 第1步：lint-staged（格式化代码 + 检查）
+npx lint-staged
+LINT_EXIT=$?                          # 保存 lint-staged 的 exit code
+if [ $LINT_EXIT -ne 0 ]; then       # lint 失败 → 阻断 commit
+    echo "lint-staged 检查未通过"
+    exit $LINT_EXIT
+fi
+
+# === commit-ai-guardian ===
+# 第2步：AI 审核
+commit-ai-guardian audit
+AUDIT_EXIT=$?                         # 保存 audit 的 exit code
+if [ $AUDIT_EXIT -ne 0 ]; then      # 审核失败 → 阻断 commit
     echo ""
     echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
-    exit $EXIT_CODE                # 阻断 commit
+    exit $AUDIT_EXIT
 fi
 # === end commit-ai-guardian ===
 ```
+
+**和 lint-staged 的对比**：
+
+lint-staged 的 `.husky/pre-commit` 是简化版（只有一行命令）：
+```bash
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+npx lint-staged        # 最后一行命令，exit code 直接返回给 Git
+```
+
+lint-staged 没有显式的 `if` 判断，是因为 `npx lint-staged` 是脚本里**最后一行命令**，它的 exit code 直接成为整个脚本的返回值。
+
+本工具不能用这种写法，因为后面可能还有其他命令（或用户手动添加了其他命令），所以必须用 `if` 显式判断。
 
 **两种场景的阻断逻辑完全一致**：都是先存 `EXIT_CODE=$?`，再用 `if [ $EXIT_CODE -ne 0 ]` 判断，最后 `exit $EXIT_CODE` 传递给 Git。
 
