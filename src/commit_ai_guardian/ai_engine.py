@@ -537,7 +537,8 @@ class AIEngine:
 
         now = time.time()
         cleaned = 0
-        for cache_file in self._cache_dir.glob('*.json'):
+        # 同时清理 .json 和 .json.broken 文件
+        for cache_file in list(self._cache_dir.glob('*.json')) + list(self._cache_dir.glob('*.json.broken')):
             try:
                 if now - cache_file.stat().st_mtime > ttl_seconds:
                     cache_file.unlink()
@@ -1142,6 +1143,9 @@ class AIEngine:
         缓存文件路径: .ai-review/cache/{md5前7位}.json
         用 MD5 前7位作为文件名（类似 git short hash），节省磁盘空间。
         
+        如果存在 .json.broken 文件（上次 JSON 解析失败），当作缓存未命中，
+        下次重新审核。
+        
         Args:
             content_md5: 文件内容（diff 或完整内容）的完整 MD5 哈希（32位）
             
@@ -1152,6 +1156,12 @@ class AIEngine:
             return None
         
         cache_file = self._cache_dir / f"{content_md5[:7]}.json"
+        broken_file = self._cache_dir / f"{content_md5[:7]}.json.broken"
+        
+        # 上次 JSON 解析失败，当作缓存未命中，下次重新审核
+        if broken_file.exists():
+            return None
+        
         if not cache_file.exists():
             return None
         
@@ -1190,7 +1200,8 @@ class AIEngine:
         """将审核结果保存到缓存
         
         缓存文件路径: .ai-review/cache/{md5前7位}.json
-        用 MD5 前7位作为文件名（类似 git short hash），节省磁盘空间。
+        如果 JSON 解析失败（不是真正的审核结果），文件名加 .broken 后缀，
+        这样 _check_cache 会跳过它，下次重新审核。
         
         Args:
             content_md5: 文件内容（diff 或完整内容）的完整 MD5 哈希（32位）
@@ -1199,7 +1210,14 @@ class AIEngine:
         if not self._cache_dir:
             return
         
-        cache_file = self._cache_dir / f"{content_md5[:7]}.json"
+        # 判断是否是 broken 缓存（JSON 解析失败，不是真正的审核结果）
+        is_broken = not result.passed and any(
+            kw in result.summary for kw in 
+            ("JSON 解析失败", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
+        )
+        
+        suffix = ".json.broken" if is_broken else ".json"
+        cache_file = self._cache_dir / f"{content_md5[:7]}{suffix}"
         try:
             data = {
                 'filename': result.filename,
