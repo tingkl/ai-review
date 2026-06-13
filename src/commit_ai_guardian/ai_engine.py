@@ -1482,9 +1482,8 @@ class AIEngine:
         logs_dir.mkdir(parents=True, exist_ok=True)
 
         md5_short = cache_md5[:7]
-        # 文件名格式: {filename}_{md5}.json_fix.log，和 ai.log 对应
-        safe_name = self._sanitize_log_filename(filename)
-        log_file = logs_dir / f"{safe_name}_{md5_short}.json_fix.log"
+        # 文件名格式: {md5}.json_fix.log，和 ai.log ({md5}.ai.log) 对应
+        log_file = logs_dir / f"{md5_short}.json_fix.log"
         try:
             from datetime import datetime
             sep_line = "=" * 60
