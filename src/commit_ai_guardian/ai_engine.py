@@ -1464,9 +1464,9 @@ class AIEngine:
     def _write_json_fix_log(self, filename: str, cache_md5: str,
                              system_message: str, user_message: str,
                              ai_response: str) -> None:
-        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{md5}.json.log
+        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{filename}_{md5}.json_fix.log
 
-        格式与 ai.log 一致：system + user + ai response，用分隔线标注。
+        格式与 ai.log 完全一致：header + system + user + ai response，方便调试时对比。
 
         Args:
             filename: 被审核的文件名
@@ -1482,7 +1482,9 @@ class AIEngine:
         logs_dir.mkdir(parents=True, exist_ok=True)
 
         md5_short = cache_md5[:7]
-        log_file = logs_dir / f"{md5_short}.json.log"
+        # 文件名格式: {filename}_{md5}.json_fix.log，和 ai.log 对应
+        safe_name = self._sanitize_log_filename(filename)
+        log_file = logs_dir / f"{safe_name}_{md5_short}.json_fix.log"
         try:
             from datetime import datetime
             sep_line = "=" * 60
@@ -1491,6 +1493,7 @@ class AIEngine:
                 f"# ================================================\n"
                 f"# JSON Fix Log\n"
                 f"# 文件: {filename}\n"
+                f"# MD5: {md5_short}\n"
                 f"# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 f"# ================================================\n"
             ]
@@ -2032,4 +2035,3 @@ class AIEngine:
             else "- 按通用审核维度进行检查")
         
         return prompt
-                         
