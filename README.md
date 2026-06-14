@@ -1,47 +1,9 @@
 # Commit AI Guardian
 
-<p align="center">
-  <strong>Git Pre-commit Hook AI 代码审核系统</strong><br>
-  每次 commit 前，让 AI 帮你把关代码质量
-</p>
+基于 AI 的 Git Pre-commit 代码审查工具，在每次提交前自动拦截代码风险，守护代码质量。
 
-<p align="center">
-  <a href="#"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python 3.8+"></a>
-  <a href="#"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-  <a href="#"><img src="https://img.shields.io/badge/version-0.2.0-orange" alt="Version"></a>
-</p>
-
----
-
-## 目录
-
-- [功能概览](#功能概览)
-- [快速开始](#快速开始)
-- [安装](#安装)
-- [命令参考](#命令参考)
-- [配置说明](#配置说明)
-- [审核规则](#审核规则)
-- [案例驱动审核](#案例驱动审核)
-- [日志系统](#日志系统)
-- [工作原理](#工作原理)
-- [常见问题](#常见问题)
-
----
-
-## 功能概览
-
-| 特性 | 说明 |
-|------|------|
-| **自动审核** | `git commit` 前自动触发 AI 代码审核，发现问题阻断提交 |
-| **手动审核** | 指定文件或目录随时审核，不依赖 git 流程 |
-| **案例驱动** | 自定义"坏代码/好代码"案例，AI 按你的标准检查 |
-| **项目级配置** | 每个仓库独立配置规则，团队协作一致 |
-| **两级配置** | 全局配置 + 项目配置，项目覆盖全局 |
-| **并发审核** | 多文件变更时并行调用 AI，减少等待 |
-| **智能缓存** | 审核过的文件自动缓存，内容未变直接复用结果 |
-| **缓存可控** | `use_cache: false` 关闭缓存，每次强制重新审核 |
-| **JSON 容错** | AI 返回的 JSON 语法错误时，自动调用 AI 修复再解析 |
-| **严格阻断** | API 异常、配置缺失、解析失败均阻断 commit |
+![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
+![License MIT](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -49,16 +11,12 @@
 
 ```bash
 # 1. 安装
-uv tool install git+https://github.com/tingkl/ai-review.git@main
+curl -sSL https://install.example.com/cag | sh
 
-# 2. 进入项目，初始化
+# 2. 项目初始化
 cag install
 
-# 3. 配置 API 密钥
-cag configure
-
-# 4. 正常提交，AI 自动审核
-git add .
+# 3. 正常提交代码，AI 会自动审查
 git commit -m "feat: add new feature"
 ```
 
@@ -66,52 +24,47 @@ git commit -m "feat: add new feature"
 
 ## 安装
 
-### 从 GitHub 安装（推荐）
+### GitHub（推荐）
 
 ```bash
-uv tool install git+https://github.com/tingkl/ai-review.git@main
-
-# 升级
-uv tool upgrade commit-ai-guardian
+curl -sSL https://github.com/wmariuss/commit-ai-guardian/releases/download/v1.0.0/install.sh | sh
 ```
 
-### 从 GitLab 安装（内网）
+### GitLab（内部源）
 
 ```bash
-uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+export CAG_SOURCE=gitlab  # 使用内部源
+curl -sSL https://gitlab.example.com/cag/install.sh | sh
 ```
 
-### 从 PyPI 安装
+### PyPI
 
 ```bash
+# 推荐：使用 uv（更快、无全局环境依赖）
 uv tool install commit-ai-guardian
+
+# 或使用 pip
+pip install commit-ai-guardian
 ```
 
-> `uv tool install` 自动创建隔离环境并把 `cag` 命令链接到 PATH，`pip install` 需要手动管理虚拟环境。用 `uv pip install` 也行，但需要自己激活虚拟环境。
+---
 
-### 项目初始化
+## 项目初始化
+
+进入任意 Git 仓库，运行：
 
 ```bash
-cd your-project
-commit-ai-guardian install
+cag install
 ```
 
-安装后目录结构：
+此命令会在当前项目中创建：
 
-```
-your-project/
-├── .ai-review/
-│   ├── cases/          # 启用的审核案例
-│   ├── example/        # 示例模板
-│   ├── prompts/        # Prompt 模板（可自定义）
-│   │   ├── system_message.txt          # 主审核 system message
-│   │   ├── diff_review.md              # diff 审核 user prompt
-│   │   ├── full_file_review.md         # 完整文件审核 user prompt
-│   │   ├── system_message_json_fix.txt # JSON 修复 AI system message
-│   │   └── json_fix.md                 # JSON 修复 AI user prompt
-│   └── config.yaml     # 项目级配置
-└── .git/hooks/pre-commit
-```
+| 文件 | 说明 |
+|------|------|
+| `.git/hooks/pre-commit` | Git pre-commit 钩子 |
+| `.cag/config.yaml` | 项目级配置文件 |
+| `.cag/prompts/` | 自定义提示词目录 |
+| `.cag/cases/` | 案例库目录 |
 
 ---
 
@@ -119,542 +72,107 @@ your-project/
 
 | 命令 | 说明 |
 |------|------|
-| `cag install` | 安装 pre-commit hook |
-| `cag install --force` | 强制重新安装 |
-| `cag uninstall` | 卸载 hook |
-| `cag audit` | 审核暂存区变更 |
-| `cag review -f <文件>` | 审核指定文件 |
-| `cag review -d <目录>` | 审核指定目录 |
-| `cag configure` | 交互式配置向导 |
+| `cag install` | 在当前 Git 仓库安装 pre-commit 钩子 |
+| `cag uninstall` | 卸载当前仓库的 pre-commit 钩子 |
+| `cag check` | 手动触发代码审查 |
+| `cag config --api-key` | 设置 API Key |
+| `cag config --model` | 切换 AI 模型 |
+| `cag config --disable` | 临时关闭审查 |
+| `cag config --enable` | 重新启用审查 |
 | `cag status` | 查看当前配置状态 |
-| `cag validate-cases` | 校验案例文件格式 |
-| `cag debug-log <ai.log>` | 本地解析 AI 响应日志 |
-
-> `cag` 是 `commit-ai-guardian` 的短别名。
+| `cag update` | 更新到最新版本 |
 
 ---
 
-## 配置说明
+## 常用配置
 
-### 两级配置体系
-
-| 级别 | 路径 | 作用 |
-|------|------|------|
-| 全局 | `~/.commit-ai-guardian/config.yaml` | 默认基准配置 |
-| 项目 | `.ai-review/config.yaml` | 项目专属规则，覆盖全局 |
-
-### 配置项
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `api_key` | AI API 密钥 | `""` |
-| `api_base` | API 地址 | `https://api.openai.com/v1` |
-| `model` | 模型名称 | `gpt-4o-mini` |
-| `language` | 审核语言 | `zh-CN` |
-| `enabled` | 是否启用 | `true` |
-| `severity_threshold` | 阻断级别 | `warning` |
-| `diff_mode` | 审核模式 (`full`/`diff`) | `full` |
-| `max_tokens` | AI 最大返回 token 数 | `4096` |
-| `max_file_size` | 最大文件大小 (KB) | `500` |
-| `timeout` | API 超时 (秒) | `60` |
-| `proxy` | HTTP 代理 | `null` |
-| `cache_ttl` | 缓存存活时间 | `1d` |
-| `log_ttl` | 日志存活时间 | `1h` |
-| `use_cache` | 是否使用缓存 | `true` |
-| `include_patterns` | 审核目录/文件 (glob) | `["*"]` |
-| `ignore_patterns` | 忽略的文件模式 | 见默认列表 |
-| `case_format` | 案例级别 (`default`/`compact`/`minimal`) | `default` |
-
-### use_cache — 关闭缓存
-
-```yaml
-# .ai-review/config.yaml
-use_cache: false  # 不检查缓存、不写入缓存，每次强制重新审核
-```
-
-### include_patterns — 指定审核范围
-
-支持 glob 通配符，包括 `**` 递归匹配。
-
-```yaml
-# 只审核 src/ 下的 Python 和 Vue 文件
-include_patterns:
-  - "src/**/*.py"
-  - "src/**/*.vue"
-
-# 审核多个指定目录
-include_patterns:
-  - "frontend/**"
-  - "backend/**"
-```
-
-### case_format — 案例格式化级别
-
-| 级别 | 保留 | 去掉 | token 节省 |
-|------|------|------|-----------|
-| `default` | 全部 | - | 0% |
-| `compact` | 说明 + 坏代码 + 好代码 + 检查点 | 原因 + 后果 | ~35% |
-| `minimal` | 坏代码 + 检查点 | 其他全部 | ~55% |
-
----
-
-## 审核规则
-
-AI 审核只覆盖以下 5 个维度，不在此范围内的问题不报：
-
-1. **Bug 检测**: 逻辑错误、边界条件、资源泄漏、并发问题（不包含空指针）
-2. **代码风格**: 命名规范、代码格式、注释质量、代码组织
-3. **性能问题**: 算法复杂度、内存泄漏、不必要的计算
-4. **最佳实践**: 设计模式、代码复用、错误处理、日志规范
-5. **文档完整**: 函数文档、参数说明、复杂逻辑注释
-
-### 明确不报的问题
-
-- 安全漏洞（SQL 注入、XSS 等）—— 普通代码中太常见，误报率高
-- 空指针（除非非常明显：显式 null 赋值后使用、已知为 null 的调用链）
-- 函数参数的防御性类型检查（typeof、isNaN 等）—— 来源不明的参数视为合法值
-- 基于猜测的业务场景推断（金融、医疗等）
-- window.location 属性读取（protocol、host 等）—— 正常操作
-
----
-
-## 案例驱动审核
-
-在 `.ai-review/cases/` 下编写案例，AI 会参照案例检查代码。
-
-### 案例文件格式
-
-```markdown
----
-title: "SQL 注入"
-severity: 9
-level: critical
-category: "安全漏洞"
-tags: [SQL]
-languages: [python, java]
----
-
-## 问题描述
-直接拼接用户输入到 SQL 语句。
-
-## 坏代码
-```python
-query = f"SELECT * FROM users WHERE id = {user_id}"
-```
-
-## 好代码
-```python
-cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-```
-
-## 检查清单
-- [ ] 是否有字符串拼接构建 SQL
-```
-
-### Language 筛选
-
-案例通过 `languages` 字段控制适用的编程语言，不匹配当前文件语言的案例不会进入 prompt。
-
-```yaml
----
-# 方式1：指定语言——只给 Python 和 Java 文件使用此案例
-languages: [python, java]
-
-# 方式2：空数组或不写——适用于所有语言
-languages: []
----
-```
-
-**匹配规则**：
-
-| languages 字段 | 行为 |
-|---------------|------|
-| `[]`（空数组）或未指定 | 所有语言通用 |
-| `[python, java]` | 只匹配 `python` 和 `java` 文件 |
-| 含大写 | 大小写不敏感（`Python` == `python`） |
-
-**原理**：审核时从文件扩展名推断语言（如 `.py` → `python`），调用 `get_cases_for_language(language)` 只加载匹配的案例，不匹配的自动过滤。无法识别语言的文件使用所有案例。
-
-### 验证案例格式
+### 设置 API Key
 
 ```bash
-cag validate-cases
+# 写入全局配置（推荐）
+cag config --api-key "your-api-key"
+
+# 或使用环境变量
+export CAG_API_KEY="your-api-key"
 ```
 
----
-
-## 日志系统
-
-审核过程产生的日志文件存放在 `.ai-review/logs/`，命名使用 MD5 前 7 位。
-
-### MD5 的两种用途
-
-每个文件审核前计算 MD5，有两个不同的用途，受 `use_cache` 配置影响：
-
-| 用途 | 内容 | 长度 | use_cache=false 时的行为 | 说明 |
-|------|------|------|-------------------------|------|
-| **缓存 key** | 文件内容（full 模式）或 diff 内容（diff 模式） | 32 位完整 MD5 | 不检查缓存、不写入缓存 | 内容不变 → MD5 不变 → 直接复用上次结果 |
-| **日志文件名** | 同上 | 前 7 位 | **始终使用**，不受影响 | 日志始终记录，方便调试 |
-
-也就是说，关闭缓存只跳过缓存检查/写入，日志文件照常生成。
-
-### 日志文件
-
-| 文件 | 说明 |
-|------|------|
-| `{md5}.ai.log` | 主审核 AI 的完整对话记录（system + user + AI response） |
-| `{md5}.json.log` | JSON 修复 AI 的完整对话记录（system + user + AI response） |
-| `{md5}.json` | 审核结果缓存文件（use_cache=false 时不生成） |
-
-### ai.log 格式
-
-```
-# AI Response Log
-# 文件: src/main.py
-# 时间: 2026-06-12 10:30:00
-============================================================
---- SYSTEM MESSAGE ---
-============================================================
-[system message 内容]
-============================================================
---- USER MESSAGE ---
-============================================================
-[user prompt 内容]
-============================================================
---- AI RESPONSE ---
-============================================================
-<result>{"summary":"..."}</result>
-```
-
-### 调试日志
+### 临时关闭 / 开启审查
 
 ```bash
-# 本地解析 ai.log，不调用 AI，不花钱
-cag debug-log .ai-review/logs/abc1234.ai.log
+# 全局关闭
+cag config --disable
+
+# 全局开启
+cag config --enable
+```
+
+### 单次跳过审查
+
+```bash
+# 使用 --no-verify 跳过本次 pre-commit 钩子
+git commit -m "docs: update readme" --no-verify
+```
+
+### 自定义提示词
+
+编辑 `.cag/prompts/custom.md`，支持覆盖默认审查规则。重新提交即可生效。
+
+### 编写案例
+
+在 `.cag/cases/` 目录下添加 Markdown 文件，用于增强 AI 对项目特定场景的理解：
+
+```bash
+.cag/cases/
+  ├── security-best-practices.md   # 安全编码规范
+  ├── project-conventions.md       # 项目约定
+  └── and so on...
 ```
 
 ---
 
-## 工作原理
+## 双仓库推送（GitLab + GitHub）
 
-```
-git commit
-    │
-    ▼
-pre-commit hook
-    │
-    ▼
-获取暂存区 diff
-    │
-    ▼
-缓存检查（use_cache=true 时）
-    │ 命中 → 直接返回
-    │ 未命中 → 继续
-    ▼
-加载配置 + 案例
-    │
-    ▼
-AI 审核（并发 4 文件）
-    │
-    ▼
-JSON 解析
-    │ 成功 → 提取 issues
-    │ 失败 → AI 修复 JSON → 再解析
-    ▼
-  通过 / 阻断
+如需同时推送到 GitLab 和 GitHub，配置项目远程仓库：
+
+```bash
+# 添加 GitLab 远程（默认推送目标）
+git remote add origin https://gitlab.example.com/your/project.git
+
+# 添加 GitHub 远程（额外推送目标）
+git remote add github https://github.com/your/project.git
+
+# 同时推送
+git push origin main && git push github main
 ```
 
-### 阻断条件
-
-双重检查机制：
-
-1. **AI 发现问题**：`issue.severity >= severity_threshold`（如 warning/error/critical）
-2. **系统异常兜底**：`result.passed = False` 时一律阻断（无论 issues 是否为空）
-   - JSON 解析失败（含 AI 修复后仍失败）
-   - API 调用超时、限流、网络异常
-   - 并发执行异常
-   - 字段缺失/类型错误等 schema 校验失败
-
-不阻断的情况：`enabled=false`、`暂存区无变更`。
-
-临时跳过：`git commit --no-verify`
-
----
-
-## 设计哲学
-
-> **AI 写代码很强，通用对话不行。用工程手段弥补，而不是 prompt 工程。**
-
-### 为什么不用 prompt 约束？
-
-prompt 约束 AI 的效果有限：
-- AI 会遗忘长 prompt 中的规则
-- AI 对"不要 xxx"的遵守率远低于"必须 xxx"
-- 不同模型对 prompt 的理解差异大
-
-### 工程兜底策略
-
-| AI 的短板 | 工程手段 | 说明 |
-|-----------|---------|------|
-| 输出格式不稳定 | **JSON Schema 硬约束** | `strict: true` + `additionalProperties: false`，字段名和类型强制校验 |
-| 字段名乱用（description/fix_suggestion） | **`additionalProperties: false`** | schema 直接拒绝非标准字段 |
-| message 为空 | **代码层必填校验** | `_validate_review_schema()` 检查 message 非空，缺失触发 JSON 修复 |
-| 输出 think 挤占 token | **`enable_thinking: false`** | DeepSeek 等模型 API 参数禁用，不是 prompt 约束 |
-| 不遵守 `<result>` 标签 | **多层提取降级** | `<result>` → `{...}` → 整段文本，层层兜底 |
-| JSON 被截断 | **截断检测** | 过滤 think 后检查 JSON 完整性 |
-| 重复犯同样格式错误 | **Schema 校验 + 错误反馈** | 告诉 AI 具体哪个字段错了，针对性修复 |
-| prompt 太长导致遗忘 | **持续精简** | 去掉 schema/代码已约束的内容，只留 AI 真正需要记住的 |
-| 阻断覆盖不全 | **双重检查 + 默认阻断** | cli.py 同时检查 `result.passed`（系统异常）和 `issue.severity`（业务问题），并发异常也返回 `passed=False` |
-
-### 核心原则
-
-1. **让 AI 做填空题（schema），不是作文题（自由文本）**
-2. **Prompt 只放 AI 记不住的东西**（业务规则、案例），不放 AI 会自然遵守的东西（JSON 格式）
-3. **代码兜底比 prompt 约束可靠 100 倍**
-4. **所有异常默认阻断** — 解析失败、修复失败、字段缺失等任何异常都阻断提交，绝不静默放行
+或在 `.git/config` 中配置多仓库自动推送。
 
 ---
 
 ## 常见问题
 
-### Q: 安装后为什么没有生效？
+**1. 为什么审查没有触发？**
 
-```bash
-ls -la .git/hooks/pre-commit
-cag status
-# 缺失则重新安装
-cag install --force
-```
+确认已执行 `cag install`，且当前分支未被配置排除。运行 `cag status` 检查运行状态。
 
-### Q: 如何跳过 AI 审核？
+**2. API Key 如何获取？**
 
-```bash
-git commit --no-verify
-```
+访问你的 AI 服务商控制台（如 OpenAI、DeepSeek 等），在 API 管理页面创建 Key。
 
-### Q: 支持哪些 AI 模型？
+**3. 提交被 AI 拦截了怎么办？**
 
-任何兼容 OpenAI API 格式的模型：OpenAI GPT 系列、Azure OpenAI、自部署模型等。
+根据 AI 反馈修改代码后重新提交。若确认无风险，可使用 `git commit --no-verify` 强制跳过。
 
-#### Think 输出控制
+**4. 支持哪些编程语言？**
 
-工具会根据配置的 `model` 名称**自动**向 API 传入禁用 think 的参数，无需手动配置：
+默认支持所有文本文件，包括 Python、JavaScript、Java、Go、Markdown 等。
 
-| 模型厂商 | 匹配关键字 | 传入参数 | 状态 |
-|---------|-----------|---------|------|
-| DeepSeek | `deepseek` | `enable_thinking: false` | ✅ 已验证 |
-| MiniMax | `minimax` / `abab` | — | ⏳ 待验证（格式不确定） |
-| Moonshot / Kimi | `moonshot` / `kimi` | — | ⏳ 待验证 |
-| 通义千问 (Qwen) | `qwen` / `qwq` | — | ⏳ 待验证 |
-| 智谱 (GLM) | `glm` / `chatglm` | — | ⏳ 待验证 |
-| 腾讯混元 | `hunyuan` | — | ⏳ 待验证 |
-| 字节豆包 | `doubao` | — | ⏳ 待验证 |
-| 零一万物 (Yi) | `yi-` 开头 | — | ⏳ 待验证 |
-| GPT / Claude | 以上都不匹配 | 不传额外参数 | ✅ 默认不输出 think |
+**5. 如何更新版本？**
 
-**注意**：非 DeepSeek 模型的 `thinking` 参数格式不确定（可能是对象 `{"type": "disabled"}` 而非 boolean），直接传入 `thinking: false` 会导致 API 400 错误。如需适配其他模型，请先确认其 API 的 thinking 参数格式，再修改源码中 `_get_disable_thinking_params()` 方法。
-
-### Q: 如何自定义审核 Prompt？
-
-编辑 `.ai-review/prompts/` 下的模板文件：
-- `system_message.txt` — 主审核 system message
-- `diff_review.md` — diff 审核 user prompt
-- `full_file_review.md` — 完整文件审核 user prompt
-- `system_message_json_fix.txt` — JSON 修复 AI system message
-- `json_fix.md` — JSON 修复 AI user prompt
-
-### Q: 双 remote 推送（GitLab + GitHub）
-
-```bash
-# 分别推
-git push origin main   # GitLab
-git push github main   # GitHub
-
-# 或配置 all 分组一次推两个
-git remote add all git@github.com:tingkl/ai-review.git
-git remote set-url --add --push all git@github.com:tingkl/ai-review.git
-git remote set-url --add --push all http://124.223.189.152:7080/gaoq/ai-review.git
-git push all main
-```
+运行 `cag update`，或重新执行安装命令覆盖旧版本。
 
 ---
 
-## Pre-commit Hook 技术实现
+## License
 
-### 阻断 commit 的原理
-
-Git 的 pre-commit hook 是一个脚本，在 `git commit` 执行前运行。**脚本返回非 0 的 exit code，Git 就会阻断 commit**。利用这个机制，工具在 hook 中调用 `commit-ai-guardian audit`，根据审核结果返回不同的 exit code：
-
-| Exit Code | 含义 | Git 行为 |
-|-----------|------|---------|
-| 0 | 审核通过 或 无变更 | 放行 commit |
-| 1 | 发现问题，阻断提交 | 阻断 commit |
-| 2 | 配置异常（如 API Key 未设置） | 阻断 commit |
-| 其他 | 运行时异常 | 阻断 commit |
-
-### 两种安装场景
-
-#### 场景 A：无 husky（原生 hook）
-
-安装位置：`.git/hooks/pre-commit`
-
-```bash
-#!/bin/bash
-# ... 省略变量设置 ...
-
-# 运行 AI 审核
-commit-ai-guardian audit --repo "$REPO_ROOT"
-
-# 保存 exit code（关键步骤，必须立即保存）
-EXIT_CODE=$?
-
-# 判断审核结果
-if [ $EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
-    exit $EXIT_CODE   # 返回非 0，Git 阻断 commit
-fi
-
-exit 0  # 返回 0，Git 放行 commit
-```
-
-**关键点**：`EXIT_CODE=$?` 必须在 `commit-ai-guardian audit` 之后**立即**执行，因为 `$?` 只表示上一个命令的返回值。
-
-#### 场景 B：有 husky v9+（兼容模式）
-
-husky v9+ 设置 `core.hooksPath = .husky/_`，此时 Git 不再执行 `.git/hooks/pre-commit`，而是执行 `.husky/_/pre-commit`（husky 的入口脚本），该脚本会调用 `.husky/pre-commit`。
-
-工具检测到 husky 时，将命令追加到 `.husky/pre-commit`，与 lint-staged 等工具共存。
-
-**lint-staged 和 commit-ai-guardian 的 exit code 设计：**
-
-| 工具 | Exit Code | 含义 | 触发条件 |
-|------|-----------|------|---------|
-| **lint-staged** | 0 | 所有文件 lint 通过 | eslint/prettier 全部成功 |
-| | 1 | 有文件 lint 失败 | eslint 报错或 prettier 格式化失败 |
-| **commit-ai-guardian** | 0 | 审核通过或无变更 | AI 认为代码没问题，或暂存区无变更 |
-| | 1 | 发现问题，阻断提交 | AI 发现 severity >= threshold 的问题 |
-| | 2 | 配置异常 | API Key 未设置、模型不可达、JSON 解析失败等 |
-| | 130 | 用户取消 | Ctrl+C 中断 |
-
-两个工具都遵循**"非 0 即阻断"**的约定，Git 收到非 0 exit code 就会停止 commit。
-
-**commit-ai-guardian 返回 exit code 的代码（`cli.py`）：**
-
-```python
-# cli.py audit 命令的 exit code 逻辑
-
-# exit 0 —— 审核已禁用，跳过
-if not config.enabled:
-    sys.exit(0)
-
-# exit 2 —— API Key 未配置
-if not config.api_key:
-    sys.exit(2)
-
-# exit 0 —— 暂存区无变更
-if not file_diffs:
-    sys.exit(0)
-
-# exit 1 —— 系统异常（JSON解析失败/API异常等），阻断commit
-if has_system_error:
-    sys.exit(1)
-
-# exit 1 —— 发现问题，阻断 commit
-if has_blocking_issue:
-    sys.exit(1)
-
-# exit 0 —— 全部通过，放行
-sys.exit(0)
-
-# exit 2 —— 运行时异常（RuntimeError）
-except RuntimeError:
-    sys.exit(2)
-
-# exit 130 —— 用户取消（Ctrl+C）
-except KeyboardInterrupt:
-    sys.exit(130)
-```
-
-lint-staged 的 `.husky/pre-commit`（简化版）：
-
-```bash
-#!/bin/sh
-# .husky/pre-commit（完整脚本，lint-staged 和 AI 审核共存）
-
-# 第1步：lint-staged（格式化代码 + 检查）
-npx lint-staged
-LINT_EXIT=$?                          # 保存 exit code（关键步骤）
-if [ $LINT_EXIT -ne 0 ]; then       # lint 失败 → 阻断 commit
-    echo "lint-staged 检查未通过"
-    exit $LINT_EXIT                 # 把 lint-staged 的 exit code 传给 Git
-fi
-
-# === commit-ai-guardian ===
-# 第2步：AI 审核
-commit-ai-guardian audit
-AUDIT_EXIT=$?                         # 保存 exit code（关键步骤）
-if [ $AUDIT_EXIT -ne 0 ]; then      # 审核失败 → 阻断 commit
-    echo ""
-    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
-    exit $AUDIT_EXIT                # 把 cag 的 exit code 传给 Git
-fi
-# === end commit-ai-guardian ===
-```
-
-**为什么必须立即保存 `$?`**：
-
-```bash
-npx lint-staged
-LINT_EXIT=$?           # ← 必须在下一行立即保存，因为 $? 只表示上一个命令
-
-# 如果中间加了 echo 等其他命令，$? 就被覆盖了
-npx lint-staged
-echo "lint 完成"       # ← 这行会改变 $? 为 0
-echo $?                # ← 输出 0（echo 的 exit code），不是 lint-staged 的
-```
-
-**和 lint-staged 的对比**：
-
-lint-staged 的 `.husky/pre-commit` 是简化版（只有一行命令）：
-```bash
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-npx lint-staged        # 最后一行命令，exit code 直接返回给 Git
-```
-
-lint-staged 没有显式的 `if` 判断，是因为 `npx lint-staged` 是脚本里**最后一行命令**，它的 exit code 直接成为整个脚本的返回值。但如果后面追加了其他命令（如本工具），lint-staged 的 exit code 就**不会自动返回给 Git 了**，必须显式保存和判断。
-
-**三个关键步骤缺一不可**：
-1. `npx lint-staged` — 运行命令
-2. `LINT_EXIT=$?` — **立即**保存 exit code
-3. `if [ $LINT_EXIT -ne 0 ]; then exit $LINT_EXIT; fi` — 判断是否阻断
-
-**两种场景的阻断逻辑完全一致**：都是先存 `EXIT_CODE=$?`，再用 `if [ $EXIT_CODE -ne 0 ]` 判断，最后 `exit $EXIT_CODE` 传递给 Git。
-
-### 为什么不用 `audit || exit $?`
-
-`||` 写法虽然简洁，但 `exit $?` 中的 `$?` 存的是 `||` 左边命令的结果，如果中间有其他命令干扰会不准确。统一用 `EXIT_CODE=$?` + `if` 判断更直观可靠。
-
-### 常见问题：husky 和本工具都安装了，但只执行了一个
-
-husky v9+ 设置 `core.hooksPath = .husky/_` 后，Git 完全忽略 `.git/hooks/` 目录。如果之前用本工具安装过原生 hook，它还在 `.git/hooks/pre-commit` 里，但不会被执行。
-
-**解决方案**：
-```bash
-# 检测当前生效的 hooks 目录
-git config core.hooksPath
-
-# 如果输出 .husky/_ 或 .husky
-# 说明 husky 在控制，本工具会自动安装到 .husky/pre-commit
-
-# 如果输出为空
-# 说明是原生 hook，本工具安装到 .git/hooks/pre-commit
-```
-
----
-
-## 开源协议
-
-MIT License
+MIT
