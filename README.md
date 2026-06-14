@@ -1,12 +1,12 @@
 # Commit AI Guardian
 
-基于 AI 的 Git Pre-commit 代码审查工具，在每次提交前自动拦截代码风险，守护代码质量。
+基于 AI 的 Git pre-commit 代码审查工具，在每次提交前自动拦截代码风险，守护代码质量。
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
 
-> **📚 学习笔记**：[STUDY.md](STUDY.md) — 记录了本工具的设计原理和常见问题解答（适合初学者）  
-> **🔧 技术细节**：[TECHNICAL.md](TECHNICAL.md) — 包含架构设计、实现原理、Prompt 工程、数据流等（适合开发者）
+> **📚 学习笔记**：[STUDY.md](STUDY.md) — 设计原理与常见问题解答（适合初学者）  
+> **🔧 技术细节**：[TECHNICAL.md](TECHNICAL.md) — 架构设计、实现原理、Prompt 工程等（适合开发者）
 
 ---
 
@@ -15,11 +15,11 @@
 - [快速开始](#快速开始)
 - [安装](#安装)
 - [项目初始化](#项目初始化)
-- [配置文件](#配置文件)
+- [配置](#配置)
 - [命令参考](#命令参考)
-- [常用配置](#常用配置)
-- [双仓库推送](#双仓库推送)
+- [使用技巧](#使用技巧)
 - [常见问题](#常见问题)
+- [License](#license)
 
 ---
 
@@ -27,12 +27,12 @@
 
 ```bash
 # 1. 安装
-curl -sSL https://install.example.com/cag | sh
+pip install commit-ai-guardian
 
 # 2. 项目初始化
 cag install
 
-# 3. 正常提交代码，AI 会自动审查
+# 3. 正常提交，AI 自动审查
 git commit -m "feat: add new feature"
 ```
 
@@ -49,7 +49,7 @@ curl -sSL https://github.com/wmariuss/commit-ai-guardian/releases/download/v1.0.
 ### GitLab（内部源）
 
 ```bash
-export CAG_SOURCE=gitlab  # 使用内部源
+export CAG_SOURCE=gitlab
 curl -sSL https://gitlab.example.com/cag/install.sh | sh
 ```
 
@@ -73,40 +73,45 @@ pip install commit-ai-guardian
 cag install
 ```
 
-此命令会在当前项目中创建：
+此命令会在当前项目中创建以下结构：
 
-| 文件 | 说明 |
-|------|------|
-| `.git/hooks/pre-commit` | Git pre-commit 钩子 |
-| `.cag/config.yaml` | 项目级配置文件 |
-| `.cag/prompts/` | 自定义提示词目录 |
-| `.cag/cases/` | 案例库目录 |
+| 文件/目录 | 说明 |
+|-----------|------|
+| `.git/hooks/pre-commit` | Git pre-commit 钩子脚本 |
+| `.ai-review/config.yaml` | 项目级配置文件 |
+| `.ai-review/prompts/` | 自定义审核规则模板目录 |
+| `.ai-review/cases/` | 项目案例库目录 |
 
 ---
 
-## 配置文件
+## 配置
 
-支持**两级配置**：全局配置（`~/.commit-ai-guardian/config.yaml`）+ 项目配置（`.ai-review/config.yaml`），项目配置覆盖全局。
+### 配置方式
+
+采用**两级配置**机制：全局配置 `~/.commit-ai-guardian/config.yaml` + 项目配置 `.ai-review/config.yaml`，项目配置优先级更高，会覆盖同名全局配置。
+
+> 🔧 配置字段的详细说明见 [TECHNICAL.md](TECHNICAL.md#13-配置文件)
 
 ### 常用配置项
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `api_key` | AI API 密钥 | `""` |
-| `model` | 模型名称 | `gpt-4o-mini` |
-| `api_base` | API 地址 | `https://api.openai.com/v1` |
-| `language` | 审核语言 | `zh-CN` |
-| `enabled` | 是否启用 | `true` |
-| `severity_threshold` | 阻断级别 | `warning` |
-| `diff_mode` | 审核模式 (`full`/`diff`) | `full` |
-| `use_cache` | 是否使用缓存 | `true` |
-| `include_patterns` | 审核范围 (glob) | `["*"]` |
-| `case_format` | 案例级别 (`default`/`compact`/`minimal`) | `default` |
+| `model` | 模型名称（如 `gpt-4o-mini`、`deepseek-chat`） | `gpt-4o-mini` |
+| `api_base` | API 服务地址 | `https://api.openai.com/v1` |
+| `language` | 审核输出语言（`zh-CN` / `en-US`） | `zh-CN` |
+| `enabled` | 是否启用审查 | `true` |
+| `severity_threshold` | 阻断阈值（`info` / `warning` / `error`） | `warning` |
+| `diff_mode` | 审核范围（`full` 全部文件 / `diff` 仅变更） | `full` |
+| `use_cache` | 是否启用结果缓存 | `true` |
+| `include_patterns` | 审核文件范围（glob 数组） | `["*"]` |
+| `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `default` |
 
 ### 配置示例
 
+`.ai-review/config.yaml`：
+
 ```yaml
-# .ai-review/config.yaml
 api_key: "sk-xxx"
 model: "gpt-4o-mini"
 language: "zh-CN"
@@ -118,7 +123,11 @@ include_patterns:
   - "src/**/*.vue"
 ```
 
-> 🔧 更多配置说明详见 [TECHNICAL.md 第13章「配置文件」](TECHNICAL.md#13-配置文件)
+### 查看配置状态
+
+```bash
+cag status
+```
 
 ---
 
@@ -128,65 +137,53 @@ include_patterns:
 |------|------|
 | `cag install` | 在当前 Git 仓库安装 pre-commit 钩子 |
 | `cag uninstall` | 卸载当前仓库的 pre-commit 钩子 |
-| `cag check` | 手动触发代码审查 |
-| `cag config --api-key` | 设置 API Key |
-| `cag config --model` | 切换 AI 模型 |
-| `cag config --disable` | 临时关闭审查 |
-| `cag config --enable` | 重新启用审查 |
-| `cag status` | 查看当前配置状态 |
-| `cag update` | 更新到最新版本 |
+| `cag audit` | 手动触发全量代码审查 |
+| `cag review` | 审查当前暂存区的变更 |
+| `cag configure` | 交互式配置（设置 API Key、模型等） |
+| `cag status` | 查看当前配置与运行状态 |
+| `cag validate-cases` | 验证 `.ai-review/cases/` 下的案例格式 |
+| `cag debug-log` | 查看最近一次审查的详细日志 |
 
 ---
 
-## 常用配置
+## 使用技巧
 
-### 设置 API Key
-
-```bash
-# 写入全局配置（推荐）
-cag config --api-key "your-api-key"
-
-# 或使用环境变量
-export CAG_API_KEY="your-api-key"
-```
-
-### 临时关闭 / 开启审查
+### 跳过本次审查
 
 ```bash
-# 全局关闭
-cag config --disable
-
-# 全局开启
-cag config --enable
-```
-
-### 单次跳过审查
-
-```bash
-# 使用 --no-verify 跳过本次 pre-commit 钩子
 git commit -m "docs: update readme" --no-verify
 ```
 
-### 自定义提示词
+### 自定义审核规则
 
-编辑 `.cag/prompts/custom.md`，支持覆盖默认审查规则。重新提交即可生效。
+编辑 `.ai-review/prompts/` 下的模板文件，即可覆盖默认审查规则。修改后下次提交自动生效。
 
 ### 编写案例
 
-在 `.cag/cases/` 目录下添加 Markdown 文件，用于增强 AI 对项目特定场景的理解：
+在 `.ai-review/cases/` 目录下添加 Markdown 文件，增强 AI 对项目特定场景的理解。
 
-```bash
-.cag/cases/
-  ├── security-best-practices.md   # 安全编码规范
-  ├── project-conventions.md       # 项目约定
-  └── and so on...
-```
+格式要求：**Markdown + YAML frontmatter**：
 
+```yaml
+---
+title: "SQL 注入防护规范"
+category: "security"
+severity: "error"
 ---
 
-## 双仓库推送（GitLab + GitHub）
+## 场景描述
+用户输入直接拼接到 SQL 查询中...
 
-如需同时推送到 GitLab 和 GitHub，配置项目远程仓库：
+## 正确做法
+使用参数化查询...
+
+## 错误示例
+```python
+cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
+```
+```
+
+### 双仓库推送（GitLab + GitHub）
 
 ```bash
 # 添加 GitLab 远程（默认推送目标）
@@ -198,10 +195,6 @@ git remote add github https://github.com/your/project.git
 # 同时推送
 git push origin main && git push github main
 ```
-
-或在 `.git/config` 中配置多仓库自动推送。
-
-> 想了解命令背后的工作原理？查看 [TECHNICAL.md](TECHNICAL.md) 第 2 章「核心数据流」。
 
 ---
 
@@ -217,7 +210,7 @@ git push origin main && git push github main
 
 **3. 提交被 AI 拦截了怎么办？**
 
-根据 AI 反馈修改代码后重新提交。若确认无风险，可使用 `git commit --no-verify` 强制跳过。
+根据 AI 反馈修改代码后重新提交。若确认无风险，使用 `git commit --no-verify` 强制跳过。
 
 **4. 支持哪些编程语言？**
 
@@ -225,9 +218,9 @@ git push origin main && git push github main
 
 **5. 如何更新版本？**
 
-运行 `cag update`，或重新执行安装命令覆盖旧版本。
+重新执行安装命令覆盖旧版本，或通过 PyPI 更新：`pip install -U commit-ai-guardian`。
 
-> 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)。
+> 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
 
 ---
 
