@@ -251,6 +251,30 @@ cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 - [ ] 是否有字符串拼接构建 SQL
 ```
 
+### Language 筛选
+
+案例通过 `languages` 字段控制适用的编程语言，不匹配当前文件语言的案例不会进入 prompt。
+
+```yaml
+---
+# 方式1：指定语言——只给 Python 和 Java 文件使用此案例
+languages: [python, java]
+
+# 方式2：空数组或不写——适用于所有语言
+languages: []
+---
+```
+
+**匹配规则**：
+
+| languages 字段 | 行为 |
+|---------------|------|
+| `[]`（空数组）或未指定 | 所有语言通用 |
+| `[python, java]` | 只匹配 `python` 和 `java` 文件 |
+| 含大写 | 大小写不敏感（`Python` == `python`） |
+
+**原理**：审核时从文件扩展名推断语言（如 `.py` → `python`），调用 `get_cases_for_language(language)` 只加载匹配的案例，不匹配的自动过滤。无法识别语言的文件使用所有案例。
+
 ### 验证案例格式
 
 ```bash
