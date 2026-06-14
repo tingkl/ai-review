@@ -5,6 +5,9 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
 
+> **📚 学习笔记**：[STUDY.md](STUDY.md) — 记录了本工具的设计原理和常见问题解答（适合初学者）  
+> **🔧 技术细节**：[TECHNICAL.md](TECHNICAL.md) — 包含架构设计、实现原理、Prompt 工程、数据流等（适合开发者）
+
 ---
 
 ## 快速开始
@@ -147,6 +150,8 @@ git push origin main && git push github main
 
 或在 `.git/config` 中配置多仓库自动推送。
 
+> 想了解命令背后的工作原理？查看 [TECHNICAL.md](TECHNICAL.md) 第 2 章「核心数据流」。
+
 ---
 
 ## 常见问题
@@ -170,6 +175,8 @@ git push origin main && git push github main
 **5. 如何更新版本？**
 
 运行 `cag update`，或重新执行安装命令覆盖旧版本。
+
+> 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)。
 
 ---
 
