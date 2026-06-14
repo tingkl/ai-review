@@ -10,6 +10,19 @@
 
 ---
 
+## 目录
+
+- [快速开始](#快速开始)
+- [安装](#安装)
+- [项目初始化](#项目初始化)
+- [配置文件](#配置文件)
+- [命令参考](#命令参考)
+- [常用配置](#常用配置)
+- [双仓库推送](#双仓库推送)
+- [常见问题](#常见问题)
+
+---
+
 ## 快速开始
 
 ```bash
@@ -68,6 +81,44 @@ cag install
 | `.cag/config.yaml` | 项目级配置文件 |
 | `.cag/prompts/` | 自定义提示词目录 |
 | `.cag/cases/` | 案例库目录 |
+
+---
+
+## 配置文件
+
+支持**两级配置**：全局配置（`~/.commit-ai-guardian/config.yaml`）+ 项目配置（`.ai-review/config.yaml`），项目配置覆盖全局。
+
+### 常用配置项
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `api_key` | AI API 密钥 | `""` |
+| `model` | 模型名称 | `gpt-4o-mini` |
+| `api_base` | API 地址 | `https://api.openai.com/v1` |
+| `language` | 审核语言 | `zh-CN` |
+| `enabled` | 是否启用 | `true` |
+| `severity_threshold` | 阻断级别 | `warning` |
+| `diff_mode` | 审核模式 (`full`/`diff`) | `full` |
+| `use_cache` | 是否使用缓存 | `true` |
+| `include_patterns` | 审核范围 (glob) | `["*"]` |
+| `case_format` | 案例级别 (`default`/`compact`/`minimal`) | `default` |
+
+### 配置示例
+
+```yaml
+# .ai-review/config.yaml
+api_key: "sk-xxx"
+model: "gpt-4o-mini"
+language: "zh-CN"
+severity_threshold: "warning"
+diff_mode: "diff"
+use_cache: true
+include_patterns:
+  - "src/**/*.ts"
+  - "src/**/*.vue"
+```
+
+> 🔧 更多配置说明详见 [TECHNICAL.md 第13章「配置文件」](TECHNICAL.md#13-配置文件)
 
 ---
 
