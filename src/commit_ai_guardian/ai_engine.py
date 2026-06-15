@@ -1499,12 +1499,7 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        # cache_md5 为空时用时间戳（确保每次都能保存日志）
-        if cache_md5:
-            name = cache_md5[:7]
-        else:
-            from datetime import datetime
-            name = datetime.now().strftime("%m%d%H%M%S")
+        name = cache_md5[:7]
         
         # 文件名格式: {md5}.json_fix.log，和 ai.log ({md5}.ai.log) 对应
         log_file = logs_dir / f"{name}.json_fix.log"
