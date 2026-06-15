@@ -14,7 +14,7 @@
 - [第6课：JSON解析的7种策略](#第6课json解析的7种策略)
 - [第7课：AI修复JSON](#第7课ai修复json)
 - [第8课：Hook安装与工具链集成](#第8课hook安装与工具链集成)
-- [核心设计原则](#核心设计原则)
+- [核心设计原则](#核心设计原则背诵)
 
 ---
 
@@ -124,27 +124,81 @@ category: bug
 
 ## 第5课：核心引擎架构
 
-### Q: AI API调用有哪些安全措施？
+### Q: 审核引擎的整体架构是什么样的？
 
 **A:**
 
-1. **`_check_prerequisites()`** — 前置检查：
-   - 未启用(enabled=False) → 直接通过
-   - API key未配置 → 阻断并提示
-   - OpenAI客户端未初始化 → 阻断并提示
+```
+┌─────────────────────────────────────────────────────────────┐
+│  AIEngine（核心引擎）                                        │
+│  ┌─────────────┐  ┌─────────────┐                          │
+│  │ reviewFile()│  │reviewSource()│  双模式入口               │
+│  │   (diff)    │  │  (full)     │                           │
+│  └──────┬──────┘  └──────┬──────┘                           │
+│         └────────┬────────┘                                  │
+│                  ▼                                           │
+│  ┌──────────────────────────────────────┐                   │
+│  │  1. 构建 prompt（system + user）      │                   │
+│  │  2. 检查缓存（MD5 命中 → 直接返回）    │                   │
+│  │  3. 调用 OpenAI API（3次重试）         │                   │
+│  │  4. 解析 JSON 响应（7种本地策略）      │                   │
+│  │  5. AI 修复 JSON（3次尝试）            │                   │
+│  │  6. 构建 ReviewResult（双重校验）      │                   │
+│  └──────────────────────────────────────┘                   │
+│                  ▼                                           │
+│  ┌──────────────────────────────────────┐                   │
+│  │  并发控制：Promise.all /              │                   │
+│  │  ThreadPoolExecutor(4)               │                   │
+│  │  —— 任一异常 → 全部阻断              │                   │
+│  └──────────────────────────────────────┘                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
-2. **`_call_api_safe()`** — 安全调用包装：
-   - 捕获所有异常
-   - 3次重试（指数退避：1s → 2s → 4s）
-   - JSON Schema约束：强制返回合规JSON格式
+双模式设计：
+- **`reviewFile()`** — 审核 Git diff（增量，关注变更部分）
+- **`reviewSource()`** — 审核完整文件（全量，扫描现有代码）
 
-3. **模型特定参数**：
-   - DeepSeek-R1：关闭thinking模式（`enable_thinking=false`）
-   - 避免AI输出`<think>`标签浪费token
+### Q: 审核一条代码的完整数据流是什么？
+
+**A:**
+
+```
+Git diff / 文件内容
+  → 构建 prompt
+    ├── system message（通用规则：审核维度、格式约束）
+    └── user message（具体任务：代码 + 案例 + 审核维度）
+  → 计算 MD5 → 查缓存
+    ├── 命中 → 返回缓存结果
+    └── 未命中 → 调用 API
+  → 调用 OpenAI API
+    ├── 发送请求（temperature=0.3, max_tokens=4096）
+    ├── 等待响应（带超时 + 3次重试）
+    └── 写入 ai.log
+  → 解析响应
+    ├── 提取 <result> 标签内的 JSON
+    ├── tryParseJson() — 7种本地修复策略
+    └── 都失败 → _fixJsonWithAi() — AI修JSON
+  → 构建 ReviewResult
+    ├── 字段校验（severity、category、line_number）
+    ├── passed 双重校验（AI返回值 + issues重算）
+    └── 写入缓存
+  → 返回 ReviewResult（passed决定commit是否阻断）
+```
+
+### Q: 并发审核是怎么工作的？
+
+**A:** Node.js 用 `Promise.all()`，Python 用 `ThreadPoolExecutor(4)`。
+
+核心原则：**任一异常 → 全部阻断**。并发中的单个文件审核失败，整个commit被阻断，防止"部分审核通过、部分漏审"。
+
+实现要点：
+- 不因为某个文件审核慢而阻塞其他文件
+- 所有结果收集完后再统一判断 passed
+- 异常文件 passed=False，但不影响其他正常文件的审核结果
 
 ### Q: 什么是JSON Schema约束？
 
-**A:** 通过OpenAI的`response_format.json_schema`参数，强制AI返回固定格式的JSON：
+**A:** 通过 OpenAI 的 `response_format.json_schema` 参数，强制 AI 返回固定格式的 JSON：
 
 ```python
 REVIEW_JSON_SCHEMA = {
@@ -178,18 +232,34 @@ REVIEW_JSON_SCHEMA = {
 }
 ```
 
-作用：让AI做**填空题**而不是**作文题**，保证输出格式固定可解析。
+作用：让 AI 做**填空题**而不是**作文题**，保证输出格式固定可解析。
 
-### Q: 为什么并发异常要返回passed=False？
+### Q: AI API调用有哪些安全措施？
 
-**A:** 所有异常默认阻断，防止系统异常时静默放行有问题的代码。
+**A:**
+
+1. **`_check_prerequisites()`** — 前置检查：
+   - 未启用(enabled=False) → 直接通过
+   - API key未配置 → 阻断并提示
+   - OpenAI客户端未初始化 → 阻断并提示
+
+2. **`_call_api_safe()`** — 安全调用包装：
+   - 捕获所有异常
+   - 3次重试（指数退避：1s → 2s → 4s）
+   - JSON Schema约束：强制返回合规JSON格式
+
+3. **模型特定参数**：
+   - DeepSeek-R1：关闭thinking模式（`enable_thinking=false`）
+   - 避免AI输出`<think>`标签浪费token
 
 ### Q: 阻断commit的双重检查是什么？
 
 **A:**
 
-1. issue.severity >= threshold → 阻断（业务问题）
-2. result.passed = False → 阻断（系统异常兜底）
+1. **业务层阻断**：issue.severity >= threshold → 阻断（发现严重问题）
+2. **系统异常兜底**：result.passed = False → 阻断（解析失败/网络错误/AI异常）
+
+双重保险：即使业务层漏了，系统异常也能拦住。
 
 ---
 
