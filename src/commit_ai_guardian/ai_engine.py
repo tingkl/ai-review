@@ -1481,7 +1481,7 @@ class AIEngine:
     def _write_json_fix_log(self, filename: str, cache_md5: str,
                              system_message: str, user_message: str,
                              ai_response: str) -> None:
-        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{md5}.json.log
+        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{md5}.json_fix.log
 
         每次调用 JSON 修复 AI 都会保存（无论修复成功与否），方便查看定位。
         格式与 ai.log 完全一致：header + system + user + ai response。
@@ -1501,8 +1501,8 @@ class AIEngine:
 
         name = cache_md5[:7]
         
-        # 文件名格式: {md5}.json.log，和 ai.log ({md5}.ai.log) 对应
-        log_file = logs_dir / f"{name}.json.log"
+        # 文件名格式: {md5}.json_fix.log，和 ai.log ({md5}.ai.log) 对应
+        log_file = logs_dir / f"{name}.json_fix.log"
         try:
             from datetime import datetime
             sep_line = "=" * 60
@@ -1624,7 +1624,7 @@ class AIEngine:
         Args:
             broken_json: 有语法错误的 JSON 字符串
             filename: 被审核的文件名
-            cache_md5: MD5 前7位，用于 json.log 文件名
+            cache_md5: MD5 前7位，用于 json_fix 日志文件名
 
         Returns:
             修复后的 JSON 字符串，或 None
@@ -2084,4 +2084,4 @@ class AIEngine:
             _build_cases_check_instruction() if cases_text
             else "- 按通用审核维度进行检查")
         
-        return prompt
+        return
