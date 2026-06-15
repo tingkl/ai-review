@@ -1775,6 +1775,17 @@ class AIEngine:
                     data = _try_parse_json(fixed_json)
                     if data and isinstance(data, (dict, list)):
                         result = self._build_result_from_dict(data, filename, response)
+                        # 修复 AI 的 summary 通常是"修复说明"等无意义文字
+                        # 如果修复成功且有 issues，替换为基于 issues 的有意义 summary
+                        if result.issues:
+                            issue_count = len(result.issues)
+                            sev_counts = {}
+                            for issue in result.issues:
+                                sev_counts[issue.severity] = sev_counts.get(issue.severity, 0) + 1
+                            sev_parts = [f"{c}个{s}" for s, c in sorted(sev_counts.items(), key=lambda x: -{'critical':4,'error':3,'warning':2,'info':1}.get(x[0],0))]
+                            result.summary = f"发现 {issue_count} 个问题（{', '.join(sev_parts)}）"
+                        elif not result.summary or result.summary in ('修复说明', ''):
+                            result.summary = 'AI 审核完成，未发现问题'
                         print(f"[信息] AI 修复 JSON 成功，解析通过")
                     else:
                         print(f"[警告] AI 修复后 JSON 仍无法解析")
