@@ -279,6 +279,20 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.passed = False
         return result
 
+    # 快速处理：空数组 [] = 审核通过（AI 认为没问题但忘了包装成对象）
+    # 必须在 _try_parse_json 之前处理，因为该函数只返回 dict
+    stripped = json_str.strip()
+    if stripped == '[]':
+        result.summary = "审核完成，未发现问题"
+        result.passed = True
+        return result
+    
+    # 快速处理：空对象 {} = 审核通过
+    if stripped == '{}':
+        result.summary = "审核完成，未发现问题"
+        result.passed = True
+        return result
+
     # 策略 4：正常 JSON 解析（含多种修复尝试）
     data = _try_parse_json(json_str)
 
@@ -287,13 +301,8 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.passed = False
         return result
     
-    # AI 可能返回数组（如 []）而不是对象
+    # AI 可能返回非空数组（如 [{issue1}, ...]）而不是对象
     if isinstance(data, list):
-        # 空数组 = 审核通过，没有问题（AI 认为代码没问题但忘了包装成对象）
-        if len(data) == 0:
-            result.summary = "审核完成，未发现问题"
-            result.passed = True
-            return result
         # 非空数组 = 有 issues 但没有 summary/passed 包装，交给修复 AI 处理
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到数组（{len(data)} 个元素）"
         result.passed = False
@@ -1541,8 +1550,8 @@ class AIEngine:
                 )
 
             log_file.write_text("\n".join(parts), encoding='utf-8')
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[警告] 写入 json_fix.log 失败: {e}")
 
     def _validate_review_schema(self, data: dict) -> list:
         """校验审核结果 JSON 是否满足 schema 要求
