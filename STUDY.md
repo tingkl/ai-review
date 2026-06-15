@@ -50,6 +50,52 @@ if (chunk.includes(0)) return true;  // 条件1：有空字节
 
 关闭缓存只跳过缓存检查/写入，日志文件照常生成。
 
+### Q: 案例格式化三种级别详细过程？
+
+**A:** 三步：提取 → 选择 → 拼装
+
+**Step 1: 从Markdown提取**
+```
+案例文件(Markdown)
+├── YAML元数据（title, severity, level, languages）
+└── Markdown正文
+    ├── ## 问题描述      → description
+    ├── ## 为什么是个问题 → why_it_matters
+    ├── ## 不修复的后果   → consequences
+    ├── ## 坏代码        → bad_examples
+    ├── ## 好代码        → good_examples
+    └── ## 检查清单      → check_points（question + hint）
+```
+
+**Step 2: 三种级别选择字段**
+
+| 字段 | default | compact | minimal |
+|------|---------|---------|---------|
+| title | ✅ | ✅ | ✅ |
+| description | ✅ | ✅ | ❌ |
+| bad_examples | ✅ | ✅ | ✅ |
+| good_examples | ✅ | ✅ | ❌ |
+| why_it_matters | ✅ | ❌ | ❌ |
+| consequences | ✅ | ❌ | ❌ |
+| check_points | ✅ | ✅ | ✅ |
+| token/案例 | ~300字 | ~200字 | ~135字 |
+
+**Step 3: 拼装为结构化文本**
+```
+[案例1|SQL注入|9/critical]
+说明: 直接拼接用户输入到SQL语句
+❌ 坏代码:
+cursor.execute(f"SELECT * FROM {user_id}")
+✅ 好代码:
+cursor.execute("SELECT * FROM ?", (user_id,))
+原因: 数据泄露，数据被篡改
+后果: 用户数据被盗，数据库被拖库
+check_points: 是否有字符串拼接构建 SQL
+提示: 使用参数化查询
+```
+
+**为什么设计三种级别？** 案例是prompt中最大的膨胀来源。10个案例default=3000字可能超token限制，minimal=1350字省55%。
+
 ### Q: `??` 和 `||` 有什么区别？
 
 **A:**
