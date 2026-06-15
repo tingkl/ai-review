@@ -1481,26 +1481,33 @@ class AIEngine:
     def _write_json_fix_log(self, filename: str, cache_md5: str,
                              system_message: str, user_message: str,
                              ai_response: str) -> None:
-        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{filename}_{md5}.json_fix.log
+        """将 JSON 修复 AI 的完整对话记录写入 .ai-review/logs/{md5}.json_fix.log
 
-        格式与 ai.log 完全一致：header + system + user + ai response，方便调试时对比。
+        每次调用 JSON 修复 AI 都会保存（无论修复成功与否），方便查看定位。
+        格式与 ai.log 完全一致：header + system + user + ai response。
 
         Args:
             filename: 被审核的文件名
-            cache_md5: MD5 前7位，用于日志文件名
+            cache_md5: MD5 前7位，用于日志文件名。为空时用时间戳替代
             system_message: system 角色消息
             user_message: user 角色消息
             ai_response: AI 返回的文本
         """
-        if not self.repo_path or not cache_md5:
+        if not self.repo_path:
             return
 
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        md5_short = cache_md5[:7]
+        # cache_md5 为空时用时间戳（确保每次都能保存日志）
+        if cache_md5:
+            name = cache_md5[:7]
+        else:
+            from datetime import datetime
+            name = datetime.now().strftime("%m%d%H%M%S")
+        
         # 文件名格式: {md5}.json_fix.log，和 ai.log ({md5}.ai.log) 对应
-        log_file = logs_dir / f"{md5_short}.json_fix.log"
+        log_file = logs_dir / f"{name}.json_fix.log"
         try:
             from datetime import datetime
             sep_line = "=" * 60
@@ -1649,6 +1656,8 @@ class AIEngine:
         # 记录上次修复的错误反馈，用于下次修复时告诉 AI 哪里错了
         last_error = ""
 
+        all_attempts_log = []  # 收集所有尝试的日志
+        
         for attempt in range(3):
             try:
                 # 构造 messages，如果有上次错误则追加反馈
@@ -1668,10 +1677,8 @@ class AIEngine:
                 )
                 fixed = resp.choices[0].message.content or ""
 
-                # 写入 json_fix 日志
-                if cache_md5:
-                    self._write_json_fix_log(filename, cache_md5,
-                                             system_msg, fix_prompt, fixed)
+                # 记录本次尝试
+                all_attempts_log.append(f"--- 尝试 {attempt + 1} ---\n{fixed}")
 
                 # 提取 JSON
                 fixed_json = self._extract_json_str(fixed) or fixed.strip()
@@ -1685,6 +1692,10 @@ class AIEngine:
                 # Schema 校验
                 schema_errors = self._validate_review_schema(data)
                 if not schema_errors:
+                    # 校验通过，写入日志（包含所有失败尝试），返回修复后的 JSON
+                    self._write_json_fix_log(filename, cache_md5,
+                                             system_msg, fix_prompt, 
+                                             "\n\n".join(all_attempts_log))
                     return fixed_json  # 校验通过，返回修复后的 JSON
 
                 # 校验失败，收集错误信息给下次修复
@@ -1693,8 +1704,13 @@ class AIEngine:
 
             except Exception as e:
                 last_error = f"处理异常: {e}"
+                all_attempts_log.append(f"--- 尝试 {attempt + 1}（异常）---\n{str(e)}")
                 continue
 
+        # 所有尝试都失败了，仍然写入日志（方便查看定位）
+        self._write_json_fix_log(filename, cache_md5,
+                                 system_msg, fix_prompt,
+                                 "\n\n".join(all_attempts_log) + "\n\n=== 最终结果：全部 3 次尝试均失败 ===")
         return None
 
     def _build_result_from_dict(self, data, filename: str, raw_response: str) -> ReviewResult:
