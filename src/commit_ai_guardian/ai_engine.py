@@ -1824,8 +1824,10 @@ class AIEngine:
             md5_short = cache_md5[:7] if cache_md5 else "unknown"
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{md5_short}.json"
             ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.ai.log"
+            json_fix_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.json_fix.log"
             print(f"    {cache_path}")
             print(f"    {ai_log}")
+            print(f"    {json_fix_log}")
 
         # ===== 阶段3: 确保必要字段存在 =====
         # 默认 passed=False（绝对阻断），只有在明确通过时才设为 True
