@@ -106,6 +106,7 @@ cag install
 | `use_cache` | 是否启用结果缓存 | `true` |
 | `include_patterns` | 审核文件范围（glob 数组） | `["*"]` |
 | `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `default` |
+| `max_tokens` | AI 最大返回长度（token 数） | `8192` |
 
 ### 配置示例
 
@@ -114,6 +115,7 @@ cag install
 ```yaml
 api_key: "sk-xxx"
 model: "gpt-4o-mini"
+max_tokens: 8192
 language: "zh-CN"
 severity_threshold: "warning"
 diff_mode: "diff"
@@ -122,6 +124,20 @@ include_patterns:
   - "src/**/*.ts"
   - "src/**/*.vue"
 ```
+
+### 主流模型 max_tokens 参考
+
+`max_tokens` 限制的是 **AI 输出长度**（JSON 响应），不是输入。不同模型默认值差异很大，建议显式配置：
+
+| 模型 | 默认 max_tokens | 最大可设 | 建议值 |
+|------|----------------|---------|--------|
+| **MiniMax M3** | 很小（不设会截断） | 131,072 (128K) | 16,384 (16K) |
+| **MiniMax M2.x** | 很小 | 131,072 (128K) | 16,384 (16K) |
+| **DeepSeek** | **4,096** | **8,192** (8K) | 8,192 (8K) |
+| **Kimi K2.x** | **32,768** | 128K | 16,384 (16K) |
+| **GPT-4o** | ~4,096 | 16,384 (16K) | 8,192 (8K) |
+
+> **为什么要配置**：MiniMax 如果不设 max_tokens，默认很小，JSON 几乎一定会被截断。默认值 `8192` 覆盖 95% 场景，使用 MiniMax 时可适当提高。
 
 ### 查看配置状态
 
