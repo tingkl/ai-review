@@ -282,7 +282,19 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.passed = False
         return result
     
-    # AI 可能返回数组（如 []）而不是对象——类型错误，触发 JSON 修复
+    # AI 可能返回数组（如 []）而不是对象
+    if isinstance(data, list):
+        # 空数组 = 审核通过，没有问题（AI 认为代码没问题但忘了包装成对象）
+        if len(data) == 0:
+            result.summary = "审核完成，未发现问题"
+            result.passed = True
+            return result
+        # 非空数组 = 有 issues 但没有 summary/passed 包装，交给修复 AI 处理
+        result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到数组（{len(data)} 个元素）"
+        result.passed = False
+        result.raw_response = response
+        return result
+    
     if not isinstance(data, dict):
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到 {type(data).__name__}"
         result.passed = False
