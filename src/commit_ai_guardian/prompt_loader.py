@@ -120,7 +120,11 @@ DEFAULT_JSON_FIX_TEMPLATE = """修复以下 JSON 的语法错误。
 
 修复要求：
 1. 如果 JSON 是数组 [] 或不完整的对象，改为完整对象格式：
-   {"summary":"修复说明","passed":true,"issues":[]}
+   {"summary":"...","passed":..., "issues":[...]}
+   ⚠️ passed 的值取决于 issues 内容（不要硬编码）：
+      - 如果有 warning/error/critical 级别的 issue → passed 为 false
+      - 如果只有 info 级别或 issues 为空 → passed 为 true
+   ⚠️ summary 要有意义（如"发现X个问题"或"审核通过"），不要写"修复说明"
 2. 如果 JSON 语法错误（引号、逗号、括号），修复语法保持内容不变
 3. 输出必须用 <result> 标签包裹修复后的 JSON"""
 
