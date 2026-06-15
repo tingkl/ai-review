@@ -245,6 +245,11 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     result_match = re.search(r'<result>(.*?)</result>', response, re.DOTALL)
     if result_match:
         json_str = result_match.group(1).strip()
+        # <result> 为空或只有空白 → AI 认为没有发现问题，直接通过
+        if not json_str:
+            result.summary = "审核完成，未发现问题"
+            result.passed = True
+            return result
 
     # 策略 1：从 ```json ... ``` 代码块中提取（兼容旧格式）
     if json_str is None:
