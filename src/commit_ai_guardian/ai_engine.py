@@ -1684,6 +1684,7 @@ class AIEngine:
         """从解析后的 dict/list 构建 ReviewResult（含字段名校验）
 
         AI 有时会返回数组（如 []）而不是对象，在此自动包装为合规对象。
+        不盲目信任 AI 返回的 passed 值——最终 passed 根据 issues 的 severity 决定。
 
         Args:
             data: 解析后的 JSON（dict 或 list）
@@ -1698,9 +1699,10 @@ class AIEngine:
         # AI 返回了数组（如 []）——包装为合规对象
         if isinstance(data, list):
             print(f"[信息] AI 返回了数组，自动包装为对象")
-            data = {"summary": "AI 返回了数组格式，已自动转换", "passed": True, "issues": []}
+            data = {"summary": "AI 返回了数组格式，已自动转换", "passed": False, "issues": []}
         
         result.summary = data.get('summary', '') or '审核完成'
+        # 先取 AI 返回的 passed，后面会根据 issues 修正
         result.passed = bool(data.get('passed', True))
 
         # issue 字段名校验：必须有 message 字段且非空
@@ -1725,6 +1727,16 @@ class AIEngine:
                         code_snippet=issue_data.get('code_snippet', ''),
                     )
                     result.issues.append(issue)
+
+        # 关键修正：根据 issues 的 severity 重新计算 passed
+        # 有 warning/error/critical 的问题时，强制 passed=False
+        # 不盲目信任 AI（尤其 JSON 修复 AI）返回的 passed 值
+        has_real_issues = any(
+            issue.severity in ('warning', 'error', 'critical')
+            for issue in result.issues
+        )
+        if has_real_issues:
+            result.passed = False
 
         return result
 
