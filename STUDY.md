@@ -183,6 +183,62 @@ getFileLanguage("src/main.ts")  // → "typescript"
 
 ---
 
+## 第7课：JSON修复与空数组处理（补丁课）
+
+### Q: AI返回空数组[]时怎么处理？
+**A:** 直接视为审核通过（passed=True），不调用JSON修复AI。避免浪费token。
+
+```typescript
+if (Array.isArray(data) && data.length === 0) {
+  result.passed = true;  // 空数组 = 无问题
+  return result;
+}
+```
+
+### Q: JSON修复后summary为什么重新生成？
+**A:** JSON修复AI返回的summary通常是"修复说明"等无意义文字。根据实际issues重新生成有意义的summary：
+- 有issues → `发现N个问题（X个warning, Y个info）`
+- 无issues → `AI审核完成，未发现问题`
+
+### Q: JSON修复模板的passed为什么去掉硬编码？
+**A:** 原模板示例 `{"summary":"修复说明","passed":true,"issues":[]}` 导致AI总是返回passed=true。改为：
+- passed取决于issues内容（不硬编码）
+- 有warning/error/critical → passed=false
+- 只有info或issues为空 → passed=true
+- summary要求有意义（"发现X个问题"而非"修复说明"）
+
+### Q: passed值为什么不信任AI返回的？
+**A:** 双重校验：
+1. 先取AI返回的passed值
+2. 再根据issue severity重算：有warning/error/critical → 强制passed=false
+
+这样即使AI乱报passed=true，有严重问题时仍能正确阻断commit。
+
+### Q: `<result></result>` 为空时怎么处理？
+**A:** 视为审核通过（passed=True）。AI认为没有发现问题但忘了输出JSON格式。避免误报为系统错误。
+
+### Q: JSON修复日志为什么每次尝试都保存？
+**A:** 
+1. **收集所有尝试**：`allAttemptsLog` 数组收集3次尝试（含失败），最后统一写入
+2. **含失败尝试的日志**：能看到哪次尝试了、为什么失败、错误反馈是什么
+3. **调试价值**：如果3次都失败，日志包含完整的尝试链，方便定位问题
+
+### Q: `_writeJson_fix_log` 为什么去掉 `cacheMd5` 空值检查？
+**A:** 调用方 `_fixJsonWithAI` 保证 `cacheMd5` 一定有值（计算自内容MD5），不会为空。去掉多余的防御代码。
+
+### Q: JSON修复成功后为什么打印 json_fix.log 路径？
+**A:** 原来只打印 cache 和 ai.log 路径。JSON修复成功后额外打印 json_fix.log 的绝对路径，方便：
+1. 直接定位 JSON 修复 AI 的完整对话记录
+2. 查看 AI 修复了哪些语法错误
+3. 调试时不用猜文件名
+
+输出格式：
+```
+/home/user/project/.ai-review/cache/a1b2c3d.json
+/home/user/project/.ai-review/logs/a1b2c3d.ai.log
+/home/user/project/.ai-review/logs/a1b2c3d.json_fix.log  ← 新增
+```
+
 ## 核心设计原则（背诵）
 
 1. 让AI做填空题（schema），不是作文题（自由文本）
