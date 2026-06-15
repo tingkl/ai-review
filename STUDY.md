@@ -185,6 +185,16 @@ Attempt 3: 再次反馈错误信息
 - `parse_ai_response`：空数组 → passed=True，返回
 - `_fix_json_with_ai`：空数组 → 视为无问题，直接通过
 
+### Q: AI返回空对象`{}`时怎么处理？
+
+**A:** 同样视为审核通过（passed=True）。
+
+在 `parseAiResponse` / `parse_ai_response` 中，提取 JSON 后、调用 `tryParseJson` 之前先做快速检查：
+- `jsonStr.trim() === "{}"` → passed=True，返回
+- 避免 `tryParseJson` 返回 null 导致误判为解析失败
+
+**为什么要放在 tryParseJson 之前？** 因为 `tryParseJson` 只返回对象（有 `!Array.isArray` 检查），但空对象 `{}` 虽然能通过 `JSON.parse()`，却在后续字段提取时产生问题（`data.summary` 为 undefined）。提前拦截更干净。
+
 ### Q: `<result></result>`为空时怎么处理？
 
 **A:** 视为审核通过（passed=True）。AI认为没有发现问题但忘了输出JSON内容。避免误报为系统错误。
@@ -268,6 +278,278 @@ Attempt 3: 再次反馈错误信息
 ### Q: JSON修复成功后为什么打印 json_fix.log 路径？
 
 **A:** 原来只打印 cache 和 ai.log 路径。JSON修复成功后额外打印 json_fix.log 的绝对路径，方便直接定位JSON修复AI的完整对话记录。
+
+---
+
+## 第8课：JSON解析的"急诊室" — tryParseJson 的7种修复策略
+
+### Q: 为什么需要 tryParseJson？Schema 约束不够吗？
+
+**A:** `response_format: { json_schema: REVIEW_JSON_SCHEMA }` 让 AI "尽量"按格式输出，但不是100%可靠。AI 仍可能产生：
+- BOM 头（Windows 编辑器遗留）
+- 单引号代替双引号
+- Trailing comma（最后一个元素后多逗号）
+- 注释（// 或 /* */）
+- 非法转义序列（如 \x）
+- 括号不匹配（流式输出被截断）
+
+**原则**：本地修复成本低（正则替换），不要动不动就调用 AI 修 JSON（消耗 token + 延迟）。7 种策略都失败了，才交给 `_fixJsonWithAi()`。
+
+---
+
+### Q: 快速通道：空数组 `"[]"` 和空对象 `"{}"` 怎么处理的？
+
+**A:** 在 `parseAiResponse()` 中，提取 JSON 字符串后、调用 `tryParseJson()` 之前先做快速检查：
+
+```typescript
+const trimmed = jsonStr.trim();
+if (trimmed === "[]") {
+  result.summary = "AI returned empty array [], treated as passed";
+  result.passed = true;
+  return result;
+}
+if (trimmed === "{}") {
+  result.summary = "AI returned empty object {}, treated as passed";
+  result.passed = true;
+  return result;
+}
+```
+
+**为什么要放在 tryParseJson 之前？**
+
+看 `"[]"` 的问题链：
+```
+AI 返回 "[]"
+  → tryParseJson("[]")
+  → JSON.parse("[]") 成功，返回 []（数组！）
+  → 检查 !Array.isArray([]) → false（是数组，不满足条件）
+  → 所有候选都返回 []，都不满足 "必须是对象"
+  → tryParseJson 返回 null
+  → parseAiResponse 误判为 "JSON 解析失败" ❌
+```
+
+而 `"{}"` 虽然能 parse 成功，但 `data.summary` 是 undefined，后续处理也会出问题。提前拦截更干净。
+
+---
+
+### Q: 策略1-3（直接解析、BOM去除、单引号替换）怎么工作的？
+
+**A:** 这三个策略简单直接，一次性收集所有候选字符串：
+
+```typescript
+const candidates = [];
+const trimmed = jsonStr.trim();
+
+// 策略1：原样解析（最常见，直接成功）
+candidates.push(trimmed);
+
+// 策略2：去除 BOM 头（Windows 记事本保存的 UTF-8 文件可能带 \uFEFF）
+candidates.push(trimmed.replace(/^\uFEFF/, ""));
+
+// 策略3：单引号 → 双引号
+const singleQuoted = trimmed.replace(/'/g, '"');
+if (singleQuoted !== trimmed) candidates.push(singleQuoted);
+```
+
+**示例：**
+
+| 策略 | 输入 | 处理后 | 说明 |
+|------|------|--------|------|
+| 1 | `{"passed":true}` | 原样 | 正常情况 |
+| 2 | `\uFEFF{"passed":true}` | `{"passed":true}` | 去掉 BOM |
+| 3 | `{'passed':true}` | `{"passed":true}` | 单引号变双引号 |
+
+---
+
+### Q: 策略4（去除 trailing comma）怎么工作的？
+
+**A:** 用正则匹配最后一个元素后面的多余逗号：
+
+```typescript
+const noTrailing = trimmed.replace(/,\s*([}\]])/g, "$1");
+```
+
+**正则解析：** `,\s*([}\]])`
+- `,` — 匹配逗号
+- `\s*` — 可选的空白字符
+- `([}\]])` — 捕获组：匹配 `}` 或 `]`
+- `$1` — 用捕获组的内容替换整个匹配（即只保留 `}` 或 `]`）
+
+**示例：**
+
+```json
+// AI 可能返回（trailing comma）
+{
+  "passed": true,
+  "issues": [],
+}
+
+// 修复后
+{
+  "passed": true,
+  "issues": []
+}
+```
+
+**注意**：这个正则一次处理所有 trailing comma，全局替换（`g` 标志）。
+
+---
+
+### Q: 策略5（去除注释）怎么工作的？
+
+**A:** 分别去除行注释和块注释：
+
+```typescript
+const noComment = trimmed
+  .replace(/\/\/.*?$/gm, "")      // 行注释 //...
+  .replace(/\/\*[\s\S]*?\*\//g, ""); // 块注释 /* ... */
+```
+
+**示例：**
+
+```json
+// AI 可能返回（"贴心"地加了注释）
+{
+  "passed": true,  // 表示审核通过
+  "issues": []     /* 没有问题 */
+}
+
+// 修复后
+{
+  "passed": true,
+  "issues": []
+}
+```
+
+---
+
+### Q: 策略6（修复非法转义）怎么工作的？
+
+**A:** 两步修复：
+
+```typescript
+// Step 1：\' → '（JSON 不需要转义单引号）
+let fixedEscapes = trimmed.replace(/\\'/g, "'");
+
+// Step 2：非法转义 → 双转义（把反斜杠本身也转义掉）
+fixedEscapes = fixedEscapes.replace(
+  /\\([^"\\\/bfnrtu])/g,
+  "\\\\$1"
+);
+```
+
+**正则 `\\([^"\\\/bfnrtu])` 解析：**
+- `\\` — 匹配一个反斜杠
+- `(...)` — 捕获组（后面用 `$1` 引用）
+- `[^...]` — 否定字符类：**不**匹配这些字符
+- `"\\\/bfnrtu` — JSON 标准允许的转义字符（`\" \\ \/ \b \f \n \r \t \u`）
+
+**示例：**
+
+```json
+// AI 可能写（非法转义 \x）
+{"message": "Error at C:\Users\name"}
+//                    ^^    ^
+//                    \U 非法 \n 被当成换行！
+
+// Step 1 后（无变化，没有 \'）
+{"message": "Error at C:\Users\name"}
+
+// Step 2 后（\U → \\U，\n → \\n）
+{"message": "Error at C:\\Users\\name"}
+// 现在 \\ 表示字面意义的反斜杠，正确！
+```
+
+---
+
+### Q: 策略7（括号补全）怎么工作的？为什么需要4个状态变量？
+
+**A:** 处理流式输出被截断的情况（网络超时或 max_tokens 不够）：
+
+```typescript
+if (trimmed.startsWith("{")) {
+  let openBraces = 0;    // 未闭合的 {
+  let openBrackets = 0;  // 未闭合的 [
+  let inString = false;  // 是否在字符串内部
+  let escaped = false;   // 当前字符是否被转义
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (escaped) { escaped = false; continue; }  // 跳过转义字符
+    if (ch === "\\") { escaped = true; continue; } // 下一字符被转义
+    if (ch === '"') { inString = !inString; continue; } // 切换字符串状态
+    if (inString) continue;  // 字符串内部的括号不算！
+    if (ch === "{") openBraces++;
+    else if (ch === "}") openBraces--;
+    else if (ch === "[") openBrackets++;
+    else if (ch === "]") openBrackets--;
+  }
+
+  // 补全缺失的括号
+  let fixed = trimmed;
+  for (let i = 0; i < openBrackets; i++) fixed += "]";
+  for (let i = 0; i < openBraces; i++) fixed += "}";
+}
+```
+
+**4个状态变量的作用：**
+
+| 变量 | 如果不处理，会出什么错？ |
+|------|------------------------|
+| `inString` | `"缺少 { 符号"` 里的 `{` 会被误计为 openBraces++ |
+| `escaped` | `"C:\\Users"` 里的 `\"` 会误切换 inString |
+
+**示例：**
+
+```json
+// AI 返回了（被截断了！max_tokens 不够）
+{
+  "summary": "发现2个问题",
+  "passed": false,
+  "issues": [
+    {"severity": "error", "message": "空指针风险",
+
+// 状态机计数结果：
+// openBraces = 2（最外层 { + issues[0] 的 {）
+// openBrackets = 1（issues 数组的 [）
+
+// 修复后：补全 ]}}
+{
+  "summary": "发现2个问题",
+  "passed": false,
+  "issues": [
+    {"severity": "error", "message": "空指针风险",
+  ]}
+}
+// 虽然内容不完整，但至少能 parse 了！
+```
+
+---
+
+### Q: 7种策略都失败后怎么办？
+
+**A:** `tryParseJson` 返回 `null`，`parseAiResponse` 设置 `passed = false`，然后 `_parseResponse` 检测到错误关键词，调用 `_fixJsonWithAi()` —— 让另一个 AI 来修 JSON。
+
+**整体降级链路：**
+
+```
+AI 返回响应
+  → parseAiResponse()
+    → 快速通道："[]" / "{}" → 直接通过
+    → tryParseJson() 7种策略
+      ├── 策略1：直接解析
+      ├── 策略2：BOM去除
+      ├── 策略3：单引号→双引号
+      ├── 策略4：去除trailing comma
+      ├── 策略5：去除注释
+      ├── 策略6：修复非法转义
+      └── 策略7：括号补全
+    → 7种都失败 → tryParseJson 返回 null
+    → parseAiResponse 标记 passed=false
+  → _parseResponse 检测错误关键词
+    → _fixJsonWithAi()（另一个AI修JSON，最多3次）
+    → 3次都失败 → passed=false（阻断commit）
+```
 
 ---
 
