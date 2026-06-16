@@ -466,6 +466,7 @@ def status(repo):
         click.echo(f"  - Log TTL: {config.log_ttl}")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Max Tokens: {config.max_tokens}")
+        click.echo(f"  - Temperature: {config.temperature} (0=保守, 0.3=平衡, 0.7=灵活)")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
         
         click.echo()
