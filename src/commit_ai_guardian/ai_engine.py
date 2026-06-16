@@ -1415,14 +1415,8 @@ class AIEngine:
         Returns:
             JSON 字符串，或 None
         """
-        # 先过滤 <think> 标签（循环过滤，防止 think 中嵌套 think）
-        filtered = response
-        for _ in range(5):  # 最多 5 次，防止死循环
-            new_filtered = re.sub(r'<think>.*?</think>', '', filtered, flags=re.DOTALL)
-            if new_filtered == filtered:
-                break
-            filtered = new_filtered
-        filtered = filtered.strip()
+        # 先过滤 <think> 标签
+        filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
         
         # 策略 0: 从 <result> 标签提取
         m = re.search(r'<result>(.*?)</result>', filtered, re.DOTALL)
@@ -1434,9 +1428,8 @@ class AIEngine:
         if m:
             return m.group(1).strip()
 
-        # 策略 2: 找第一个 {...}（限制大小，防止跨标签匹配）
-        # 只匹配 5000 字符以内的 { }，避免贪婪匹配跨标签
-        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered[:8000], re.DOTALL)
+        # 策略 2: 找第一个 {...}
+        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
         if m:
             return m.group(0).strip()
 
@@ -1644,7 +1637,6 @@ class AIEngine:
 
                 # 验证：先解析，再校验 schema
                 data = _try_parse_json(fixed_json)
-                last_extracted_data = data  # 保存最后一次提取到的数据（用于兜底）
                 if not data or not isinstance(data, dict):
                     last_error = "JSON 语法解析失败，请确保是合法的 JSON 格式"
                     continue
@@ -1667,20 +1659,7 @@ class AIEngine:
                 all_attempts_log.append(f"--- 尝试 {attempt + 1}（异常）---\n{str(e)}")
                 continue
 
-        # 所有尝试都失败了——兜底：检查最后一次提取到的 dict
-        # 如果有 summary/passed/issues 字段，直接用（比返回 None 好）
-        if 'last_extracted_data' in locals() and last_extracted_data:
-            d = last_extracted_data
-            if 'summary' in d and 'passed' in d and 'issues' in d:
-                print(f"[信息] JSON 修复 schema 有小问题，但字段完整，直接使用")
-                self._write_json_fix_log(filename, cache_md5,
-                                         system_msg, fix_prompt,
-                                         "\n\n".join(all_attempts_log) + "\n\n=== 最终结果：schema 有小问题，但字段完整，直接使用 ===")
-                # 返回 dict 的 JSON 字符串
-                import json
-                return json.dumps(d, ensure_ascii=False)
-        
-        # 真的完全失败了
+        # 所有尝试都失败了，仍然写入日志（方便查看定位）
         self._write_json_fix_log(filename, cache_md5,
                                  system_msg, fix_prompt,
                                  "\n\n".join(all_attempts_log) + "\n\n=== 最终结果：全部 3 次尝试均失败 ===")
