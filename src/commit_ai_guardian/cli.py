@@ -492,12 +492,12 @@ def validate_cases(repo):
         sys.exit(1)
 
 
-@main.command('debug-log')
+@main.command('debug-ai-log')
 @click.argument('log_file', type=click.Path(exists=True))
 @click.option('--filename', '-f', default=None, help='模拟的文件名（用于展示，默认从 ai.log header 提取）')
 @click.option('--repo', default='.', help='项目路径（用于加载配置）')
-def debug_log(log_file, filename, repo):
-    """调试 AI 响应日志 - 传入 ai.log 文件，直接看格式化结果（不调用 AI）
+def debug_ai_log(log_file, filename, repo):
+    """调试主审核 AI 响应日志 - 传入 ai.log 文件，直接看格式化结果（不调用 AI）
     
     使用场景：
     - 调试 JSON 解析失败（<think> 标签、截断、格式错误等）
@@ -505,12 +505,8 @@ def debug_log(log_file, filename, repo):
     - 无需 API Key，不花钱，不耗时间
     
     用法：
-        commit-ai-guardian debug-log ai.log
-        commit-ai-guardian debug-log ai.log --filename src/main.py
-    
-    ai.log 获取方式：
-        # 把某次 AI 的原始响应保存到文件
-        cat .ai-review/cache/xxx.json  # 或手动保存 AI 返回的内容
+        cag debug-ai-log .ai-review/logs/xxx.ai.log
+        cag debug-ai-log .ai-review/logs/xxx.ai.log --filename src/main.py
     """
     try:
         # 读取 AI 原始响应
@@ -558,17 +554,17 @@ def debug_log(log_file, filename, repo):
         sys.exit(2)
 
 
-@main.command('test-json-extract')
+@main.command('debug-json-fix-log')
 @click.argument('log_file', type=click.Path(exists=True))
-def test_json_extract(log_file):
-    """测试 json_fix.log 中 JSON 提取是否正确
+def debug_json_fix_log(log_file):
+    """调试 JSON 修复 AI 响应日志 - 传入 json_fix.log 文件，定位提取失败原因
 
-    传入 json_fix.log 文件路径，逐次验证提取/解析/schema 流程，
+    逐次验证 <think> 过滤 / JSON 提取 / 解析 / schema 校验 全流程，
     定位哪一步导致"修复 JSON 失败"。
 
     用法:
-        cag test-json-extract .ai-review/logs/028548b.json_fix.log
-        cag test-json-extract /Users/.../.ai-review/logs/028548b.json_fix.log
+        cag debug-json-fix-log .ai-review/logs/xxx.json_fix.log
+        cag debug-json-fix-log /Users/.../.ai-review/logs/xxx.json_fix.log
     """
     import re
     import json
