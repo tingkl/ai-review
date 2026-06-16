@@ -110,10 +110,13 @@ class Config:
         other_dict = asdict(other)
         
         # other 中非"未配置"的字段覆盖 result
-        # 未配置 = None / "" / []
-        # 注意：False 和 0 是有效配置（如 enabled=false），不能跳过
+        # 未配置 = None / "" / [] / 0（数值型字段的 0 视为未配置）
+        # False 是有效配置（enabled=false），不能跳过
         for key, value in other_dict.items():
             if value is not None and value != "" and value != []:
+                # 数值型字段（max_file_size, timeout, max_tokens）：0 视为未配置
+                if key in ("max_file_size", "timeout", "max_tokens") and value == 0:
+                    continue
                 result_dict[key] = value
         
         return Config(**result_dict)
@@ -316,7 +319,9 @@ class ConfigManager:
         print("\n".join(lines) + "\n")
     
     def save(self, config: Config, level: str = "global") -> None:
-        """保存配置
+        """保存配置（只保存与默认值不同的字段）
+        
+        避免把 0/默认值写入 YAML，覆盖全局配置的非零值。
         
         Args:
             config: Config 对象
@@ -329,7 +334,20 @@ class ConfigManager:
         
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # 获取当前配置和默认值
+            config_dict = asdict(config)
+            defaults = Config()  # 创建默认配置对象
+            default_dict = asdict(defaults)
+            
+            # 只保存与默认值不同的字段
+            # 这样不会把 0/默认值写入 YAML，避免覆盖全局配置
+            non_default = {}
+            for key, value in config_dict.items():
+                if value != default_dict[key]:
+                    non_default[key] = value
+            
             with open(path, 'w', encoding='utf-8') as f:
-                yaml.dump(asdict(config), f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                yaml.dump(non_default, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
         except OSError as e:
             raise RuntimeError(f"无法保存配置文件: {e}") from e
