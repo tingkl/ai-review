@@ -332,8 +332,13 @@ def configure(config_path):
     # Timeout
     config.timeout = click.prompt("请输入 API 超时时间 (秒)", default=config.timeout, type=int)
     
-    # Max Tokens
-    config.max_tokens = click.prompt("请输入 AI 最大返回长度 (token 数)", default=config.max_tokens, type=int)
+    # Max Tokens（支持简写：8K=8192, 16k=16384, 128k=131072）
+    max_tokens_input = click.prompt("请输入 AI 最大返回长度 (token 数)", default=str(config.max_tokens), type=str)
+    try:
+        config.max_tokens = int(max_tokens_input)
+    except ValueError:
+        from .config import _parse_token_size
+        config.max_tokens = _parse_token_size(max_tokens_input)
     
     # Proxy
     proxy = click.prompt("请输入代理地址 (留空表示不使用)", default=config.proxy or "", show_default=False)
