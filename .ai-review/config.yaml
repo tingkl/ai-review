@@ -1,0 +1,48 @@
+# 项目级别配置文件
+# 只填写需要覆盖全局配置的项，留空则使用全局配置
+# 全局配置位置: ~/.commit-ai-guardian/config.yaml
+
+# AI API 密钥
+api_key: ""
+
+# API 地址
+api_base: ""
+
+# 模型名称
+model: ""
+
+# 审核报告语言 (zh-CN/en)
+language: ""
+
+# 是否启用 AI 审核（false=跳过，直接通过）
+enabled: true
+
+# 阻断级别 (info/warning/error/critical)
+severity_threshold: ""
+
+# diff 审核模式: full=完整文件(默认), diff=只审变更
+diff_mode: ""
+
+# 最大审核文件大小 (KB)
+max_file_size: 0
+
+# 缓存存活时间（1d=1天, 12h=12小时, 30m=30分钟）
+cache_ttl: "1d"
+
+# 日志存活时间（1h=1小时, 30m=30分钟, 0=不清理）
+log_ttl: "1h"
+
+# 要审核的目录/文件模式（glob，如 ["src/**", "app/**"]）
+include_patterns: ["*"]
+
+# 忽略的文件模式（glob 格式）
+ignore_patterns: ["*.lock", "*.md", "*.txt", "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf", "*.mp3", "*.mp4", "*.avi", "*.pdf", "*.doc", "*.docx", "*.zip", "*.tar", "*.gz", "*.rar", "*.7z", "*.exe", "*.dll", "*.so", "*.dylib", "*.class", "*.jar", "*.ear", "*.egg", "*.whl", "*.parquet", "*.pkl", "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb"]
+
+# API 超时 (秒)
+timeout: 0
+
+# AI 最大返回长度 (token 数，支持 4K/8K 写法)
+max_tokens: 0
+
+# HTTP 代理地址
+proxy: ""
