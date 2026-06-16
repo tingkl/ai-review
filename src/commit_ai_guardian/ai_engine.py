@@ -1468,7 +1468,7 @@ class AIEngine:
                 f"# ================================================\n"
                 f"# JSON Fix Log\n"
                 f"# 文件: {filename}\n"
-                f"# MD5: {md5_short}\n"
+                f"# MD5: {name}\n"
                 f"# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 f"# ================================================\n"
             ]
