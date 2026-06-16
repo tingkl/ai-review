@@ -333,7 +333,19 @@ def configure(config_path):
     config.timeout = click.prompt("请输入 API 超时时间 (秒)", default=config.timeout, type=int)
     
     # Max Tokens（支持简写：8K=8192, 16k=16384, 128k=131072）
-    max_tokens_input = click.prompt("请输入 AI 最大返回长度 (token 数)", default=str(config.max_tokens), type=str)
+    click.echo("")
+    click.echo("  主流模型 max_tokens 参考：")
+    click.echo("  +-----------------+------------+--------+--------+")
+    click.echo("  | 模型            | 默认       | 最大   | 建议值 |")
+    click.echo("  +-----------------+------------+--------+--------+")
+    click.echo("  | MiniMax M3/M2.x | 很小(截断) | 128K   | 16K    |")
+    click.echo("  | DeepSeek        | 4,096      | 8K     | 8K     |")
+    click.echo("  | Kimi K2.x       | 32K        | 128K   | 16K    |")
+    click.echo("  | GPT-4o          | ~4K        | 16K    | 8K     |")
+    click.echo("  +-----------------+------------+--------+--------+")
+    click.echo("  支持简写: 8K=8192, 16k=16384, 128k=131072")
+    click.echo("")
+    max_tokens_input = click.prompt("  AI 最大返回长度", default=str(config.max_tokens), type=str)
     try:
         config.max_tokens = int(max_tokens_input)
     except ValueError:
