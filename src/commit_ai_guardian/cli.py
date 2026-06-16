@@ -129,6 +129,9 @@ def audit(repo, output, config_path):
             click.echo("📭 暂存区没有需要审核的代码变更。")
             sys.exit(0)
         
+        # 有文件变更，打印配置信息
+        config_manager.log_config(config, "合并后")
+        
         click.echo(f"🔍 发现 {len(file_diffs)} 个文件变更\n")
         
         # Step 3: AI 审核（逐个文件调用 AI API，获取审核结果）

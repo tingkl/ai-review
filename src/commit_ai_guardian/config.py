@@ -251,24 +251,27 @@ class ConfigManager:
         
         # 2. 如果没有项目路径，直接返回全局配置
         if not self.project_path:
-            self._log_final_config(global_config, "全局")
             return global_config
         
         # 3. 加载项目配置
         project_config = self._load_single(self.project_path)
         if project_config is None:
             # 项目配置不存在，只用全局配置
-            self._log_final_config(global_config, "全局")
             return global_config
         
         # 4. 合并：项目配置覆盖全局配置
         merged = global_config.merge(project_config)
         
-        # 打印提示，让用户知道哪些配置来自项目
-        self._log_merge_info(global_config, project_config)
-        self._log_final_config(merged, "合并后")
-        
         return merged
+    
+    def log_config(self, config: Config, source: str = "") -> None:
+        """打印配置信息（由调用方决定何时打印）
+        
+        Args:
+            config: 配置对象
+            source: 配置来源说明
+        """
+        self._log_final_config(config, source)
     
     def _log_merge_info(self, global_cfg: Config, project_cfg: Config) -> None:
         """打印合并信息（哪些字段被项目配置覆盖了）"""
