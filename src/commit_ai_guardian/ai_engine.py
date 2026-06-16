@@ -1623,7 +1623,7 @@ class AIEngine:
                 resp = self._call_api_safe(
                     model=model,
                     messages=messages,
-                    temperature=0.1,
+                    temperature=0.0,  # 纯格式转换，完全确定性输出
                     max_tokens=max_tokens,
                     **extra_params,
                 )
