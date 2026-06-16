@@ -492,37 +492,50 @@ def validate_cases(repo):
         sys.exit(1)
 
 
-@main.command('debug-ai-log')
+@main.command('debug-log')
 @click.argument('log_file', type=click.Path(exists=True))
-@click.option('--filename', '-f', default=None, help='模拟的文件名（用于展示，默认从 ai.log header 提取）')
+@click.option('--filename', '-f', default=None, help='模拟的文件名（仅 ai.log 有效，默认从 header 提取）')
 @click.option('--repo', default='.', help='项目路径（用于加载配置）')
-def debug_ai_log(log_file, filename, repo):
-    """调试主审核 AI 响应日志 - 传入 ai.log 文件，直接看格式化结果（不调用 AI）
-    
-    使用场景：
-    - 调试 JSON 解析失败（<think> 标签、截断、格式错误等）
-    - 验证结果展示格式
-    - 无需 API Key，不花钱，不耗时间
-    
-    用法：
-        cag debug-ai-log .ai-review/logs/xxx.ai.log
-        cag debug-ai-log .ai-review/logs/xxx.ai.log --filename src/main.py
+def debug_log(log_file, filename, repo):
+    """调试日志 - 传入 ai.log 或 json_fix.log，自动识别并解析（不调用 AI）
+
+    根据文件名后缀自动判断日志类型：
+    - xxx.ai.log → 调试主审核 AI 响应（格式化展示审核结果）
+    - xxx.json_fix.log → 调试 JSON 修复 AI 响应（逐次验证提取/解析/schema）
+
+    用法:
+        cag debug-log .ai-review/logs/xxx.ai.log
+        cag debug-log .ai-review/logs/xxx.json_fix.log
     """
+    log_path = Path(log_file)
+    if not log_path.exists():
+        click.echo(f"❌ 文件不存在: {log_path}")
+        sys.exit(1)
+
+    log_name = log_path.name
+
+    # === 模式 A: json_fix.log ===
+    if log_name.endswith('.json_fix.log'):
+        _debug_json_fix_log(log_path)
+        return
+
+    # === 模式 B: ai.log（默认） ===
+    _debug_ai_log(log_path, filename, repo)
+
+
+def _debug_ai_log(log_path, filename, repo):
+    """调试主审核 AI 响应日志（内部函数）"""
     try:
-        # 读取 AI 原始响应
-        log_path = Path(log_file)
         log_content = log_path.read_text(encoding='utf-8')
-        
         click.echo(f"📄 日志文件: {log_path.absolute()}")
         click.echo(f"📄 文件大小: {len(log_content)} 字符\n")
-        
+
         # 从 ai.log header 中提取文件名（如未指定 --filename）
         if filename is None:
             file_match = re.search(r'# 文件: (.+)', log_content)
             filename = file_match.group(1).strip() if file_match else 'unknown'
-        
+
         # 从 ai.log 中提取 --- AI RESPONSE --- 后面的内容
-        # ai.log 格式: header + system + user + ai_response
         ai_response_match = re.search(
             r'--- AI RESPONSE ---\n={40,}\n\n(.*)',
             log_content, re.DOTALL
@@ -531,50 +544,31 @@ def debug_ai_log(log_file, filename, repo):
             raw_response = ai_response_match.group(1).strip()
             click.echo(f"📄 AI 响应长度: {len(raw_response)} 字符\n")
         elif '<result>' in log_content:
-            # 兼容旧格式（没有分隔线的 ai.log，直接找 <result>）
             raw_response = log_content
             click.echo("📄 使用兼容模式（旧格式 ai.log）\n")
         else:
             raw_response = log_content
-        
+
         # 使用与线上完全一致的解析逻辑
         result = parse_ai_response(raw_response, filename)
-        
+
         # 用 ResultFormatter 渲染（与 audit/review 命令的展示完全一致）
         config_manager = ConfigManager(repo_path=repo)
         config = config_manager.load()
         formatter = ResultFormatter(config, repo_path=repo)
         formatter.format_and_display([result])
-        
+
         # 打印原始响应摘要（方便调试）
         click.echo(f"\n[调试] passed={result.passed}, issues={len(result.issues)}, summary={result.summary}")
-        
+
     except Exception as e:
         click.echo(f"❌ 错误: {e}")
         sys.exit(2)
 
 
-@main.command('debug-json-fix-log')
-@click.argument('log_file', type=click.Path(exists=True))
-def debug_json_fix_log(log_file):
-    """调试 JSON 修复 AI 响应日志 - 传入 json_fix.log 文件，定位提取失败原因
-
-    逐次验证 <think> 过滤 / JSON 提取 / 解析 / schema 校验 全流程，
-    定位哪一步导致"修复 JSON 失败"。
-
-    用法:
-        cag debug-json-fix-log .ai-review/logs/xxx.json_fix.log
-        cag debug-json-fix-log /Users/.../.ai-review/logs/xxx.json_fix.log
-    """
-    import re
+def _debug_json_fix_log(log_path):
+    """调试 JSON 修复 AI 响应日志（内部函数）"""
     import json
-    from pathlib import Path
-
-    log_path = Path(log_file)
-    if not log_path.exists():
-        click.echo(f"❌ 文件不存在: {log_path}")
-        sys.exit(1)
-
     click.echo(f"📄 读取: {log_path}\n")
     content = log_path.read_text(encoding='utf-8')
 
