@@ -412,6 +412,16 @@ def configure(config_path):
         from .config import _parse_token_size
         config.max_tokens = _parse_token_size(max_tokens_input)
     
+    # Temperature
+    click.echo("")
+    click.echo("  Temperature 说明：")
+    click.echo("    0.0 = 最保守，输出最确定、最一致")
+    click.echo("    0.3 = 平衡，适合代码审核（默认）")
+    click.echo("    0.7 = 更灵活，可能发现更多问题")
+    click.echo("    1.0+ = 最随机，不推荐用于审核")
+    click.echo("")
+    config.temperature = click.prompt("  Temperature", default=config.temperature, type=float)
+    
     # Proxy
     proxy = click.prompt("请输入代理地址 (留空表示不使用)", default=config.proxy or "", show_default=False)
     config.proxy = proxy if proxy else None

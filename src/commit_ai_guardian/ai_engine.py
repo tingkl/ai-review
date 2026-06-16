@@ -1351,8 +1351,8 @@ class AIEngine:
                         # user 消息是真正的审核请求（从模板渲染）
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.3,     # 低温度 = 输出更确定、更可预测
-                    max_tokens=getattr(self.config, 'max_tokens', 4096),  # 从配置读取，默认 4096
+                    temperature=getattr(self.config, 'temperature', 0.3),  # 从配置读取，默认 0.3
+                    max_tokens=getattr(self.config, 'max_tokens', 4096),   # 从配置读取，默认 4096
                     **extra_params,      # 主流模型禁用 think 的额外参数（如 enable_thinking=false）
                 )
                 raw_content = response.choices[0].message.content or ""

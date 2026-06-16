@@ -108,6 +108,7 @@ cag install
 | `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `default` |
 | `max_tokens` | AI 最大返回长度（token 数） | `8192` |
 | `max_file_size` | 最大审核文件大小，**单位 KB** | `500` |
+| `temperature` | AI 随机性 (0=最确定, 1=最随机) | `0.3` |
 
 ### 配置示例
 
@@ -118,6 +119,7 @@ api_key: "sk-xxx"
 model: "gpt-4o-mini"
 max_tokens: 8192
 max_file_size: 500          # 单位 KB，超过 500KB 的文件跳过审核
+temperature: 0.3             # 0=最保守, 0.3=平衡(默认), 0.7=更灵活
 language: "zh-CN"
 severity_threshold: "warning"
 diff_mode: "diff"

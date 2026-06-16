@@ -58,6 +58,7 @@ class Config:
     case_format: str = "default"            # 案例格式化级别: default=全部, compact=精简, minimal=最小
     timeout: int = 60                        # API 超时（秒）
     max_tokens: int = 8192                   # AI 最大返回长度（token 数）
+    temperature: float = 0.3                 # AI 随机性 (0=最确定, 1=最随机, 2=最大)
     proxy: Optional[str] = None              # HTTP 代理
     use_cache: bool = True                   # 是否使用缓存 (false=不检查缓存、不写入缓存)
 
@@ -92,6 +93,13 @@ class Config:
                 self.max_tokens = 131072
         except TypeError:
             self.max_tokens = 8192
+        try:
+            if self.temperature < 0:
+                self.temperature = 0.3
+            if self.temperature > 2:
+                self.temperature = 2.0
+        except TypeError:
+            self.temperature = 0.3
     
     def merge(self, other: 'Config') -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置
