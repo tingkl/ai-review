@@ -317,8 +317,53 @@ def configure(config_path):
     click.echo("")
     config.api_base = click.prompt("  API Base URL", default=config.api_base)
     
+    # 根据 api_base 推荐模型
+    api_base_lower = config.api_base.lower()
+    click.echo("")
+    if "minimax" in api_base_lower:
+        click.echo("  MiniMax 推荐模型：")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | 模型名称            | 说明                                      |")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | MiniMax-M3          | 最新编程模型，1M 上下文，最强代码能力      |")
+        click.echo("  | MiniMax-M2.7        | 递归自改进，200K 上下文，通用场景首选      |")
+        click.echo("  | MiniMax-M2.5        | 性价比之选，200K 上下文                    |")
+        click.echo("  | MiniMax-M2.1        | 编程专项，适合代码审查场景                 |")
+        click.echo("  +---------------------+-------------------------------------------+")
+    elif "deepseek" in api_base_lower:
+        click.echo("  DeepSeek 推荐模型：")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | 模型名称            | 说明                                      |")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | deepseek-v4-pro     | 最新版本，推荐                             |")
+        click.echo("  | deepseek-v3         | 通用场景，性价比高                         |")
+        click.echo("  | deepseek-reasoner   | 推理模型，适合复杂逻辑审查                 |")
+        click.echo("  | deepseek-chat       | 基础对话模型                               |")
+        click.echo("  +---------------------+-------------------------------------------+")
+    elif "moonshot" in api_base_lower:
+        click.echo("  Moonshot(Kimi) 推荐模型：")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | 模型名称            | 说明                                      |")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | kimi-k2             | 最新版本，超长上下文 200K                  |")
+        click.echo("  | kimi-k2.5           | 平衡性能与速度                             |")
+        click.echo("  | kimi-k2-thinking    | 推理模型，适合复杂代码分析                 |")
+        click.echo("  +---------------------+-------------------------------------------+")
+    elif "openai" in api_base_lower:
+        click.echo("  OpenAI 推荐模型：")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | 模型名称            | 说明                                      |")
+        click.echo("  +---------------------+-------------------------------------------+")
+        click.echo("  | gpt-4o              | 最强模型，适合复杂审查                     |")
+        click.echo("  | gpt-4o-mini         | 性价比之选，速度快                         |")
+        click.echo("  | gpt-3.5-turbo       | 基础模型，成本低                           |")
+        click.echo("  +---------------------+-------------------------------------------+")
+    else:
+        click.echo("  模型名称示例：gpt-4o, MiniMax-M2.7, deepseek-v4-pro, kimi-k2")
+    click.echo("")
+    
     # Model
-    config.model = click.prompt("请输入模型名称", default=config.model)
+    config.model = click.prompt("  模型名称", default=config.model)
     
     # Language
     config.language = click.prompt("请输入审核报告语言 (zh-CN/en)", default=config.language)
