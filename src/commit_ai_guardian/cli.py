@@ -304,7 +304,18 @@ def configure(config_path):
         config.api_key = new_key
     
     # API Base
-    config.api_base = click.prompt("请输入 API Base URL", default=config.api_base)
+    click.echo("")
+    click.echo("  主流模型 API Base URL 参考：")
+    click.echo("  +-----------------+-----------------------------------------------+")
+    click.echo("  | 服务商          | API Base URL                                  |")
+    click.echo("  +-----------------+-----------------------------------------------+")
+    click.echo("  | OpenAI          | https://api.openai.com/v1                     |")
+    click.echo("  | MiniMax         | https://api.minimax.chat/v1                   |")
+    click.echo("  | DeepSeek        | https://api.deepseek.com/v1                   |")
+    click.echo("  | Moonshot(Kimi)  | https://api.moonshot.cn/v1                    |")
+    click.echo("  +-----------------+-----------------------------------------------+")
+    click.echo("")
+    config.api_base = click.prompt("  API Base URL", default=config.api_base)
     
     # Model
     config.model = click.prompt("请输入模型名称", default=config.model)
