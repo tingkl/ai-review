@@ -519,8 +519,15 @@ def debug_log(log_file, filename, repo):
         _debug_json_fix_log(log_path)
         return
 
-    # === 模式 B: ai.log（默认） ===
-    _debug_ai_log(log_path, filename, repo)
+    # === 模式 B: ai.log ===
+    if log_name.endswith('.ai.log'):
+        _debug_ai_log(log_path, filename, repo)
+        return
+
+    # 不支持的类型
+    click.echo(f"❌ 不支持的日志类型: {log_name}")
+    click.echo("   请传入 .ai.log（主审核日志）或 .json_fix.log（JSON 修复日志）")
+    sys.exit(1)
 
 
 def _debug_ai_log(log_path, filename, repo):
