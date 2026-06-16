@@ -558,5 +558,111 @@ def debug_log(log_file, filename, repo):
         sys.exit(2)
 
 
+@main.command('test-json-extract')
+@click.argument('log_file', type=click.Path(exists=True))
+def test_json_extract(log_file):
+    """测试 json_fix.log 中 JSON 提取是否正确
+
+    传入 json_fix.log 文件路径，逐次验证提取/解析/schema 流程，
+    定位哪一步导致"修复 JSON 失败"。
+
+    用法:
+        cag test-json-extract .ai-review/logs/028548b.json_fix.log
+        cag test-json-extract /Users/.../.ai-review/logs/028548b.json_fix.log
+    """
+    import re
+    import json
+    from pathlib import Path
+
+    log_path = Path(log_file)
+    if not log_path.exists():
+        click.echo(f"❌ 文件不存在: {log_path}")
+        sys.exit(1)
+
+    click.echo(f"📄 读取: {log_path}\n")
+    content = log_path.read_text(encoding='utf-8')
+
+    # 分割出每次尝试
+    attempts = re.split(r'--- 尝试 (\d+) ---', content)
+
+    found_pass = False
+    for i in range(1, len(attempts), 2):
+        attempt_num = attempts[i]
+        attempt_content = attempts[i + 1] if i + 1 < len(attempts) else ""
+
+        click.echo(f"{'='*60}")
+        click.echo(f"尝试 {attempt_num}")
+        click.echo(f"{'='*60}")
+
+        # 步骤 1: 过滤 <think>
+        filtered = re.sub(r'<think>.*?</think>', '', attempt_content, flags=re.DOTALL).strip()
+        has_think = '<think>' in attempt_content
+        click.echo(f"1. <think> 标签: {'有 (已过滤)' if has_think else '无'}")
+
+        # 步骤 2: 提取 JSON
+        # 策略 0: <result>
+        m = re.search(r'<result>(.*?)</result>', filtered, re.DOTALL)
+        if m:
+            extracted = m.group(1).strip()
+            click.echo(f"2. 提取: <result> 标签匹配 ({len(extracted)} 字符)")
+        else:
+            # 策略 1: ```json
+            m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
+            if m:
+                extracted = m.group(1).strip()
+                click.echo(f"2. 提取: ```json 代码块匹配 ({len(extracted)} 字符)")
+            else:
+                # 策略 2: 第一个 {...}
+                m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
+                if m:
+                    extracted = m.group(0).strip()
+                    click.echo(f"2. 提取: fallback 正则匹配 ({len(extracted)} 字符)")
+                else:
+                    click.echo("❌ 2. 提取失败: 未找到 JSON")
+                    continue
+
+        # 步骤 3: 解析 JSON
+        try:
+            parsed = json.loads(extracted)
+            click.echo(f"3. JSON 解析: ✅ type={type(parsed).__name__}")
+        except json.JSONDecodeError as e:
+            click.echo(f"❌ 3. JSON 解析失败: {e}")
+            start = max(0, e.pos - 20)
+            end = min(len(extracted), e.pos + 20)
+            click.echo(f"   错误位置 [{e.pos}]: ...{repr(extracted[start:end])}...")
+            continue
+
+        # 步骤 4: schema 校验
+        if not isinstance(parsed, dict):
+            click.echo(f"❌ 4. Schema: 不是对象，是 {type(parsed).__name__}")
+            continue
+
+        missing = [f for f in ['summary', 'passed', 'issues'] if f not in parsed]
+        if missing:
+            click.echo(f"❌ 4. Schema 失败: 缺少字段 {missing}")
+            click.echo(f"   实际 keys: {list(parsed.keys())}")
+            continue
+
+        click.echo(f"4. Schema: ✅ summary={repr(parsed['summary'])}, passed={parsed['passed']}, issues={len(parsed.get('issues', []))}")
+
+        if parsed.get('issues'):
+            sev_count = {}
+            for issue in parsed['issues']:
+                sev = issue.get('severity', 'unknown')
+                sev_count[sev] = sev_count.get(sev, 0) + 1
+            click.echo(f"   severity 分布: {sev_count}")
+
+        found_pass = True
+
+    # 最终结果
+    click.echo(f"\n{'='*60}")
+    if "全部 3 次尝试均失败" in content:
+        click.echo("⚠️ 日志结论: 全部 3 次尝试均失败")
+    elif found_pass:
+        click.echo("✅ 至少有一次提取+解析+Schema 全部通过")
+    else:
+        click.echo("⚠️ 未找到成功的尝试")
+
+
 if __name__ == '__main__':
     main()
