@@ -203,6 +203,10 @@ class HookInstaller:
                 print(f"[信息] commit-ai-guardian 已是最新版本，无需更新")
                 self._init_review_dir(force=force)
                 return True
+            # 内容不一样：备份整个 husky 文件
+            backup_path = husky_file.with_suffix('.backup')
+            shutil.copy2(husky_file, backup_path)
+            print(f"[信息] 原 husky 文件已备份到: {backup_path}")
         
         # 修正 lint-staged：如果没有保存 exit code，自动补全
         # （lint-staged 简化版只有一行命令，追加其他命令后 exit code 会丢失）
@@ -330,12 +334,16 @@ fi
             shutil.copy2(self.hook_path, backup_path)
             print(f"[信息] 原 hook 已备份到: {backup_path}")
         elif self.hook_path.exists() and self.is_hook_installed():
-            # 是 cag 装的：内容一样就跳过，不一样才覆盖
+            # 是 cag 装的：内容一样就跳过，不一样备份后覆盖
             existing_script = self.hook_path.read_text(encoding='utf-8')
             if existing_script.strip() == hook_script.strip():
                 print(f"[信息] pre-commit hook 已是最新版本，无需更新")
                 self._init_review_dir(force=force)
                 return True
+            # 内容不一样：备份旧的，写入新的
+            backup_path = self.hook_path.with_suffix('.backup')
+            shutil.copy2(self.hook_path, backup_path)
+            print(f"[信息] 原 hook 已备份到: {backup_path}")
         
         # 写入脚本
         self.hook_path.write_text(hook_script, encoding='utf-8')
