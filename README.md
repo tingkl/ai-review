@@ -102,6 +102,24 @@ cag 在 hook 文件中写入特定的 marker 标记来识别：
 | `.ai-review/prompts/` | 自定义审核规则模板目录 |
 | `.ai-review/cases/` | 项目案例库目录 |
 
+**备份命名规则**：`{原文件名}.backup`
+
+| 被覆盖的文件 | 备份路径 |
+|-------------|---------|
+| `.git/hooks/pre-commit` | `.git/hooks/pre-commit.backup` |
+| `.husky/pre-commit` | `.husky/pre-commit.backup` |
+| `.ai-review/prompts/{file}` | `.ai-review/prompts/{file}.backup` |
+
+**prompts 覆盖规则**：
+
+| 场景 | 操作 |
+|------|------|
+| 文件不存在 | 直接写入 |
+| 文件存在，**内容一样** | **跳过** |
+| 文件存在，**内容不一样** | 备份 `.backup` 后覆盖 |
+
+> 提示：自定义过 prompts 的用户，升级 cag 后检查 `.backup` 文件，合并自己的修改。
+
 ---
 
 ## 配置
