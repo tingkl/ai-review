@@ -73,6 +73,15 @@ pip install commit-ai-guardian
 cag install
 ```
 
+**`--force` 选项**：已安装过或存在其他 hook 时强制覆盖
+
+| 场景 | `cag install` | `cag install --force` |
+|------|--------------|----------------------|
+| 全新安装 | ✅ 正常安装 | ✅ 正常安装 |
+| 已安装过（有 cag marker） | ⚠️ 提示已安装，不覆盖 | ✅ 去掉旧的，重新安装 |
+| 有其他自定义 hook（如 lint-staged） | ❌ 报错，不覆盖 | ✅ 备份原 hook，覆盖安装 |
+| config.yaml 补全新字段 | ❌ 不补全 | ✅ 自动补全缺失字段 |
+
 此命令会在当前项目中创建以下结构：
 
 | 文件/目录 | 说明 |
