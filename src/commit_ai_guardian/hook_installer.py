@@ -510,10 +510,21 @@ fi
             template_files = PromptLoader.get_default_template_files()
             for template_name, template_content in template_files.items():
                 template_path = prompts_dir / template_name
-                if not template_path.exists() or force:
+                if not template_path.exists():
+                    # 文件不存在，直接写入
                     template_path.write_text(template_content, encoding='utf-8')
-                    if force and template_path.exists():
-                        print(f"[信息] prompt 模板已更新: {template_name}")
+                else:
+                    # 文件已存在，比对内容
+                    existing_content = template_path.read_text(encoding='utf-8')
+                    if existing_content.strip() == template_content.strip():
+                        # 内容一样，跳过
+                        continue
+                    # 内容不一样，备份后覆盖
+                    import shutil
+                    backup_path = template_path.with_suffix('.backup')
+                    shutil.copy2(template_path, backup_path)
+                    template_path.write_text(template_content, encoding='utf-8')
+                    print(f"[信息] prompt 模板已更新: {template_name}（原文件备份到: {backup_path}）")
             
             # 创建用户自定义 prompt 文件（custom_prompt.md）
             # 此文件不会被 install --force 覆盖，用户可在此添加自己的审核规则
