@@ -31,7 +31,7 @@ class Config:
     model: str = "gpt-4o-mini"               # 模型名称
     language: str = "zh-CN"                  # 审核报告语言（默认中文）
     enabled: bool = True                     # 是否启用 AI 审核（false=跳过，直接通过）
-    severity_threshold: str = "warning"      # 阻断级别
+    severity_threshold: str = "warning"      # 阻断级别 (info/warning/error/critical)
     diff_mode: str = "full"                  # diff 审核模式: full=完整文件, diff=只审变更
     max_file_size: int = 500                 # 最大文件大小（KB）
     cache_ttl: str = "1d"                    # 缓存存活时间（1d=1天, 12h=12小时, 30m=30分钟）

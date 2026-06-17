@@ -1703,7 +1703,7 @@ class AIEngine:
                         result.raw_response = raw_response
                         return result
                     
-                    # 中文 → 英文翻译（schema 已支持中英文，代码统一用英文）
+                    # 中文 → 英文翻译（schema 支持中英文，代码统一用英文）
                     severity_map = {
                         '致命': 'critical', '错误': 'error', '警告': 'warning', '提示': 'info'
                     }
@@ -2039,14 +2039,4 @@ class AIEngine:
         template = self.prompt_loader.load_full_file_template()
         prompt = template.replace("{{filename}}", filename)
         prompt = prompt.replace("{{language}}", language)
-        prompt = prompt.replace("{{language_display}}", language_display)
-        prompt = prompt.replace("{{line_count}}", str(line_count))
-        prompt = prompt.replace("{{content}}", content)
-        prompt = prompt.replace("{{cases_text}}", cases_text)
-        prompt = prompt.replace("{{truncation_note}}",
-            f"- 注意: {truncate_note}" if truncated else "")
-        prompt = prompt.replace("{{cases_note}}",
-            _build_cases_check_instruction() if cases_text
-            else "- 按通用审核维度进行检查")
-        
-        return
+        prompt = pr
