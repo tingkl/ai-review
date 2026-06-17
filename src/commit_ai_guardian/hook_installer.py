@@ -530,6 +530,7 @@ fi
         'case_format': ('"default"', '案例格式化级别: default=全部(默认), compact=精简, minimal=最小'),
         'timeout': ('0', 'API 超时 (秒)'),
         'max_tokens': ('0', 'AI 最大返回长度 (token 数，支持 4K/8K 写法)'),
+        'temperature': ('0.3', 'AI 随机性 (0=最保守, 0.3=平衡, 0.7=灵活)'),
         'proxy': ('""', 'HTTP 代理地址'),
     }
     
