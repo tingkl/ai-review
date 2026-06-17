@@ -179,17 +179,30 @@ class HookInstaller:
             # force：去掉旧的，重新追加
             lines = existing.split('\n')
             new_lines = []
+            old_cag_block = []
             skip = False
             for line in lines:
                 if line.strip() == marker:
                     skip = True
+                    old_cag_block.append(line)
                     continue
                 if skip and line.startswith('# === end ') and 'commit-ai-guardian' in line:
                     skip = False
+                    old_cag_block.append(line)
+                    continue
+                if skip:
+                    old_cag_block.append(line)
                     continue
                 if not skip:
                     new_lines.append(line)
             existing = '\n'.join(new_lines).strip()
+            
+            # 生成新的命令块，和旧的比较
+            command = self._get_husky_command(marker)
+            if '\n'.join(old_cag_block).strip() == command.strip():
+                print(f"[信息] commit-ai-guardian 已是最新版本，无需更新")
+                self._init_review_dir(force=force)
+                return True
         
         # 修正 lint-staged：如果没有保存 exit code，自动补全
         # （lint-staged 简化版只有一行命令，追加其他命令后 exit code 会丢失）
@@ -197,17 +210,7 @@ class HookInstaller:
             existing = self._fix_lint_staged_if_needed(existing)
         
         # 生成要追加的命令
-        # 和无 husky 场景保持统一写法：先存 exit code，再判断
-        command = f"""
-{marker}
-commit-ai-guardian audit
-EXIT_CODE=$?
-if [ $EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
-    exit $EXIT_CODE
-fi
-# === end commit-ai-guardian ==="""
+        command = self._get_husky_command(marker)
         
         # 追加到文件末尾
         if existing:
@@ -226,6 +229,20 @@ fi
         self._init_review_dir(force=force)
         
         return True
+    
+    @staticmethod
+    def _get_husky_command(marker: str = "# === commit-ai-guardian ===") -> str:
+        """生成要追加到 husky 的命令块（用于内容比对）"""
+        return f"""
+{marker}
+commit-ai-guardian audit
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "提示: 使用 git commit --no-verify 跳过 AI 审核（不推荐）"
+    exit $EXIT_CODE
+fi
+# === end commit-ai-guardian ==="""
     
     def _fix_lint_staged_if_needed(self, content: str) -> str:
         """检测 lint-staged 是否保存了 exit code，如果没有则自动修正
@@ -298,6 +315,9 @@ fi
         # 确保 hooks 目录存在（mkdir -p 的效果）
         self.hooks_dir.mkdir(parents=True, exist_ok=True)
         
+        # 获取新脚本内容（提前读取，用于内容比对）
+        hook_script = self._get_hook_script()
+        
         # 场景：已有用户自定义 hook（不含 HOOK_MARKER）
         if self.hook_path.exists() and not self.is_hook_installed():
             if not force:
@@ -309,9 +329,15 @@ fi
             backup_path = self.hook_path.with_suffix('.backup')
             shutil.copy2(self.hook_path, backup_path)
             print(f"[信息] 原 hook 已备份到: {backup_path}")
+        elif self.hook_path.exists() and self.is_hook_installed():
+            # 是 cag 装的：内容一样就跳过，不一样才覆盖
+            existing_script = self.hook_path.read_text(encoding='utf-8')
+            if existing_script.strip() == hook_script.strip():
+                print(f"[信息] pre-commit hook 已是最新版本，无需更新")
+                self._init_review_dir(force=force)
+                return True
         
-        # 写入脚本（从模板文件读取，或返回内置默认脚本）
-        hook_script = self._get_hook_script()
+        # 写入脚本
         self.hook_path.write_text(hook_script, encoding='utf-8')
         
         # Git 要求 hook 必须有执行权限
