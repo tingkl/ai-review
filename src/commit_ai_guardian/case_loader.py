@@ -89,8 +89,8 @@ def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
     return frontmatter, body
 
 
-def extract_examples(body: str) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
-    """从 Markdown 正文中提取坏代码和好代码示例
+def extract_examples(body: str) -> Tuple[List[Dict[str, str]], List[Dict[str, str]], List[Dict[str, str]]]:
+    """从 Markdown 正文中提取坏代码、好代码和可接受代码示例
     
     匹配格式:
         ## 坏代码
@@ -99,26 +99,37 @@ def extract_examples(body: str) -> Tuple[List[Dict[str, str]], List[Dict[str, st
         ```python
         代码
         ```
-    
+        
+        ## 好代码
+        
+        ## 可接受代码（白名单）
+        
     Returns:
-        (bad_examples, good_examples)
+        (bad_examples, good_examples, acceptable_examples)
     """
     bad_examples = []
     good_examples = []
+    acceptable_examples = []
     
-    # 提取 ## 坏代码 到下一个 ## 好代码/## 检查清单 之间的内容
-    bad_match = re.search(r'##\s*坏代码.*?\n(.*?)##\s*(好代码|检查清单)', body, re.DOTALL | re.IGNORECASE)
+    # 提取 ## 坏代码 到下一个 ## 好代码/## 可接受代码/## 检查清单 之间的内容
+    bad_match = re.search(r'##\s*坏代码.*?\n(.*?)##\s*(好代码|可接受代码|检查清单)', body, re.DOTALL | re.IGNORECASE)
     if bad_match:
         bad_section = bad_match.group(1)
         bad_examples = _extract_labeled_code_blocks(bad_section)
     
-    # 提取 ## 好代码 到 ## 检查清单 之间的内容
-    good_match = re.search(r'##\s*好代码.*?\n(.*?)##\s*检查清单', body, re.DOTALL | re.IGNORECASE)
+    # 提取 ## 好代码 到下一个 ## 可接受代码/## 检查清单 之间的内容
+    good_match = re.search(r'##\s*好代码.*?\n(.*?)##\s*(可接受代码|检查清单)', body, re.DOTALL | re.IGNORECASE)
     if good_match:
         good_section = good_match.group(1)
         good_examples = _extract_labeled_code_blocks(good_section)
     
-    return bad_examples, good_examples
+    # 提取 ## 可接受代码 到 ## 检查清单 之间的内容
+    acceptable_match = re.search(r'##\s*可接受代码.*?\n(.*?)##\s*检查清单', body, re.DOTALL | re.IGNORECASE)
+    if acceptable_match:
+        acceptable_section = acceptable_match.group(1)
+        acceptable_examples = _extract_labeled_code_blocks(acceptable_section)
+    
+    return bad_examples, good_examples, acceptable_examples
 
 
 def _extract_labeled_code_blocks(section: str) -> List[Dict[str, str]]:
@@ -228,7 +239,7 @@ class CaseLoader:
                     content = f.read()
                 
                 frontmatter, body = parse_frontmatter(content)
-                bad_examples, good_examples = extract_examples(body)
+                bad_examples, good_examples, acceptable_examples = extract_examples(body)
                 check_points = extract_check_points(body)
                 
                 # 组合成旧格式的结构（兼容 AI prompt）
@@ -237,6 +248,7 @@ class CaseLoader:
                     "_source": case_file.stem,
                     "bad_examples": bad_examples,
                     "good_examples": good_examples,
+                    "acceptable_examples": acceptable_examples,
                     "check_points": check_points,
                     # 从正文中提取各部分内容
                     "description": self._extract_description(body),
@@ -368,6 +380,15 @@ class CaseLoader:
                     code = ge.get("code", "")
                     if code:
                         lines.append(f"✅ 好代码{f'({label})' if label else ''}:")
+                        lines.append(code)
+
+            # 可接受代码（白名单）—— minimal 模式去掉
+            if effective_format != "minimal":
+                for ae in case.get("acceptable_examples", []):
+                    label = ae.get("label", "")
+                    code = ae.get("code", "")
+                    if code:
+                        lines.append(f"🆗 可接受代码{f'({label})' if label else ''}（不要误报）:")
                         lines.append(code)
 
             # 原因 + 后果（仅 default 模式保留）
