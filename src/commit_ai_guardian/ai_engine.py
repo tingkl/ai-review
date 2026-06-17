@@ -1242,7 +1242,8 @@ class AIEngine:
                             },
                             "category": {
                                 "type": "string",
-                                "description": "问题类别（任意字符串，无限制）"
+                                "enum": ["Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"],
+                                "description": "问题类别"
                             },
                             "line_number": {"type": "integer", "description": "行号（单个整数）"},
                             "message": {"type": "string", "description": "问题描述（必填，不能为空）"},
