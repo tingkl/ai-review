@@ -35,7 +35,7 @@ class ResultFormatter:
     }
     SEVERITY_LABELS = {"critical": "严重", "error": "错误", "warning": "警告", "info": "提示"}
     SEVERITY_ICONS = {"critical": "🔴", "error": "🟠", "warning": "🟡", "info": "🔵"}
-    CATEGORY_ICONS = {"bug": "🐛", "security": "🔒", "style": "🎨", "performance": "⚡", "best-practice": "📋", "documentation": "📝"}
+    CATEGORY_ICONS = {"Bug检测": "🐛", "安全": "🔒", "代码风格": "🎨", "性能": "⚡", "最佳实践": "📋", "文档": "📝"}
 
     # 背景色（用于标签高亮）
     SEVERITY_BG = {

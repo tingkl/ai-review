@@ -1244,8 +1244,8 @@ class AIEngine:
                             },
                             "category": {
                                 "type": "string",
-                                "enum": ["bug", "security", "style", "performance", "best-practice", "documentation", "Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"],
-                                "description": "问题类别（支持中英文）"
+                                "enum": ["Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"],
+                                "description": "问题类别"
                             },
                             "line_number": {"type": "integer", "description": "行号（单个整数）"},
                             "message": {"type": "string", "description": "问题描述（必填，不能为空）"},
@@ -1703,16 +1703,10 @@ class AIEngine:
                         result.raw_response = raw_response
                         return result
                     
-                    # 中文 → 英文翻译（schema 支持中英文，代码统一用英文）
-                    severity_map = {
-                        '致命': 'critical', '错误': 'error', '警告': 'warning', '提示': 'info'
-                    }
-                    category_map = {
-                        'Bug检测': 'bug', '安全': 'security', '代码风格': 'style',
-                        '性能': 'performance', '最佳实践': 'best-practice', '文档': 'documentation'
-                    }
-                    severity = severity_map.get(issue_data.get('severity', 'info'), issue_data.get('severity', 'info'))
-                    category = category_map.get(issue_data.get('category', 'best-practice'), issue_data.get('category', 'best-practice'))
+                    # severity 保持英文（本来就返回英文）
+                    # category 直接用中文（schema 枚举已改为中文）
+                    severity = issue_data.get('severity', 'info')
+                    category = issue_data.get('category', '最佳实践')
                     
                     issue = ReviewIssue(
                         severity=severity,

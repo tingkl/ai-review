@@ -19,7 +19,7 @@ from .case_loader import parse_frontmatter, extract_examples, extract_check_poin
 
 
 VALID_LEVELS = {"critical", "error", "warning", "info"}
-VALID_CATEGORIES = {"安全漏洞", "bug", "style", "性能", "最佳实践", "文档"}
+VALID_CATEGORIES = {"Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"}
 
 # frontmatter 必填字段
 REQUIRED_FIELDS = ["title", "severity", "level", "category"]
