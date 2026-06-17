@@ -171,9 +171,7 @@ class ReviewIssue:
         if self.severity not in valid_severities:
             self.severity = "info"
         
-        valid_categories = ["bug", "security", "style", "performance", "best-practice", "documentation"]
-        if self.category not in valid_categories:
-            self.category = "best-practice"
+        # category 不校验，AI 返回任意字符串均可
         
         # 确保 line_number 是整数或 None
         # AI 可能返回范围格式如 "80-81"，提取第一个数字
@@ -1244,8 +1242,7 @@ class AIEngine:
                             },
                             "category": {
                                 "type": "string",
-                                "enum": ["Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"],
-                                "description": "问题类别"
+                                "description": "问题类别（任意字符串，无限制）"
                             },
                             "line_number": {"type": "integer", "description": "行号（单个整数）"},
                             "message": {"type": "string", "description": "问题描述（必填，不能为空）"},
@@ -1548,10 +1545,7 @@ class AIEngine:
             if sev and sev not in ['critical', 'error', 'warning', 'info']:
                 errors.append(f"issues[{i}].severity 值非法: '{sev}'，必须是 critical/error/warning/info 之一")
             
-            # category 枚举值
-            cat = issue.get('category')
-            if cat and cat not in ['bug', 'security', 'style', 'performance', 'best-practice', 'documentation']:
-                errors.append(f"issues[{i}].category 值非法: '{cat}'")
+            # category 不校验，任意字符串均可
             
             # line_number 类型
             ln = issue.get('line_number')
