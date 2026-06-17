@@ -1239,13 +1239,13 @@ class AIEngine:
                         "properties": {
                             "severity": {
                                 "type": "string",
-                                "enum": ["critical", "error", "warning", "info"],
-                                "description": "严重级别"
+                                "enum": ["critical", "error", "warning", "info", "致命", "错误", "警告", "提示"],
+                                "description": "严重级别（支持中英文）"
                             },
                             "category": {
                                 "type": "string",
-                                "enum": ["bug", "security", "style", "performance", "best-practice", "documentation"],
-                                "description": "问题类别"
+                                "enum": ["bug", "security", "style", "performance", "best-practice", "documentation", "Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"],
+                                "description": "问题类别（支持中英文）"
                             },
                             "line_number": {"type": "integer", "description": "行号（单个整数）"},
                             "message": {"type": "string", "description": "问题描述（必填，不能为空）"},
@@ -1703,9 +1703,20 @@ class AIEngine:
                         result.raw_response = raw_response
                         return result
                     
+                    # 中文 → 英文翻译（schema 已支持中英文，代码统一用英文）
+                    severity_map = {
+                        '致命': 'critical', '错误': 'error', '警告': 'warning', '提示': 'info'
+                    }
+                    category_map = {
+                        'Bug检测': 'bug', '安全': 'security', '代码风格': 'style',
+                        '性能': 'performance', '最佳实践': 'best-practice', '文档': 'documentation'
+                    }
+                    severity = severity_map.get(issue_data.get('severity', 'info'), issue_data.get('severity', 'info'))
+                    category = category_map.get(issue_data.get('category', 'best-practice'), issue_data.get('category', 'best-practice'))
+                    
                     issue = ReviewIssue(
-                        severity=issue_data.get('severity', 'info'),
-                        category=issue_data.get('category', 'best-practice'),
+                        severity=severity,
+                        category=category,
                         line_number=issue_data.get('line_number'),
                         message=message_val,
                         suggestion=issue_data.get('suggestion', ''),
