@@ -26,7 +26,7 @@
 ## 快速开始
 
 ```bash
-# 1. 安装
+# 1. 安装（使用 uv tool，全局 CLI 工具管理）
 uv tool install commit-ai-guardian
 
 # 2. 项目初始化
@@ -280,12 +280,16 @@ git push origin main && git push github main
 **5. 如何更新版本？**
 
 ```bash
-# 使用 uv tool 升级（推荐）
+# 使用 uv tool 升级（推荐，用户安装稳定版本）
 uv tool upgrade commit-ai-guardian
 
-# 本地开发模式（修改源码后重装）
+# 本地开发模式（修改源码后重装，需用 uv pip）
 uv pip install --reinstall -e .
 ```
+
+> **为什么有两种命令？**
+> - `uv tool install/upgrade`：安装全局 CLI 工具，自动隔离环境，适合用户（不支持 `-e` 开发模式）
+> - `uv pip install --reinstall -e .`：在项目源码上可编辑安装，修改后立即生效，适合开发者
 
 > 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
 
