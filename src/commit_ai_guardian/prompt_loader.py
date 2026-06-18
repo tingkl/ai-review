@@ -59,6 +59,10 @@ DEFAULT_SYSTEM_MESSAGE = (
     "- error: 应该修复，明确的 Bug\n"
     "- warning: 建议修复，风格或最佳实践问题\n"
     "- info: 仅供参考\n"
+    "\n"
+    "⚠️ severity 使用建议（避免过度使用 warning）：\n"
+    "  - 函数命名不够清晰、缺少注释、格式不对 → info，不要报 warning\n"
+    "  - warning 只用于有实际影响的问题（如性能下降、维护困难、潜在风险）\n"
 )
 DEFAULT_DIFF_REVIEW_TEMPLATE = """请对以下代码变更进行严格审核。
 
