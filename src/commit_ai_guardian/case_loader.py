@@ -40,6 +40,7 @@ languages: [python, java]
 没有内置默认案例！如果两个都没有，审核退化为通用规则检查。
 """
 
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
