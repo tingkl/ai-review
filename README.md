@@ -282,7 +282,16 @@ git push origin main && git push github main
 
 **5. 如何更新版本？**
 
-重新执行安装命令覆盖旧版本，或通过 PyPI 更新：`uv pip install -U commit-ai-guardian`。
+```bash
+# 方式 1: uv tool（推荐，uv 专用工具管理）
+uv tool upgrade commit-ai-guardian
+
+# 方式 2: uv pip
+uv pip install -U commit-ai-guardian
+
+# 方式 3: 本地开发模式
+uv pip install --reinstall -e .
+```
 
 > 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
 
