@@ -90,6 +90,32 @@ def uninstall(repo):
 
 
 @main.command()
+@click.option('--package-manager', type=click.Choice(['pip', 'uv']), default='uv', help='包管理器 (默认: uv)')
+def upgrade(package_manager):
+    """升级 commit-ai-guardian 到最新版本"""
+    import subprocess
+    
+    package = "commit-ai-guardian"
+    
+    if package_manager == 'uv':
+        cmd = ["uv", "pip", "install", "--upgrade", "-e", "."]
+    else:
+        cmd = ["pip", "install", "--upgrade", "-e", "."]
+    
+    click.echo(f"🔄 正在升级 {package} (使用 {package_manager})...")
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        click.echo(f"✅ 升级成功!")
+        # 显示版本信息
+        subprocess.run(["cag", "--version"], check=False)
+    except subprocess.CalledProcessError as e:
+        click.echo(f"❌ 升级失败:")
+        click.echo(e.stderr)
+        sys.exit(1)
+
+
+@main.command()
 @click.option('--repo', default='.', help='Git 仓库路径', type=click.Path(exists=True))
 @click.option('--output', type=click.Choice(['terminal', 'json']), default='terminal')
 @click.option('--config', 'config_path', help='指定配置文件路径')
