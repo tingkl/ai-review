@@ -48,7 +48,28 @@ class ResultFormatter:
     def __init__(self, config: "Config", repo_path: str = "."):
         self.config = config
         self.repo_path = os.path.abspath(repo_path)
+        self.cwd = os.path.abspath('.')
         self.console = Console()
+    
+    def _rel_filename(self, filename: str) -> str:
+        """把文件名转为相对于当前工作目录的路径（IDEA/VS Code 可点击跳转）
+        
+        例: repo_path=/project/mcn-api, cwd=/project/mcn-api, filename=mcn-api/src/a.java
+            → src/a.java
+        """
+        # filename 已经是相对于 repo_path 的，直接处理
+        # 如果 cwd 是 repo_path 的子目录或相同，去掉公共前缀
+        if filename.startswith('./'):
+            filename = filename[2:]
+        
+        # 如果 cwd 在 repo_path 内，filename 不需要调整
+        # 如果 repo_path 是 cwd 的子目录（如 cwd=/project, repo_path=/project/mcn-api）
+        # 那 filename 需要去掉 repo_path 到 cwd 的相对路径前缀
+        repo_name = os.path.basename(self.repo_path)
+        if filename.startswith(repo_name + '/'):
+            filename = filename[len(repo_name) + 1:]
+        
+        return filename
 
     # ═══════════════════════════════════════════════════════════════
     #  主入口
@@ -132,7 +153,8 @@ class ResultFormatter:
         file_header = Text()
         file_header.append_text(status_text)
         file_header.append("  ")
-        file_header.append(result.filename, style="bold white underline")
+        display_name = self._rel_filename(result.filename)
+        file_header.append(display_name, style="bold white underline")
 
         # 日志路径（绝对路径，VS Code 可点击跳转）
         if result.cache_md5:
@@ -195,10 +217,11 @@ class ResultFormatter:
             block.append(f"  {sev_icon} ", style="")
             block.append(f" {sev_label} ", style=f"bold white {sev_bg}")
             block.append(f"  {cat_icon}  ", style="")
+            display_name = self._rel_filename(result.filename)
             if issue.line_number:
-                location = f"{result.filename}:{issue.line_number}"
+                location = f"{display_name}:{issue.line_number}"
             else:
-                location = result.filename
+                location = display_name
             block.append(location, style=f"bold {sev_style} underline")
             block.append("\n", style="")
 
