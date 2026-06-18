@@ -52,9 +52,14 @@ class ResultFormatter:
         self.console = Console()
     
     def _display_filename(self, filename: str) -> str:
-        """把文件名转为相对路径（IDEA/VS Code 终端均可点击跳转）"""
+        """把文件名转为相对当前工作目录的路径（IDEA/VS Code 终端均可点击跳转）"""
         if filename.startswith('./'):
             filename = filename[2:]
+        # 去掉与 repo_path basename 重复的前缀
+        # 例: repo_path=/project/mcn-api, filename=mcn-api/src/a.java → src/a.java
+        repo_name = os.path.basename(self.repo_path)
+        if filename.startswith(repo_name + '/'):
+            filename = filename[len(repo_name) + 1:]
         return filename
 
     # ═══════════════════════════════════════════════════════════════
