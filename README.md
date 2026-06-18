@@ -27,7 +27,7 @@
 
 ```bash
 # 1. 安装
-pip install commit-ai-guardian
+uv pip install commit-ai-guardian
 
 # 2. 项目初始化
 cag install
@@ -59,8 +59,8 @@ curl -sSL https://gitlab.example.com/cag/install.sh | sh
 # 推荐：使用 uv（更快、无全局环境依赖）
 uv tool install commit-ai-guardian
 
-# 或使用 pip
-pip install commit-ai-guardian
+# 或使用 uv
+uv pip install commit-ai-guardian
 ```
 
 ---
@@ -282,7 +282,7 @@ git push origin main && git push github main
 
 **5. 如何更新版本？**
 
-重新执行安装命令覆盖旧版本，或通过 PyPI 更新：`pip install -U commit-ai-guardian`。
+重新执行安装命令覆盖旧版本，或通过 PyPI 更新：`uv pip install -U commit-ai-guardian`。
 
 > 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
 
