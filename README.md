@@ -58,9 +58,6 @@ curl -sSL https://gitlab.example.com/cag/install.sh | sh
 ```bash
 # 推荐：使用 uv（更快、无全局环境依赖）
 uv tool install commit-ai-guardian
-
-# 或使用 uv
-uv tool install commit-ai-guardian
 ```
 
 ---
@@ -286,7 +283,7 @@ git push origin main && git push github main
 # 使用 uv tool 升级（推荐）
 uv tool upgrade commit-ai-guardian
 
-# 本地开发模式
+# 本地开发模式（修改源码后重装）
 uv pip install --reinstall -e .
 ```
 
