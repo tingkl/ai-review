@@ -52,15 +52,20 @@ class ResultFormatter:
         self.console = Console()
     
     def _display_filename(self, filename: str) -> str:
-        """把文件名转为相对当前工作目录的路径（IDEA/VS Code 终端均可点击跳转）"""
+        """把文件名转为 OSC 8 超链接格式（终端可点击跳转）"""
         if filename.startswith('./'):
             filename = filename[2:]
         # 去掉与 repo_path basename 重复的前缀
-        # 例: repo_path=/project/mcn-api, filename=mcn-api/src/a.java → src/a.java
         repo_name = os.path.basename(self.repo_path)
         if filename.startswith(repo_name + '/'):
             filename = filename[len(repo_name) + 1:]
-        return filename
+        
+        # OSC 8 超链接协议: \e]8;;URL\e\\显示文本\e]8;;\e\\
+        abs_path = os.path.join(self.repo_path, filename)
+        osc8_start = "\033]8;;"
+        separator = "\033\\"
+        osc8_end = "\033]8;;\033\\"
+        return f"{osc8_start}file://{abs_path}{separator}{filename}{osc8_end}"
 
     # ═══════════════════════════════════════════════════════════════
     #  主入口
