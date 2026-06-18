@@ -2,9 +2,8 @@
 
 使用 Rich 库将 ReviewResult 列表渲染为彩色、结构化的终端输出。
 
-文件名和行号采用 VS Code 终端可识别格式：
-  相对路径:行号  → 如 src/auth.ts:145（diff 模式下是第一个变更行号）
-  VS Code 终端会自动识别为可点击链接（cmd/ctrl+click 跳转）
+文件名统一使用相对路径格式（去掉 ./ 前缀和仓库名重复前缀），
+方便在终端中阅读和在 IDE 中手动定位。
 """
 
 import os
@@ -52,20 +51,14 @@ class ResultFormatter:
         self.console = Console()
     
     def _display_filename(self, filename: str) -> str:
-        """把文件名转为 OSC 8 超链接格式（终端可点击跳转）"""
+        """清理文件名：统一为相对路径（去掉 ./ 前缀和仓库名重复前缀）"""
         if filename.startswith('./'):
             filename = filename[2:]
         # 去掉与 repo_path basename 重复的前缀
         repo_name = os.path.basename(self.repo_path)
         if filename.startswith(repo_name + '/'):
             filename = filename[len(repo_name) + 1:]
-        
-        # OSC 8 超链接协议: \e]8;;URL\e\\显示文本\e]8;;\e\\
-        abs_path = os.path.join(self.repo_path, filename)
-        osc8_start = "\033]8;;"
-        separator = "\033\\"
-        osc8_end = "\033]8;;\033\\"
-        return f"{osc8_start}file://{abs_path}{separator}{filename}{osc8_end}"
+        return filename
 
     # ═══════════════════════════════════════════════════════════════
     #  主入口
