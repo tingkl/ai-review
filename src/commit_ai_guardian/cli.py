@@ -524,7 +524,7 @@ def debug_log(log_file, filename, repo):
     """
     log_path = Path(log_file)
     if not log_path.exists():
-        click.echo(f"❌ 文件不存在: {log_path}")
+        click.echo(f"❌ 文件不存在: {os.path.relpath(log_path) if log_path.is_absolute() else log_file}")
         sys.exit(1)
 
     log_name = log_path.name
@@ -549,7 +549,7 @@ def _debug_ai_log(log_path, filename, repo):
     """调试主审核 AI 响应日志（内部函数）"""
     try:
         log_content = log_path.read_text(encoding='utf-8')
-        click.echo(f"📄 日志文件: {log_path.absolute()}")
+        click.echo(f"📄 日志文件: {os.path.relpath(log_path)}")
         click.echo(f"📄 文件大小: {len(log_content)} 字符\n")
 
         # 从 ai.log header 中提取文件名（如未指定 --filename）
@@ -591,7 +591,7 @@ def _debug_ai_log(log_path, filename, repo):
 def _debug_json_fix_log(log_path):
     """调试 JSON 修复 AI 响应日志（内部函数）"""
     import json
-    click.echo(f"📄 读取: {log_path}\n")
+    click.echo(f"📄 读取: {os.path.relpath(log_path)}\n")
     content = log_path.read_text(encoding='utf-8')
 
     # 分割出每次尝试

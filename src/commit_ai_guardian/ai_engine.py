@@ -499,7 +499,7 @@ class AIEngine:
                 cached.cache_md5 = cache_key[:7]
                 print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                 cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                print(f"  {cache_path}")
+                print(f"  {os.path.relpath(cache_path)}")
                 return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
@@ -783,7 +783,7 @@ class AIEngine:
                     print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                     if cache_key:
                         cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                        print(f"  {cache_path}")
+                        print(f"  {os.path.relpath(cache_path)}")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
         if cache_miss_indices:
@@ -1793,14 +1793,14 @@ class AIEngine:
                 else:
                     print(f"[警告] AI 修复 JSON 失败")
 
-            # 打印日志路径（帮助定位问题）
+            # 打印日志路径（帮助定位问题，用相对路径）
             md5_short = cache_md5[:7] if cache_md5 else "unknown"
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{md5_short}.json"
             ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.ai.log"
             json_fix_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.json_fix.log"
-            print(f"    {cache_path}")
-            print(f"    {ai_log}")
-            print(f"    {json_fix_log}")
+            print(f"    {os.path.relpath(cache_path)}")
+            print(f"    {os.path.relpath(ai_log)}")
+            print(f"    {os.path.relpath(json_fix_log)}")
 
         # ===== 阶段3: 确保必要字段存在 =====
         # 默认 passed=False（绝对阻断），只有在明确通过时才设为 True
@@ -1846,7 +1846,7 @@ class AIEngine:
                 cached.cache_md5 = content_md5[:7]
                 print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                 cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
-                print(f"  {cache_path}")
+                print(f"  {os.path.relpath(cache_path)}")
                 return cached
         
         prompt = self._build_full_file_prompt(source_file, content_md5[:7])
@@ -1971,7 +1971,7 @@ class AIEngine:
                     print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
                     if cache_key:
                         cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
-                        print(f"  {cache_path}")
+                        print(f"  {os.path.relpath(cache_path)}")
         
         # ===== 第二阶段：并发调 AI =====
         if cache_miss_indices:
