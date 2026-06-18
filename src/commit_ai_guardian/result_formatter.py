@@ -150,9 +150,9 @@ class ResultFormatter:
         # 日志路径（绝对路径，VS Code 可点击跳转）
         if result.cache_md5:
             name = result.cache_md5[:7]
-            cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{name}.json"
-            ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{name}.ai.log"
-            prompt_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{name}.prompt.log"
+            cache_path = os.path.relpath(Path(self.repo_path) / ".ai-review" / "cache" / f"{name}.json")
+            ai_log = os.path.relpath(Path(self.repo_path) / ".ai-review" / "logs" / f"{name}.ai.log")
+            prompt_log = os.path.relpath(Path(self.repo_path) / ".ai-review" / "logs" / f"{name}.prompt.log")
             file_header.append("\n  ")
             file_header.append(f"{cache_path}", style="dim cyan")
             file_header.append("  ")

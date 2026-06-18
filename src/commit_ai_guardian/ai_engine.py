@@ -1089,10 +1089,14 @@ class AIEngine:
             from datetime import datetime
             sep_line = "=" * 60
 
+            display_name = filename
+            repo_name = os.path.basename(self.repo_path)
+            if display_name.startswith(repo_name + '/'):
+                display_name = display_name[len(repo_name) + 1:]
             parts = [
                 f"# ================================================\n"
                 f"# AI Response Log\n"
-                f"# 文件: {filename}\n"
+                f"# 文件: {display_name}\n"
                 f"# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 f"# ================================================\n"
             ]
@@ -1479,10 +1483,14 @@ class AIEngine:
             from datetime import datetime
             sep_line = "=" * 60
 
+            display_name = filename
+            repo_name = os.path.basename(self.repo_path)
+            if display_name.startswith(repo_name + '/'):
+                display_name = display_name[len(repo_name) + 1:]
             parts = [
                 f"# ================================================\n"
                 f"# JSON Fix Log\n"
-                f"# 文件: {filename}\n"
+                f"# 文件: {display_name}\n"
                 f"# MD5: {name}\n"
                 f"# 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 f"# ================================================\n"
