@@ -495,7 +495,7 @@ fi
                 )
             
             # 复制示例案例文件到 cases/（按语言子目录组织）
-            examples_source = Path(__file__).parent / "templates" / "case-examples"
+            examples_source = Path(__file__).parent / "templates" / "examples"
             copied = 0
             if examples_source.exists():
                 for example_file in sorted(examples_source.rglob("*.md")):
