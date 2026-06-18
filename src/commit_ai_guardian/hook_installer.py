@@ -494,12 +494,15 @@ fi
                     encoding='utf-8'
                 )
             
-            # 复制示例案例文件到 example/（Markdown 格式，.md）
+            # 复制示例案例文件到 cases/（按语言子目录组织）
             examples_source = Path(__file__).parent / "templates" / "case-examples"
             copied = 0
             if examples_source.exists():
-                for example_file in sorted(examples_source.glob("*.md")):
-                    target = example_dir / example_file.name
+                for example_file in sorted(examples_source.rglob("*.md")):
+                    # 保持子目录结构：cases/js/xxx.md
+                    rel_path = example_file.relative_to(examples_source)
+                    target = example_dir / rel_path
+                    target.parent.mkdir(parents=True, exist_ok=True)
                     if not target.exists():
                         import shutil
                         shutil.copy2(example_file, target)
