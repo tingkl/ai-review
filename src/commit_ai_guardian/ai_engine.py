@@ -313,6 +313,15 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.raw_response = response
         return result
 
+    # 检查顶层必需字段
+    _REQUIRED_TOP_FIELDS = {'summary', 'passed', 'issues'}
+    missing_top = _REQUIRED_TOP_FIELDS - set(data.keys())
+    if missing_top:
+        result.summary = f"JSON 字段缺失: 缺少顶层必填字段: {', '.join(sorted(missing_top))}"
+        result.passed = False
+        result.raw_response = response
+        return result
+
     # 提取各字段
     result.summary = data.get('summary', '审核完成')
     result.passed = bool(data.get('passed', True))
