@@ -101,14 +101,17 @@ class Config:
         except TypeError:
             self.temperature = 0.3
     
-    def merge(self, other: 'Config') -> 'Config':
+    def merge(self, other: 'Config', explicit_fields: set = None) -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置
         
         用于：项目配置覆盖全局配置。
-        other 中非空/非默认的字段会覆盖 self 中的对应字段。
+        只有 explicit_fields 中列出的字段才会覆盖，避免缺失字段的默认值
+        错误覆盖全局配置。
         
         Args:
             other: 另一个 Config 对象（项目配置）
+            explicit_fields: 用户明确配置的字段名集合（从 YAML 实际读取的字段）
+                             为 None 时回退到旧行为（全部比较）
             
         Returns:
             新的 Config 对象（合并后的结果）
@@ -121,6 +124,10 @@ class Config:
         # 未配置 = None / "" / [] / 0（数值型字段的 0 视为未配置）
         # False 是有效配置（enabled=false），不能跳过
         for key, value in other_dict.items():
+            # 如果提供了 explicit_fields，只覆盖明确配置的字段
+            if explicit_fields is not None and key not in explicit_fields:
+                continue
+            
             if value is not None and value != "" and value != []:
                 # 数值型字段（max_file_size, timeout, max_tokens）：0 视为未配置
                 if key in ("max_file_size", "timeout", "max_tokens") and value == 0:
@@ -210,14 +217,15 @@ class ConfigManager:
         """获取项目配置文件路径（可能为 None）"""
         return str(self.project_path) if self.project_path else None
     
-    def _load_single(self, path: Path) -> Optional[Config]:
+    def _load_single(self, path: Path) -> Optional[tuple[Config, set]]:
         """从单个文件加载配置
         
         Args:
             path: 配置文件路径
             
         Returns:
-            Config 对象，或 None（文件不存在或解析失败）
+            (Config 对象, 明确配置的字段名集合)，或 None（文件不存在或解析失败）
+            字段名集合 = YAML 中实际存在的合法字段，用于 merge() 区分"用户配置"和"默认值"
         """
         if not path.exists():
             return None
@@ -230,11 +238,14 @@ class ConfigManager:
             valid_fields = {f.name for f in fields(Config)}
             filtered_data = {k: v for k, v in data.items() if k in valid_fields}
             
+            # 记录用户明确配置的字段（YAML 中实际存在的合法字段）
+            explicit_fields = set(filtered_data.keys())
+            
             # 处理 max_tokens 单位写法：4K = 4096, 8K = 8192
             if 'max_tokens' in filtered_data and isinstance(filtered_data['max_tokens'], str):
                 filtered_data['max_tokens'] = _parse_token_size(filtered_data['max_tokens'])
             
-            return Config(**filtered_data)
+            return Config(**filtered_data), explicit_fields
         except Exception:
             return None
     
@@ -244,31 +255,36 @@ class ConfigManager:
         逻辑：
         1. 加载全局配置（不存在则创建默认）
         2. 如果指定了 repo_path，加载项目配置
-        3. 项目配置非空字段覆盖全局配置
+        3. 项目配置非空字段覆盖全局配置（只覆盖 YAML 中明确配置的字段）
         4. 返回合并后的配置
         
         Returns:
             Config 对象（合并后的最终配置）
         """
         # 1. 加载全局配置
-        global_config = self._load_single(self.global_path)
-        if global_config is None:
+        global_result = self._load_single(self.global_path)
+        if global_result is None:
             # 全局配置不存在，创建默认的
             global_config = Config()
             self.save(global_config, level="global")
+            global_explicit = set()
+        else:
+            global_config, global_explicit = global_result
         
         # 2. 如果没有项目路径，直接返回全局配置
         if not self.project_path:
             return global_config
         
         # 3. 加载项目配置
-        project_config = self._load_single(self.project_path)
-        if project_config is None:
+        project_result = self._load_single(self.project_path)
+        if project_result is None:
             # 项目配置不存在，只用全局配置
             return global_config
         
-        # 4. 合并：项目配置覆盖全局配置
-        merged = global_config.merge(project_config)
+        project_config, project_explicit = project_result
+        
+        # 4. 合并：项目配置覆盖全局配置（只覆盖明确配置的字段）
+        merged = global_config.merge(project_config, explicit_fields=project_explicit)
         
         return merged
     
