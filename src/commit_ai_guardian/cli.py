@@ -474,6 +474,7 @@ def status(repo):
                 click.echo(f"          (创建 .ai-review/config.yaml 可覆盖全局配置)")
         
         click.echo()
+        click.echo(f"  - 审核开关: {'已启用 ✅' if config.enabled else '已禁用 ⚠️'}")
         click.echo(f"  - API Key: {'已配置 ✅' if config.api_key else '未配置 ❌'}")
         click.echo(f"  - API Base: {config.api_base}")
         click.echo(f"  - Model: {config.model}")
@@ -481,11 +482,15 @@ def status(repo):
         click.echo(f"  - Severity Threshold: {config.severity_threshold}")
         click.echo(f"  - Diff Mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
         click.echo(f"  - Max File Size: {config.max_file_size} KB")
+        click.echo(f"  - Cache: {'启用' if config.use_cache else '禁用'}")
         click.echo(f"  - Cache TTL: {config.cache_ttl}")
         click.echo(f"  - Log TTL: {config.log_ttl}")
         click.echo(f"  - Timeout: {config.timeout} 秒")
         click.echo(f"  - Max Tokens: {config.max_tokens}")
         click.echo(f"  - Temperature: {config.temperature} (0=保守, 0.3=平衡, 0.7=灵活)")
+        click.echo(f"  - Case Format: {config.case_format}")
+        click.echo(f"  - Include Patterns: {config.include_patterns or ['*']}")
+        click.echo(f"  - Ignore Patterns: {config.ignore_patterns or '无'}")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
         
         click.echo()
