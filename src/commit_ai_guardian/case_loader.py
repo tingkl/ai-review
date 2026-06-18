@@ -218,7 +218,8 @@ class CaseLoader:
         if self.cases_dir is None:
             print("[信息] 未找到案例库（运行 'commit-ai-guardian install' 初始化）")
         else:
-            print(f"[信息] 使用项目案例: {self.cases_dir}")
+            import os
+            print(f"[信息] 使用项目案例: {os.path.relpath(self.cases_dir)}")
     
     def load_all(self) -> List[Dict[str, Any]]:
         """加载所有案例文件（.md 格式）"""

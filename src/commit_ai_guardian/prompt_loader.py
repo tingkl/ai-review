@@ -205,7 +205,8 @@ class PromptLoader:
                     path_str = str(file_path)
                     if path_str not in PromptLoader._printed:
                         PromptLoader._printed.add(path_str)
-                        print(f"[信息] 加载 prompt 模板: {file_path}")
+                        import os
+                        print(f"[信息] 加载 prompt 模板: {os.path.relpath(file_path)}")
                     return content
                 except Exception as e:
                     print(f"[警告] 读取模板 {file_path} 失败: {e}，使用内置默认")
