@@ -27,7 +27,7 @@
 
 ```bash
 # 1. 安装
-uv pip install commit-ai-guardian
+uv tool install commit-ai-guardian
 
 # 2. 项目初始化
 cag install
@@ -60,7 +60,7 @@ curl -sSL https://gitlab.example.com/cag/install.sh | sh
 uv tool install commit-ai-guardian
 
 # 或使用 uv
-uv pip install commit-ai-guardian
+uv tool install commit-ai-guardian
 ```
 
 ---
@@ -283,13 +283,10 @@ git push origin main && git push github main
 **5. 如何更新版本？**
 
 ```bash
-# 方式 1: uv tool（推荐，uv 专用工具管理）
+# 使用 uv tool 升级（推荐）
 uv tool upgrade commit-ai-guardian
 
-# 方式 2: uv pip
-uv pip install -U commit-ai-guardian
-
-# 方式 3: 本地开发模式
+# 本地开发模式
 uv pip install --reinstall -e .
 ```
 
