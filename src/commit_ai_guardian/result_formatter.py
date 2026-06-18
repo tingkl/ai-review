@@ -52,10 +52,12 @@ class ResultFormatter:
         self.console = Console()
     
     def _display_filename(self, filename: str) -> str:
-        """把文件名转为绝对路径（IDEA/VS Code 终端均可点击跳转）"""
+        """把文件名转为 file:// 绝对路径（IDEA/VS Code 终端均可点击跳转）"""
         if filename.startswith('./'):
             filename = filename[2:]
-        return os.path.join(self.repo_path, filename)
+        abs_path = os.path.join(self.repo_path, filename)
+        # file:// 协议让 IDEA/VS Code 终端更可靠地识别为可点击链接
+        return f"file://{abs_path}"
 
     # ═══════════════════════════════════════════════════════════════
     #  主入口
