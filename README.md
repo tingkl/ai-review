@@ -197,6 +197,7 @@ cag status
 | 命令 | 说明 |
 |------|------|
 | `cag install` | 在当前 Git 仓库安装 pre-commit 钩子 |
+| `cag install --force` | 强制覆盖安装（已存在 hook 时备份后覆盖） |
 | `cag uninstall` | 卸载当前仓库的 pre-commit 钩子 |
 | `cag audit` | 手动触发全量代码审查 |
 | `cag review` | 审查当前暂存区的变更 |
@@ -204,6 +205,7 @@ cag status
 | `cag status` | 查看当前配置与运行状态 |
 | `cag validate-cases` | 验证 `.ai-review/cases/` 下的案例格式 |
 | `cag debug-log` | 查看最近一次审查的详细日志 |
+| `cag upgrade` | 升级到最新版本（`uv tool upgrade` 封装） |
 
 ---
 
