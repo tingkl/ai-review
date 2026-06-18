@@ -481,7 +481,7 @@ fi
             # 创建 cache/（审核结果缓存，MD5 → 结果）
             cache_dir.mkdir(parents=True, exist_ok=True)
             
-            # 创建 logs/（审核日志目录：{filename}.prompt.log / {filename}.ai.log）
+            # 创建 logs/（审核日志目录：{md5}.ai.log / {md5}.json_fix.log）
             logs_dir.mkdir(parents=True, exist_ok=True)
             
             # 创建 .ai-review/.gitignore（忽略自动生成的 cache/ 和 logs/）
