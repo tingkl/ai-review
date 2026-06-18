@@ -498,7 +498,7 @@ class AIEngine:
             if cached:
                 cached.filename = filename
                 cached.cache_md5 = cache_key[:7]
-                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
                 cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
                 print(f"  {os.path.relpath(cache_path)}")
                 return cached
@@ -781,7 +781,7 @@ class AIEngine:
                 for idx in cache_hit_indices:
                     filename = getattr(file_diffs[idx], 'filename', 'unknown')
                     cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
-                    print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                    print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
                     if cache_key:
                         cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
                         print(f"  {os.path.relpath(cache_path)}")
@@ -1853,7 +1853,7 @@ class AIEngine:
             if cached:
                 cached.filename = filename
                 cached.cache_md5 = content_md5[:7]
-                print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
                 cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
                 print(f"  {os.path.relpath(cache_path)}")
                 return cached
@@ -1977,7 +1977,7 @@ class AIEngine:
                 for idx in cache_hit_indices:
                     filename = getattr(source_files[idx], 'filename', 'unknown')
                     cache_key = self._get_cache_key_for_source(source_files[idx]) or ""
-                    print(f"[信息] 缓存命中: {filename}，跳过 AI 审核")
+                    print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
                     if cache_key:
                         cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
                         print(f"  {os.path.relpath(cache_path)}")
