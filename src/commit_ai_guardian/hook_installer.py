@@ -462,7 +462,7 @@ fi
         # 创建 .ai-review/ 下的目录结构
         review_dir = self.repo_path / ".ai-review"
         cases_dir = review_dir / "cases"      # ← 用户把需要启用的案例放这里
-        example_dir = review_dir / "example"  # ← 工具自带的示例模板放这里
+        example_dir = review_dir / "examples"  # ← 工具自带的示例模板放这里
         prompts_dir = review_dir / "prompts"  # ← prompt 模板（用户可以自定义审核行为）
         cache_dir = review_dir / "cache"      # ← 审核结果缓存（MD5 → 结果）
         logs_dir = review_dir / "logs"        # ← 审核日志（prompt/ai 响应）
@@ -471,7 +471,7 @@ fi
             # 创建 cases/（空目录，用户自己添加案例）
             cases_dir.mkdir(parents=True, exist_ok=True)
             
-            # 创建 example/（放示例模板，不参与审核）
+            # 创建 examples/（放示例模板，不参与审核）
             is_new_example = not example_dir.exists()
             example_dir.mkdir(parents=True, exist_ok=True)
             
@@ -552,8 +552,8 @@ fi
             if is_new_example:
                 print(f"\n[信息] 案例目录已初始化: {review_dir}")
                 if copied > 0:
-                    print(f"        {copied} 个示例模板已放到 example/（不参与审核）")
-                print(f"        启用案例: 从 example/ 复制 .yaml 文件到 cases/")
+                    print(f"        {copied} 个示例模板已放到 examples/（不参与审核）")
+                print(f"        启用案例: 从 examples/ 复制 .yaml 文件到 cases/")
                 print(f"        共享给团队: git add .ai-review/ && git commit")
             return True
             
