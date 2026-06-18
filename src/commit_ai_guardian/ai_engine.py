@@ -405,6 +405,13 @@ class AIEngine:
             timeout_val = 60
         http_kwargs["timeout"] = httpx.Timeout(timeout_val)
         
+        # 调试模式：打印 API 配置（不脱敏 key，方便排查 401）
+        import os
+        if os.environ.get('CAG_DEBUG'):
+            print(f"[DEBUG] api_base: {getattr(config, 'api_base', 'default')}")
+            print(f"[DEBUG] api_key: {config.api_key[:15]}...{config.api_key[-4:]}")
+            print(f"[DEBUG] model: {getattr(config, 'model', 'default')}")
+        
         # 初始化 OpenAI 客户端（兼容第三方 API：Azure、Gemini、本地部署等）
         try:
             self.client = openai.OpenAI(
