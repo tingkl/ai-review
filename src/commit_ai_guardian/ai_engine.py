@@ -1612,18 +1612,13 @@ class AIEngine:
         model = getattr(self.config, 'model', 'gpt-4o-mini')
         max_tokens = getattr(self.config, 'max_tokens', 4096)
 
-        # 截断过长的 JSON 避免超出 token 限制
-        truncated = broken_json
-        if len(broken_json) > 6000:
-            truncated = broken_json[:6000] + '...（已截断）'
-
         # 根据模型名称获取禁用 think 的额外参数
         extra_params = self._get_disable_thinking_params(model)
         
         # 从模板加载 system message 和 user prompt
         system_msg = self.prompt_loader.load_json_fix_system_message()
         template = self.prompt_loader.load_json_fix_template()
-        fix_prompt = PromptLoader.render(template, filename=filename, broken_json=truncated)
+        fix_prompt = PromptLoader.render(template, filename=filename, broken_json=broken_json)
 
         # 记录上次修复的错误反馈，用于下次修复时告诉 AI 哪里错了
         last_error = ""
