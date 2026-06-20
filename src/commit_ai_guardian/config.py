@@ -55,7 +55,7 @@ class Config:
         "*.ear", "*.egg", "*.whl", "*.parquet", "*.pkl",
         "*.pickle", "*.model", "*.bin", "*.onnx", "*.pb",
     ])
-    case_format: str = "default"            # 案例格式化级别: default=全部, compact=精简, minimal=最小
+    case_format: str = "compact"            # 案例格式化级别: default=全部, compact=精简(默认), minimal=最小
     timeout: int = 60                        # API 超时（秒）
     max_tokens: int = 8192                   # AI 最大返回长度（token 数）
     temperature: float = 0.3                 # AI 随机性 (0=最确定, 1=最随机, 2=最大)
@@ -101,6 +101,10 @@ class Config:
                 self.temperature = 2.0
         except TypeError:
             self.temperature = 0.3
+        # case_format 校验
+        if self.case_format not in ("default", "compact", "minimal"):
+            self.case_format = "compact"
+        
         # json_fix_history_mode 校验
         if self.json_fix_history_mode not in ("full", "last"):
             self.json_fix_history_mode = "full"

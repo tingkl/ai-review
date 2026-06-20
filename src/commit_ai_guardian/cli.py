@@ -431,6 +431,19 @@ def configure(config_path):
         from .config import _parse_token_size
         config.max_tokens = _parse_token_size(max_tokens_input)
     
+    # Case Format
+    click.echo("")
+    click.echo("  案例格式化级别说明：")
+    click.echo("    default = 案例全部内容注入 prompt（内容多，详细）")
+    click.echo("    compact = 精简格式：只保留检查清单和关键代码（推荐，平衡）")
+    click.echo("    minimal = 最小格式：只保留检查清单（内容最少）")
+    click.echo("")
+    config.case_format = click.prompt(
+        "  案例格式化级别",
+        default=config.case_format,
+        type=click.Choice(["default", "compact", "minimal"], case_sensitive=False)
+    )
+    
     # Temperature
     click.echo("")
     click.echo("  Temperature 说明：")
