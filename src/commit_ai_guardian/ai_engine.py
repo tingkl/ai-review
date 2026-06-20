@@ -1602,27 +1602,19 @@ class AIEngine:
         template = self.prompt_loader.load_json_fix_template()
         fix_prompt = PromptLoader.render(template, filename=filename, broken_json=broken_json)
 
-        # 记录上次修复的结果和错误反馈，用于下次修复时告诉 AI 哪里错了
-        last_error = ""
-        last_fixed_json = ""  # 上次修复 AI 返回的 JSON 结果
+        # 累积每次修复的对话历史（assistant json + user error），用于后续 attempt
+        attempt_history = []  # 每次失败追加 [assistant(json), user(error)]
 
         all_attempts_log = []  # 收集所有尝试的日志
         
         for attempt in range(3):
             try:
-                # 构造 messages，如果有上次错误则追加反馈
+                # 构造 messages：system + 原始修复请求 + 累积的历史对话
                 messages = [
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": fix_prompt},
+                    *attempt_history,  # 前面失败的完整 attempt 记录
                 ]
-                if last_error:
-                    # assistant 返回上次修复的 JSON，user 给出错误反馈
-                    if last_fixed_json:
-                        messages.append({"role": "assistant", "content": last_fixed_json})
-                    messages.append({"role": "user", "content": (
-                        f"以上修复结果不满足 schema 要求，具体错误：\n{last_error}\n"
-                        f"\n请根据以上错误修正 JSON，确保满足 schema 约束。"
-                    )})
 
                 resp = self._call_api_safe(
                     model=model,
@@ -1654,15 +1646,22 @@ class AIEngine:
                                              "\n\n".join(all_attempts_log))
                     return fixed_json  # 校验通过，返回修复后的 JSON
 
-                # 校验失败，收集错误信息和修复结果给下次修复
-                last_error = "\n".join(schema_errors)
-                last_fixed_json = fixed_json  # 记录本次修复的 JSON，下次带上下文
+                # 校验失败，把本次结果追加到对话历史，后续 attempt 能看到完整过程
+                error_msg = "\n".join(schema_errors)
                 print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{schema_errors[0]}")
+                attempt_history.append({"role": "assistant", "content": fixed_json})
+                attempt_history.append({"role": "user", "content": (
+                    f"以上修复结果不满足 schema 要求，具体错误：\n{error_msg}\n"
+                    f"\n请根据以上错误修正 JSON，确保满足 schema 约束。"
+                )})
 
             except Exception as e:
-                last_error = f"处理异常: {e}"
-                last_fixed_json = ""
+                error_msg = f"处理异常: {e}"
                 all_attempts_log.append(f"--- 尝试 {attempt + 1}（异常）---\n{str(e)}")
+                attempt_history.append({"role": "user", "content": (
+                    f"修复处理异常：{error_msg}\n"
+                    f"\n请重新修正 JSON，确保满足 schema 约束。"
+                )})
                 continue
 
         # 所有尝试都失败了，仍然写入日志（方便查看定位）
