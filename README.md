@@ -91,6 +91,7 @@ uv tool upgrade commit-ai-guardian
 | 网络要求 | 内网 SSH 访问 | 公网访问 |
 | 代码版本 | 最新 main 分支 | 发布的稳定版 |
 | 适用对象 | 内部开发者 | 外部用户/生产环境 |
+| 升级命令 | `uv tool upgrade commit-ai-guardian` ✅ | `uv tool upgrade commit-ai-guardian` |
 | 当前状态 | ✅ 可用 | ⏳ 待发布 |
 
 ---
@@ -317,13 +318,20 @@ git push origin main && git push github main
 
 **当前（Git SSH 方式）**：
 ```bash
-# 升级到最新 main 分支
+# 以下两种方式都可以升级（uv 内部记录了 Git 来源）
+uv tool upgrade commit-ai-guardian
+# 或
 uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+
+# 也可以直接使用封装命令
+cag upgrade
 ```
 
 **发布后（PyPI 方式）**：
 ```bash
 uv tool upgrade commit-ai-guardian
+# 或
+cag upgrade
 ```
 
 **本地开发模式（修改源码后重装）**：
@@ -331,9 +339,9 @@ uv tool upgrade commit-ai-guardian
 uv pip install --reinstall -e .
 ```
 
-> **三种命令的区别**：
-> - `uv tool upgrade git+ssh://...`：跟踪 main 分支最新源码（当前推荐）
-> - `uv tool upgrade commit-ai-guardian`：升级到 PyPI 最新稳定版（发布后使用）
+> **命令说明**：
+> - `uv tool upgrade commit-ai-guardian`：升级已安装的工具（自动追踪 Git 或 PyPI 来源）
+> - `cag upgrade`：同上，内部封装了 `uv tool upgrade commit-ai-guardian`
 > - `uv pip install --reinstall -e .`：在项目源码上可编辑安装，修改后立即生效，适合开发者
 
 > 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
