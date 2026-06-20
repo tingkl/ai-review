@@ -12,8 +12,7 @@
 
 ## 目录
 
-- [快速开始](#快速开始)
-- [安装](#安装)
+- [安装与升级](#安装与升级)
 - [项目初始化](#项目初始化)
 - [配置](#配置)
 - [命令参考](#命令参考)
@@ -23,81 +22,60 @@
 
 ---
 
-## 快速开始
+## 安装与升级
 
-### 方式一：从 GitLab 安装（推荐，公司内部）
+### 安装
+
+#### 从 GitLab 安装（推荐，公司内部）
 
 ```bash
-# 1. 安装
 uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
-
-# 2. 项目初始化
-cag install
-
-# 3. 正常提交，AI 自动审查
-git commit -m "feat: add new feature"
 ```
 
-### 方式二：从 GitHub 安装（Node.js 版本）
+#### 从 GitHub 安装（Python 版本）
 
 ```bash
-# 1. 安装
-npm install -g ai-review-nodejs
-
-# 2. 项目初始化
-ai-review install
-
-# 3. 正常提交，AI 自动审查
-git commit -m "feat: add new feature"
+uv tool install git+https://github.com/tingkl/ai-review.git
 ```
 
-### 方式三：从 PyPI 安装（暂未发布）
+#### 从 PyPI 安装（暂未发布）
 
 > ⏳ **尚未发布到 PyPI**，发布后可用：
 
 ```bash
-# 1. 安装
 uv tool install commit-ai-guardian
-
-# 2. 项目初始化
-cag install
-
-# 3. 正常提交，AI 自动审查
-git commit -m "feat: add new feature"
 ```
 
----
+### 三种方式对比
 
-## 安装
+| | GitLab | GitHub | PyPI |
+|---|---|---|---|
+| 安装源 | 内部 GitLab | 公开 GitHub | 公开包仓库 |
+| 协议 | SSH | HTTPS | HTTPS |
+| 代码版本 | 最新 main 分支 | 最新 main 分支 | 发布的稳定版 |
+| 适用场景 | 公司内部开发 | 外部开发者贡献 | 生产环境用户 |
+| 当前状态 | ✅ 可用 | ✅ 可用 | ⏳ 待发布 |
 
-> **当前状态**：尚未发布到 PyPI，请通过 Git SSH 方式安装。PyPI 方式将在正式发布后启用。
+### 升级
 
-### 方式一：Git SSH（当前推荐，源码安装）
-
-从内部 GitLab 仓库直接安装最新源码：
+无论通过哪种方式安装，升级命令都相同（uv 内部自动追踪安装来源）：
 
 ```bash
-uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+# 方式一：使用 uv（推荐）
+uv tool upgrade commit-ai-guardian
+
+# 方式二：使用封装命令
+# cag upgrade
+
+# 方式三：使用完整 Git URL（GitLab 安装时）
+# uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
 ```
 
-**适用场景**：
-- 公司内部使用，代码在私有 GitLab 上
-- 需要最新功能（跟踪 main 分支最新提交）
-- 开发者刚提交了新代码，想立即测试
-
-**特点**：
-- 每次安装/升级都是最新的 main 分支
-- 需要配置 SSH key 访问 `124.223.189.152:7022`
-- 升级命令：
-  ```bash
-  uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
-  ```
-
-### 方式二：PyPI（暂未发布）
+**本地开发模式**（修改源码后重装）：
 
 ```bash
-# 推荐：使用 uv（更快、无全局环境依赖）
-uv tool install commit-ai-guardian
+uv pip install --reinstall -e .
+```
 
 # 升级
 uv tool upgrade commit-ai-guardian
@@ -112,17 +90,6 @@ uv tool upgrade commit-ai-guardian
 - 从 PyPI 下载预发布的稳定版本
 - 不需要 SSH key，公开网络可安装
 - 版本固定，升级可控
-
-### 两种方式对比
-
-| | Git SSH | PyPI |
-|---|---|---|
-| 安装源 | 内部 GitLab 源码 | 公开包仓库 |
-| 网络要求 | 内网 SSH 访问 | 公网访问 |
-| 代码版本 | 最新 main 分支 | 发布的稳定版 |
-| 适用对象 | 内部开发者 | 外部用户/生产环境 |
-| 升级命令 | `uv tool upgrade commit-ai-guardian` ✅ | `uv tool upgrade commit-ai-guardian` |
-| 当前状态 | ✅ 可用 | ⏳ 待发布 |
 
 ---
 
@@ -346,32 +313,19 @@ git push origin main && git push github main
 
 **5. 如何更新版本？**
 
-**当前（Git SSH 方式）**：
 ```bash
-# 以下两种方式都可以升级（uv 内部记录了 Git 来源）
-uv tool upgrade commit-ai-guardian
-# 或
-uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
-
-# 也可以直接使用封装命令
-cag upgrade
-```
-
-**发布后（PyPI 方式）**：
-```bash
+# 升级（uv 自动追踪安装来源，GitLab/GitHub/PyPI 都支持）
 uv tool upgrade commit-ai-guardian
 # 或
 cag upgrade
-```
 
-**本地开发模式（修改源码后重装）**：
-```bash
+# 本地开发模式（修改源码后重装）
 uv pip install --reinstall -e .
 ```
 
 > **命令说明**：
-> - `uv tool upgrade commit-ai-guardian`：升级已安装的工具（自动追踪 Git 或 PyPI 来源）
-> - `cag upgrade`：同上，内部封装了 `uv tool upgrade commit-ai-guardian`
+> - `uv tool upgrade commit-ai-guardian`：升级已安装的工具（uv 内部记录 Git 或 PyPI 来源）
+> - `cag upgrade`：同上，封装命令
 > - `uv pip install --reinstall -e .`：在项目源码上可编辑安装，修改后立即生效，适合开发者
 
 > 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
