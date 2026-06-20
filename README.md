@@ -29,16 +29,8 @@
 
 #### 从 PyPI 安装（推荐）
 
-**使用 uv（推荐，速度快）：**
-
 ```bash
 uv tool install commit-ai-guardian
-```
-
-**使用 pip：**
-
-```bash
-pip install commit-ai-guardian
 ```
 
 #### 从 GitHub 安装
