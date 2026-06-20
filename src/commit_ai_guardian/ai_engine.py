@@ -1602,8 +1602,9 @@ class AIEngine:
         template = self.prompt_loader.load_json_fix_template()
         fix_prompt = PromptLoader.render(template, filename=filename, broken_json=broken_json)
 
-        # 记录上次修复的错误反馈，用于下次修复时告诉 AI 哪里错了
+        # 记录上次修复的结果和错误反馈，用于下次修复时告诉 AI 哪里错了
         last_error = ""
+        last_fixed_json = ""  # 上次修复 AI 返回的 JSON 结果
 
         all_attempts_log = []  # 收集所有尝试的日志
         
@@ -1615,7 +1616,11 @@ class AIEngine:
                     {"role": "user", "content": fix_prompt},
                 ]
                 if last_error:
-                    messages.append({"role": "user", "content": f"上次修复结果不满足 schema 要求，具体错误：\n{last_error}\n\n请根据以上错误修正 JSON，确保满足 schema 约束。"})
+                    feedback = f"上次修复结果不满足 schema 要求，具体错误：\n{last_error}"
+                    if last_fixed_json:
+                        feedback += f"\n\n上次修复返回的 JSON：\n{last_fixed_json}"
+                    feedback += "\n\n请根据以上错误修正 JSON，确保满足 schema 约束。"
+                    messages.append({"role": "user", "content": feedback})
 
                 resp = self._call_api_safe(
                     model=model,
@@ -1647,12 +1652,14 @@ class AIEngine:
                                              "\n\n".join(all_attempts_log))
                     return fixed_json  # 校验通过，返回修复后的 JSON
 
-                # 校验失败，收集错误信息给下次修复
+                # 校验失败，收集错误信息和修复结果给下次修复
                 last_error = "\n".join(schema_errors)
+                last_fixed_json = fixed_json  # 记录本次修复的 JSON，下次带上下文
                 print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{schema_errors[0]}")
 
             except Exception as e:
                 last_error = f"处理异常: {e}"
+                last_fixed_json = ""
                 all_attempts_log.append(f"--- 尝试 {attempt + 1}（异常）---\n{str(e)}")
                 continue
 
