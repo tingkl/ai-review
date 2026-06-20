@@ -61,6 +61,7 @@ class Config:
     temperature: float = 0.3                 # AI 随机性 (0=最确定, 1=最随机, 2=最大)
     proxy: Optional[str] = None              # HTTP 代理
     use_cache: bool = True                   # 是否使用缓存 (false=不检查缓存、不写入缓存)
+    json_fix_history_mode: str = "full"      # JSON 修复 AI 上下文模式: full=完整历史(默认), last=只带上一次
 
     def __post_init__(self):
         """校验配置值（类型不安全时静默回退到默认值）
@@ -100,6 +101,9 @@ class Config:
                 self.temperature = 2.0
         except TypeError:
             self.temperature = 0.3
+        # json_fix_history_mode 校验
+        if self.json_fix_history_mode not in ("full", "last"):
+            self.json_fix_history_mode = "full"
     
     def merge(self, other: 'Config', explicit_fields: set = None) -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置
