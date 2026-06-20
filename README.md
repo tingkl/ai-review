@@ -25,8 +25,38 @@
 
 ## 快速开始
 
+### 方式一：从 GitLab 安装（推荐，公司内部）
+
 ```bash
-# 1. 安装（使用 uv tool，全局 CLI 工具管理）
+# 1. 安装
+uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+
+# 2. 项目初始化
+cag install
+
+# 3. 正常提交，AI 自动审查
+git commit -m "feat: add new feature"
+```
+
+### 方式二：从 GitHub 安装（Node.js 版本）
+
+```bash
+# 1. 安装
+npm install -g ai-review-nodejs
+
+# 2. 项目初始化
+ai-review install
+
+# 3. 正常提交，AI 自动审查
+git commit -m "feat: add new feature"
+```
+
+### 方式三：从 PyPI 安装（暂未发布）
+
+> ⏳ **尚未发布到 PyPI**，发布后可用：
+
+```bash
+# 1. 安装
 uv tool install commit-ai-guardian
 
 # 2. 项目初始化
