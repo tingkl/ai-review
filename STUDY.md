@@ -53,6 +53,41 @@ const model = this.config.model ?? "gpt-4o-mini";  // 只有 undefined 时用默
 const passed = Boolean(data.passed ?? true);          // 只有 undefined 时默认 true
 ```
 
+### Q: temperature 配置有什么用？
+
+**A:** 控制 AI 输出的随机性：
+
+| 值 | 效果 | 适用场景 |
+|-----|------|---------|
+| 0.0 | 最确定，每次输出几乎一样 | JSON 修复 AI（固定） |
+| 0.3 | 平衡，有一定灵活性 | 主审核 AI（默认） |
+| 0.7 | 较灵活，可能发现更多问题 | 需要更激进审核时 |
+| 1.0+ | 最随机，不推荐 | 不推荐用于代码审核 |
+
+**设计说明**：
+- 主审核 AI 用 `0.3`：需要一定灵活性发现不同角度的问题，太小容易思维僵化
+- JSON 修复 AI 固定 `0.0`：纯格式转换不需要任何随机性，完全确定性输出更可靠
+
+### Q: json_fix_history_mode 是什么？
+
+**A:** 控制 JSON 修复 AI 的上下文策略：
+
+| 模式 | 全称 | 行为 | 适用场景 |
+|------|------|------|---------|
+| `full` | 完整历史（默认） | 累积所有失败 attempt 的对话 | 复杂 JSON 修复 |
+| `last` | 只带上次 | 只保留最近一次失败 | 简单修复，节省 token |
+
+**full 模式对话流**：
+```
+Attempt 1: System → User(原始JSON) → Assistant(fixed_v1) → ❌
+Attempt 2: System → User(原始JSON) → Assistant(fixed_v1) → User(错误1)
+             → Assistant(fixed_v2) → ❌
+Attempt 3: System → User(原始JSON) → Assistant(fixed_v1) → User(错误1)
+             → Assistant(fixed_v2) → User(错误2) → Assistant(fixed_v3) → ✅
+```
+
+AI 能看到完整的修复过程，避免重复犯已修好的错误。
+
 ---
 
 ## 第3课：模板加载
@@ -171,7 +206,7 @@ Git diff / 文件内容
     ├── 命中 → 返回缓存结果
     └── 未命中 → 调用 API
   → 调用 OpenAI API
-    ├── 发送请求（temperature=0.3, max_tokens=4096）
+    ├── 发送请求（temperature=0.3, max_tokens=8192）
     ├── 等待响应（带超时 + 3次重试）
     └── 写入 ai.log
   → 解析响应
@@ -215,7 +250,7 @@ REVIEW_JSON_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "severity": {"type": "string", "enum": ["critical","error","warning","info"]},
-                        "category": {"type": "string", "enum": ["bug","security","style","performance","best-practice","documentation"]},
+                        "category": {"type": "string", "enum": ["Bug检测","安全","代码风格","性能","最佳实践","文档"]},
                         "line_number": {"type": "integer"},
                         "message": {"type": "string"},
                         "suggestion": {"type": "string"},
@@ -547,7 +582,7 @@ Attempt 3: 再次反馈
 3. **Issue字段校验**：
    - `message`为空字符串 → 跳过该issue（无效问题）
    - `severity`不在枚举中 → 默认"info"
-   - `category`不在枚举中 → 默认"best-practice"
+   - `category`不在枚举中 → 默认"最佳实践"（Schema枚举已改为中文）
 
 4. **Passed双重校验**（最重要）：
    - 先取AI返回的passed值

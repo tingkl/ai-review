@@ -143,7 +143,8 @@ cag 在 hook 文件中写入特定的 marker 标记来识别：
 | `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `default` |
 | `max_tokens` | AI 最大返回长度（token 数） | `8192` |
 | `max_file_size` | 最大审核文件大小，**单位 KB** | `500` |
-| `temperature` | AI 随机性 (0=最确定, 1=最随机) | `0.3` |
+| `temperature` | AI 随机性（0=最保守, 0.3=平衡, 0.7=灵活） | `0.3` |
+| `json_fix_history_mode` | JSON 修复 AI 上下文策略（`full` / `last`） | `full` |
 
 > **temperature 设计说明**：
 > - 主审核 AI（`0.3`）：需要一定灵活性发现不同角度的问题，太小容易思维僵化
