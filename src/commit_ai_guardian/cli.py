@@ -489,6 +489,7 @@ def status(repo):
         click.echo(f"  - Max Tokens: {config.max_tokens}")
         click.echo(f"  - Temperature: {config.temperature} (0=保守, 0.3=平衡, 0.7=灵活)")
         click.echo(f"  - Case Format: {config.case_format}")
+        click.echo(f"  - JSON Fix History: {config.json_fix_history_mode} (full=完整历史, last=只带上一次)")
         click.echo(f"  - Include Patterns: {config.include_patterns or ['*']}")
         click.echo(f"  - Ignore Patterns: {config.ignore_patterns or '无'}")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
