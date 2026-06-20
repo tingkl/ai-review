@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>commit-ai-guardian 在线体验</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 960px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        header h1 {
+            font-size: 32px;
+            color: #58a6ff;
+            margin-bottom: 8px;
+        }
+        header p {
+            color: #8b949e;
+            font-size: 16px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 4px;
+        }
+        .badge-blue {
+            background: rgba(88, 166, 255, 0.15);
+            color: #58a6ff;
+            border: 1px solid rgba(88, 166, 255, 0.3);
+        }
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #f0f6fc;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .panel-title .icon {
+            font-size: 18px;
+        }
+        textarea, input, select {
+            width: 100%;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 12px;
+            color: #c9d1d9;
+            font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+            font-size: 14px;
+            resize: vertical;
+            outline: none;
+        }
+        textarea:focus, input:focus, select:focus {
+            border-color: #58a6ff;
+        }
+        textarea {
+            min-height: 200px;
+            line-height: 1.6;
+        }
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b949e' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 36px;
+        }
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+        .row > * {
+            flex: 1;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 32px;
+            background: #238636;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        .btn:hover {
+            background: #2ea043;
+        }
+        .btn:disabled {
+            background: #30363d;
+            color: #8b949e;
+            cursor: not-allowed;
+        }
+        .btn-spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .btn.loading .btn-spinner {
+            display: block;
+        }
+        .btn.loading .btn-text {
+            display: none;
+        }
+        .result {
+            display: none;
+            margin-top: 16px;
+        }
+        .result.show {
+            display: block;
+        }
+        .issue-card {
+            background: rgba(187, 128, 9, 0.1);
+            border: 1px solid rgba(187, 128, 9, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .issue-card.error {
+            background: rgba(248, 81, 73, 0.1);
+            border-color: rgba(248, 81, 73, 0.3);
+        }
+        .issue-card.info {
+            background: rgba(88, 166, 255, 0.1);
+            border-color: rgba(88, 166, 255, 0.3);
+        }
+        .issue-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .severity-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .severity-warning {
+            background: rgba(187, 128, 9, 0.2);
+            color: #e3b341;
+        }
+        .severity-error {
+            background: rgba(248, 81, 73, 0.2);
+            color: #f85149;
+        }
+        .severity-info {
+            background: rgba(88, 166, 255, 0.2);
+            color: #58a6ff;
+        }
+        .issue-message {
+            color: #f0f6fc;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        .issue-suggestion {
+            color: #7ee787;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .issue-code {
+            background: #0d1117;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+            font-family: "SF Mono", Monaco, monospace;
+            font-size: 13px;
+            color: #8b949e;
+            overflow-x: auto;
+        }
+        .success-banner {
+            background: rgba(35, 134, 54, 0.15);
+            border: 1px solid rgba(35, 134, 54, 0.4);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            color: #3fb950;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #8b949e;
+            font-size: 13px;
+        }
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        .error-banner {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            color: #f85149;
+            margin-top: 16px;
+            display: none;
+        }
+        .error-banner.show {
+            display: block;
+        }
+        .hint {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 6px;
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .tab {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .tab.active {
+            background: rgba(88, 166, 255, 0.15);
+            border-color: rgba(88, 166, 255, 0.3);
+            color: #58a6ff;
+        }
+        .tab:not(.active):hover {
+            background: rgba(255,255,255,0.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛡️ commit-ai-guardian</h1>
+            <p>Git commit 前 AI 自动代码审查，在线体验</p>
+            <div style="margin-top:12px">
+                <span class="badge badge-blue">Python</span>
+                <span class="badge badge-blue">AI</span>
+                <span class="badge badge-blue">Git Hook</span>
+                <span class="badge badge-blue">开源</span>
+            </div>
+        </header>
+
+        <div class="panel">
+            <div class="panel-title">
+                <span class="icon">🔑</span>
+                API 配置（仅在浏览器中使用，不会上传到服务器）
+            </div>
+            <div class="row">
+                <select id="apiBase">
+                    <option value="https://api.minimaxi.com/v1">MiniMax（国内）</option>
+                    <option value="https://api.minimax.io/v1">MiniMax（国际）</option>
+                    <option value="https://api.deepseek.com/v1">DeepSeek</option>
+                    <option value="https://api.moonshot.cn/v1">Moonshot（Kimi）</option>
+                    <option value="https://api.openai.com/v1">OpenAI</option>
+                    <option value="custom">自定义...</option>
+                </select>
+                <input type="text" id="customBase" placeholder="自定义 API Base URL" style="display:none">
+            </div>
+            <input type="password" id="apiKey" placeholder="输入你的 API Key" style="margin-top:10px">
+            <div class="hint">API Key 仅存储在浏览器本地，不会发送到任何第三方服务器</div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">
+                <span class="icon">📝</span>
+                代码
+            </div>
+            <div class="tabs">
+                <div class="tab active" onclick="loadExample('sql')">SQL 注入</div>
+                <div class="tab" onclick="loadExample('null')">空指针</div>
+                <div class="tab" onclick="loadExample('memory')">内存泄漏</div>
+                <div class="tab" onclick="loadExample('clean')">干净代码</div>
+                <div class="tab" onclick="clearCode()">清空</div>
+            </div>
+            <textarea id="code" spellcheck="false">function getUser(userId) {
+  const sql = `SELECT * FROM users WHERE id = ${userId}`;
+  return db.query(sql);
+}</textarea>
+            <div class="row" style="margin-top:12px">
+                <select id="language">
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="go">Go</option>
+                    <option value="vue">Vue</option>
+                </select>
+                <input type="text" id="filename" placeholder="文件名（可选）" value="example.js">
+            </div>
+        </div>
+
+        <button class="btn" id="reviewBtn" onclick="startReview()">
+            <div class="btn-spinner"></div>
+            <span class="btn-text">🔍 开始审核</span>
+        </button>
+
+        <div class="error-banner" id="errorBanner"></div>
+
+        <div class="result" id="result">
+            <div class="panel">
+                <div class="panel-title">
+                    <span class="icon">📋</span>
+                    审核结果
+                </div>
+                <div id="resultContent"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>
+                <a href="https://github.com/tingkl/ai-review" target="_blank">GitHub</a> ·
+                <a href="https://pypi.org/project/commit-ai-guardian" target="_blank">PyPI</a> ·
+                安装：<code style="background:#161b22;padding:2px 8px;border-radius:4px">uv tool install commit-ai-guardian</code>
+            </p>
+            <p style="margin-top:8px">代码在本地处理，AI 调用直接发往你选择的 API 服务商</p>
+        </div>
+    </div>
+
+    <script>
+        // 从 localStorage 恢复配置
+        document.getElementById('apiKey').value = localStorage.getItem('cag_api_key') || '';
+        document.getElementById('apiBase').value = localStorage.getItem('cag_api_base') || 'https://api.minimaxi.com/v1';
+
+        document.getElementById('apiBase').addEventListener('change', function() {
+            if (this.value === 'custom') {
+                document.getElementById('customBase').style.display = 'block';
+            } else {
+                document.getElementById('customBase').style.display = 'none';
+                localStorage.setItem('cag_api_base', this.value);
+            }
+        });
+
+        document.getElementById('apiKey').addEventListener('input', function() {
+            localStorage.setItem('cag_api_key', this.value);
+        });
+
+        const examples = {
+            sql: {
+                code: `function getUser(userId) {
+  const sql = \`SELECT * FROM users WHERE id = \${userId}\`;
+  return db.query(sql);
+}`,
+                lang: 'javascript',
+                filename: 'auth.js'
+            },
+            null: {
+                code: `def process_data(data):
+    result = data["items"][0]["value"]
+    return result * 2`,
+                lang: 'python',
+                filename: 'process.py'
+            },
+            memory: {
+                code: `public List<byte[]> loadFiles(List<String> paths) {
+    List<byte[]> results = new ArrayList<>();
+    for (String path : paths) {
+        byte[] content = Files.readAllBytes(Paths.get(path));
+        results.add(content);
+    }
+    return results;
+}`,
+                lang: 'java',
+                filename: 'FileLoader.java'
+            },
+            clean: {
+                code: `function add(a, b) {
+  return a + b;
+}`,
+                lang: 'javascript',
+                filename: 'math.js'
+            }
+        };
+
+        function loadExample(type) {
+            const ex = examples[type];
+            document.getElementById('code').value = ex.code;
+            document.getElementById('language').value = ex.lang;
+            document.getElementById('filename').value = ex.filename;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function clearCode() {
+            document.getElementById('code').value = '';
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        async function startReview() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            let apiBase = document.getElementById('apiBase').value;
+            const code = document.getElementById('code').value.trim();
+            const language = document.getElementById('language').value;
+            const filename = document.getElementById('filename').value || 'example.js';
+
+            if (!apiKey) {
+                showError('请输入 API Key');
+                return;
+            }
+            if (apiBase === 'custom') {
+                apiBase = document.getElementById('customBase').value.trim();
+            }
+            if (!code) {
+                showError('请输入代码');
+                return;
+            }
+
+            const btn = document.getElementById('reviewBtn');
+            const result = document.getElementById('result');
+            const errorBanner = document.getElementById('errorBanner');
+
+            btn.classList.add('loading');
+            btn.disabled = true;
+            result.classList.remove('show');
+            errorBanner.classList.remove('show');
+
+            const prompt = `请对以下代码进行审核，找出潜在问题。
+
+## 代码信息
+- 文件: ${filename}
+- 语言: ${language}
+
+## 代码内容
+\`\`\`${language}
+${code}
+\`\`\`
+
+## 审核维度
+1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题
+2. 代码风格: 命名规范、代码格式、注释质量
+3. 性能问题: 算法复杂度、内存泄漏、不必要的计算
+4. 最佳实践: 设计模式、错误处理、日志规范
+5. 文档完整: 函数文档、参数说明
+
+## 输出要求
+以 JSON 格式输出，包裹在 <result> 标签中：
+<result>{"summary":"总体评价","passed":true/false,"issues":[{"severity":"warning/error/info","category":"类别","line_number":行号,"message":"问题描述","suggestion":"修复建议","code_snippet":"相关代码"}]}</result>
+
+只输出 JSON，不要其他解释文字。`;
+
+            try {
+                const model = detectModel(apiBase);
+                const response = await fetch(`${apiBase}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            {"role": "system", "content": "你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。"},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature: 0.3,
+                        max_tokens: 4096
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(`API 错误 (${response.status}): ${err}`);
+                }
+
+                const data = await response.json();
+                const content = data.choices[0].message.content;
+                displayResult(content);
+
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        }
+
+        function detectModel(apiBase) {
+            if (apiBase.includes('minimax')) return 'MiniMax-M2.7';
+            if (apiBase.includes('deepseek')) return 'deepseek-chat';
+            if (apiBase.includes('moonshot')) return 'kimi-k2';
+            return 'gpt-4o-mini';
+        }
+
+        function displayResult(content) {
+            // 提取 <result> 中的 JSON
+            const match = content.match(/<result>([\s\S]*?)<\/result>/);
+            const jsonStr = match ? match[1] : content;
+
+            let result;
+            try {
+                result = JSON.parse(jsonStr);
+            } catch {
+                showError('AI 返回的 JSON 解析失败，请重试');
+                return;
+            }
+
+            const container = document.getElementById('resultContent');
+
+            if (!result.issues || result.issues.length === 0) {
+                container.innerHTML = `
+                    <div class="success-banner">
+                        ✅ 审核通过 — ${result.summary || '未发现明显问题'}
+                    </div>
+                `;
+            } else {
+                let html = `<div style="margin-bottom:12px;color:#e3b341;font-weight:600">
+                    📊 ${result.summary || `发现 ${result.issues.length} 个问题`}
+                </div>`;
+
+                result.issues.forEach(issue => {
+                    const sevClass = issue.severity === 'error' ? 'error' :
+                                     issue.severity === 'info' ? 'info' : '';
+                    html += `
+                        <div class="issue-card ${sevClass}">
+                            <div class="issue-header">
+                                <span class="severity-badge severity-${issue.severity || 'warning'}">
+                                    ${(issue.severity || 'warning').toUpperCase()}
+                                </span>
+                                <span style="color:#8b949e">${issue.category || '通用'}</span>
+                                ${issue.line_number ? `<span style="color:#58a6ff">第 ${issue.line_number} 行</span>` : ''}
+                            </div>
+                            <div class="issue-message">${issue.message || ''}</div>
+                            ${issue.suggestion ? `<div class="issue-suggestion">💡 ${issue.suggestion}</div>` : ''}
+                            ${issue.code_snippet ? `<div class="issue-code">${escapeHtml(issue.code_snippet)}</div>` : ''}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            }
+
+            document.getElementById('result').classList.add('show');
+        }
+
+        function showError(msg) {
+            const banner = document.getElementById('errorBanner');
+            banner.textContent = '❌ ' + msg;
+            banner.classList.add('show');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
