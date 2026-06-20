@@ -297,23 +297,6 @@ class ConfigManager:
         """
         self._log_final_config(config, source)
     
-    def _log_merge_info(self, global_cfg: Config, project_cfg: Config) -> None:
-        """打印合并信息（哪些字段被项目配置覆盖了）"""
-        overridden = []
-        for f in fields(Config):
-            key = f.name
-            global_val = getattr(global_cfg, key)
-            project_val = getattr(project_cfg, key)
-            if project_val is not None and project_val != global_val:
-                # 不打印敏感信息（api_key）
-                if key == "api_key":
-                    overridden.append(f"{key}: ***覆盖***")
-                else:
-                    overridden.append(f"{key}: {global_val} → {project_val}")
-        
-        if overridden:
-            print(f"[信息] 使用项目配置覆盖: {', '.join(overridden)}")
-    
     def _log_final_config(self, config: Config, source: str) -> None:
         """打印最终生效的配置信息（每次审核时显示）
         

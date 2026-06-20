@@ -897,24 +897,6 @@ class AIEngine:
             result.append(f"{i:4d} | {line}")
         return '\n'.join(result)
     
-    @staticmethod
-    def _smart_truncate_content(content: str, line_numbers: List[int], max_chars: int = 1_000_000) -> tuple:
-        """智能截断文件内容，优先保留变更行号附近的上下文
-        
-        当前默认 max_chars=1_000_000（实际不截断），因为 MiniMax 等主流模型
-        输入端上下文窗口已达 200K-1M token，输入长度不再是瓶颈。
-        如未来需要限制 prompt 长度，可降低此阈值。
-        
-        Args:
-            content: 文件完整内容
-            line_numbers: 变更行号列表（保留用于未来可能的截断策略）
-            max_chars: 最大字符数（默认 1_000_000，实际不截断）
-            
-        Returns:
-            (完整内容, False, "")
-        """
-        return content, False, ""
-    
     def _build_full_file_prompt_for_diff(self, filename: str, full_content: str,
                                           diff_content: str, file_diff: Any,
                                           cache_md5: str = "") -> str:
