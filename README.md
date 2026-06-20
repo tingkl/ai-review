@@ -4,6 +4,7 @@
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
+[![PyPI](https://img.shields.io/pypi/v/commit-ai-guardian)](https://pypi.org/project/commit-ai-guardian/)
 
 > **📚 学习笔记**：[STUDY.md](STUDY.md) — 设计原理与常见问题解答（适合初学者）  
 > **🔧 技术细节**：[TECHNICAL.md](TECHNICAL.md) — 架构设计、实现原理、Prompt 工程等（适合开发者）
@@ -26,35 +27,41 @@
 
 ### 安装
 
-#### 从 GitLab 安装（推荐，公司内部）
+#### 从 PyPI 安装（推荐）
 
-```bash
-uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
-```
-
-#### 从 GitHub 安装（Python 版本）
-
-```bash
-uv tool install git+https://github.com/tingkl/ai-review.git
-```
-
-#### 从 PyPI 安装（暂未发布）
-
-> ⏳ **尚未发布到 PyPI**，发布后可用：
+**使用 uv（推荐，速度快）：**
 
 ```bash
 uv tool install commit-ai-guardian
 ```
 
+**使用 pip：**
+
+```bash
+pip install commit-ai-guardian
+```
+
+#### 从 GitHub 安装
+
+```bash
+uv tool install git+https://github.com/tingkl/ai-review.git
+```
+
+#### 从 GitLab 安装（公司内部）
+
+```bash
+uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+```
+
 ### 三种方式对比
 
-| | GitLab | GitHub | PyPI |
+| | PyPI | GitHub | GitLab |
 |---|---|---|---|
-| 安装源 | 内部 GitLab | 公开 GitHub | 公开包仓库 |
-| 协议 | SSH | HTTPS | HTTPS |
-| 代码版本 | 最新 main 分支 | 最新 main 分支 | 发布的稳定版 |
-| 适用场景 | 公司内部开发 | 外部开发者贡献 | 生产环境用户 |
-| 当前状态 | ✅ 可用 | ✅ 可用 | ⏳ 待发布 |
+| 安装源 | 公开包仓库 | 公开 GitHub | 内部 GitLab |
+| 协议 | HTTPS | HTTPS | SSH |
+| 代码版本 | 发布的稳定版 | 最新 main 分支 | 最新 main 分支 |
+| 适用场景 | 普通用户、生产环境 | 外部开发者贡献 | 公司内部开发 |
+| 当前状态 | ✅ **推荐** | ✅ 可用 | ✅ 可用 |
 
 ### 升级
 
@@ -171,7 +178,7 @@ cag 在 hook 文件中写入特定的 marker 标记来识别：
 | `diff_mode` | 审核范围（`full` 全部文件 / `diff` 仅变更） | `full` |
 | `use_cache` | 是否启用结果缓存 | `true` |
 | `include_patterns` | 审核文件范围（glob 数组） | `["*"]` |
-| `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `default` |
+| `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `compact` |
 | `max_tokens` | AI 最大返回长度（token 数） | `8192` |
 | `max_file_size` | 最大审核文件大小，**单位 KB** | `500` |
 | `temperature` | AI 随机性（0=最保守, 0.3=平衡, 0.7=灵活） | `0.3` |
