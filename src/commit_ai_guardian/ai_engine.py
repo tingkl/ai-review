@@ -1616,11 +1616,13 @@ class AIEngine:
                     {"role": "user", "content": fix_prompt},
                 ]
                 if last_error:
-                    feedback = f"上次修复结果不满足 schema 要求，具体错误：\n{last_error}"
+                    # assistant 返回上次修复的 JSON，user 给出错误反馈
                     if last_fixed_json:
-                        feedback += f"\n\n上次修复返回的 JSON：\n{last_fixed_json}"
-                    feedback += "\n\n请根据以上错误修正 JSON，确保满足 schema 约束。"
-                    messages.append({"role": "user", "content": feedback})
+                        messages.append({"role": "assistant", "content": last_fixed_json})
+                    messages.append({"role": "user", "content": (
+                        f"以上修复结果不满足 schema 要求，具体错误：\n{last_error}\n"
+                        f"\n请根据以上错误修正 JSON，确保满足 schema 约束。"
+                    )})
 
                 resp = self._call_api_safe(
                     model=model,
