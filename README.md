@@ -40,25 +40,58 @@ git commit -m "feat: add new feature"
 
 ## 安装
 
-### GitHub（推荐）
+> **当前状态**：尚未发布到 PyPI，请通过 Git SSH 方式安装。PyPI 方式将在正式发布后启用。
+
+### 方式一：Git SSH（当前推荐，源码安装）
+
+从内部 GitLab 仓库直接安装最新源码：
 
 ```bash
-curl -sSL https://github.com/wmariuss/commit-ai-guardian/releases/download/v1.0.0/install.sh | sh
+uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
 ```
 
-### GitLab（内部源）
+**适用场景**：
+- 公司内部使用，代码在私有 GitLab 上
+- 需要最新功能（跟踪 main 分支最新提交）
+- 开发者刚提交了新代码，想立即测试
 
-```bash
-export CAG_SOURCE=gitlab
-curl -sSL https://gitlab.example.com/cag/install.sh | sh
-```
+**特点**：
+- 每次安装/升级都是最新的 main 分支
+- 需要配置 SSH key 访问 `124.223.189.152:7022`
+- 升级命令：
+  ```bash
+  uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+  ```
 
-### PyPI
+### 方式二：PyPI（暂未发布）
 
 ```bash
 # 推荐：使用 uv（更快、无全局环境依赖）
 uv tool install commit-ai-guardian
+
+# 升级
+uv tool upgrade commit-ai-guardian
 ```
+
+**适用场景**：
+- 普通用户安装稳定版本
+- 生产环境部署（固定版本，经过充分测试）
+- 没有内网 GitLab 访问权限
+
+**特点**：
+- 从 PyPI 下载预发布的稳定版本
+- 不需要 SSH key，公开网络可安装
+- 版本固定，升级可控
+
+### 两种方式对比
+
+| | Git SSH | PyPI |
+|---|---|---|
+| 安装源 | 内部 GitLab 源码 | 公开包仓库 |
+| 网络要求 | 内网 SSH 访问 | 公网访问 |
+| 代码版本 | 最新 main 分支 | 发布的稳定版 |
+| 适用对象 | 内部开发者 | 外部用户/生产环境 |
+| 当前状态 | ✅ 可用 | ⏳ 待发布 |
 
 ---
 
@@ -282,16 +315,25 @@ git push origin main && git push github main
 
 **5. 如何更新版本？**
 
+**当前（Git SSH 方式）**：
 ```bash
-# 使用 uv tool 升级（推荐，用户安装稳定版本）
-uv tool upgrade commit-ai-guardian
+# 升级到最新 main 分支
+uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
+```
 
-# 本地开发模式（修改源码后重装，需用 uv pip）
+**发布后（PyPI 方式）**：
+```bash
+uv tool upgrade commit-ai-guardian
+```
+
+**本地开发模式（修改源码后重装）**：
+```bash
 uv pip install --reinstall -e .
 ```
 
-> **为什么有两种命令？**
-> - `uv tool install/upgrade`：安装全局 CLI 工具，自动隔离环境，适合用户（不支持 `-e` 开发模式）
+> **三种命令的区别**：
+> - `uv tool upgrade git+ssh://...`：跟踪 main 分支最新源码（当前推荐）
+> - `uv tool upgrade commit-ai-guardian`：升级到 PyPI 最新稳定版（发布后使用）
 > - `uv pip install --reinstall -e .`：在项目源码上可编辑安装，修改后立即生效，适合开发者
 
 > 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
