@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "commit-ai-guardian"
-version = "0.2.0"
+version = "0.2.1"
 description = "Git Pre-commit Hook AI 代码审核系统"
 readme = "README.md"
 license = {text = "MIT"}
