@@ -1118,7 +1118,7 @@ ${code}
                                 <span style="color:#8b949e">${issue.category || '通用'}</span>
                                 ${issue.line_number ? `<span style="color:#58a6ff">第 ${issue.line_number} 行</span>` : ''}
                             </div>
-                            <div class="issue-message">${issue.message || ''}</div>
+                            <div class="issue-message">${issue.message || '<span style="color:#666">（AI 未返回具体描述）</span>'}</div>
                             ${issue.suggestion ? `<div class="issue-suggestion">💡 ${issue.suggestion}</div>` : ''}
                             ${issue.code_snippet ? `<div class="issue-code">${escapeHtml(issue.code_snippet)}</div>` : ''}
                         </div>
