@@ -336,11 +336,6 @@
                         <option value="full" selected>JSON Fix History: full（完整历史）</option>
                         <option value="last">JSON Fix History: last（只带上一次）</option>
                     </select>
-                    <select id="caseFormat">
-                        <option value="default">案例格式: 完整（详细）</option>
-                        <option value="compact" selected>案例格式: 精简（推荐）</option>
-                        <option value="minimal">案例格式: 最小（省 token）</option>
-                    </select>
                     <select id="maxTokens">
                         <option value="4096">4K tokens</option>
                         <option value="8192" selected>8K tokens（推荐）</option>
@@ -395,10 +390,17 @@
             <div class="panel-title">
                 <span class="icon">📚</span>
                 自定义案例
-                <label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#8b949e;font-weight:400">
-                    <input type="checkbox" id="enableCase" checked style="width:auto">
-                    启用案例
-                </label>
+                <span style="margin-left:auto;display:flex;align-items:center;gap:10px">
+                    <select id="caseFormat" style="width:auto;padding:4px 10px;font-size:12px">
+                        <option value="default">完整格式</option>
+                        <option value="compact" selected>精简格式</option>
+                        <option value="minimal">最小格式</option>
+                    </select>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#8b949e;font-weight:400">
+                        <input type="checkbox" id="enableCase" checked style="width:auto">
+                        启用案例
+                    </label>
+                </span>
             </div>
             <div class="tabs">
                 <div class="tab active" onclick="loadCase('sql-injection')">SQL 注入规范</div>
