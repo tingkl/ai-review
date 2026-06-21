@@ -332,6 +332,10 @@
                         <option value="error">阻断阈值: error（宽松）</option>
                         <option value="critical">阻断阈值: critical（最宽松）</option>
                     </select>
+                    <select id="jsonFixMode">
+                        <option value="auto" selected>JSON 修复: 自动（推荐）</option>
+                        <option value="manual">JSON 修复: 手动（失败时报错）</option>
+                    </select>
                     <select id="maxTokens">
                         <option value="4096">4K tokens</option>
                         <option value="8192" selected>8K tokens（推荐）</option>
@@ -494,6 +498,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
             document.getElementById('language').value = cfg.language || 'zh-CN';
             document.getElementById('severityThreshold').value = cfg.severity_threshold || 'warning';
             document.getElementById('maxTokens').value = cfg.max_tokens || '8192';
+            document.getElementById('jsonFixMode').value = cfg.json_fix_mode || 'auto';
             document.getElementById('temperature').value = cfg.temperature || '0.3';
             document.getElementById('temperatureValue').textContent = cfg.temperature || '0.3';
         }
@@ -509,6 +514,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
                 language: document.getElementById('language').value,
                 severity_threshold: document.getElementById('severityThreshold').value,
                 max_tokens: document.getElementById('maxTokens').value,
+                json_fix_mode: document.getElementById('jsonFixMode').value,
                 temperature: document.getElementById('temperature').value
             };
             localStorage.setItem('cag_config', JSON.stringify(cfg));
@@ -945,11 +951,26 @@ ${code}
         }
 
         function displayResult(content) {
-            let result = tryFixJson(content);
+            const jsonFixMode = document.getElementById('jsonFixMode').value;
 
-            if (!result) {
-                showError('AI 返回的 JSON 解析失败，已尝试自动修复但未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。');
-                return;
+            let result;
+            if (jsonFixMode === 'auto') {
+                // 自动模式：先尝试本地修复
+                result = tryFixJson(content);
+                if (!result) {
+                    showError('AI 返回的 JSON 解析失败，已尝试自动修复但未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。');
+                    return;
+                }
+            } else {
+                // 手动模式：直接解析，失败时报错
+                const m = content.match(/<result>([\s\S]*?)<\/result>/);
+                const s = m ? m[1] : content;
+                try {
+                    result = JSON.parse(s);
+                } catch {
+                    showError('AI 返回的 JSON 解析失败（JSON 修复已关闭）。\n建议：在配置中开启"JSON 修复: 自动"模式。');
+                    return;
+                }
             }
 
             const container = document.getElementById('resultContent');
