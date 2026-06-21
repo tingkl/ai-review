@@ -299,9 +299,9 @@
                 <label style="font-size:12px;color:#8b949e;font-weight:600">API 配置</label>
                 <div class="row" style="margin-top:6px">
                     <select id="apiBase">
-                        <option value="https://api.openai.com/v1" selected>OpenAI（默认）</option>
-                        <option value="https://api.deepseek.com/v1">DeepSeek</option>
+                        <option value="https://api.deepseek.com/v1" selected>DeepSeek（默认）</option>
                         <option value="https://api.moonshot.cn/v1">Moonshot（Kimi）</option>
+                        <option value="https://api.openai.com/v1">OpenAI</option>
                         <option value="https://api.minimaxi.com/v1">MiniMax（国内）</option>
                         <option value="https://api.minimax.io/v1">MiniMax（国际）</option>
                         <option value="custom">自定义...</option>
@@ -424,12 +424,12 @@
         function loadConfig() {
             const cfg = JSON.parse(localStorage.getItem('cag_config') || '{}');
             document.getElementById('apiKey').value = cfg.api_key || '';
-            document.getElementById('apiBase').value = cfg.api_base || 'https://api.openai.com/v1';
+            document.getElementById('apiBase').value = cfg.api_base || 'https://api.deepseek.com/v1';
             if ((cfg.api_base || '') === 'custom') {
                 document.getElementById('customBase').style.display = 'block';
                 document.getElementById('customBase').value = cfg.custom_base || '';
             }
-            document.getElementById('model').value = cfg.model || 'gpt-4o-mini';
+            document.getElementById('model').value = cfg.model || 'deepseek-chat';
             document.getElementById('language').value = cfg.language || 'zh-CN';
             document.getElementById('severityThreshold').value = cfg.severity_threshold || 'warning';
             document.getElementById('maxTokens').value = cfg.max_tokens || '8192';
@@ -481,6 +481,10 @@
             else if (base.includes('moonshot')) modelInput.value = 'kimi-k2';
             else if (base.includes('minimax')) modelInput.value = 'MiniMax-M2.7';
             else if (base.includes('openai')) modelInput.value = 'gpt-4o-mini';
+            // 如果用户已有 model 值，不覆盖（尊重用户选择）
+            if (!modelInput.value) {
+                modelInput.value = 'gpt-4o-mini';
+            }
             saveConfig();
         });
 
