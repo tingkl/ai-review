@@ -315,7 +315,10 @@
             <div style="margin-bottom:14px">
                 <label style="font-size:12px;color:#8b949e;font-weight:600">模型与参数</label>
                 <div class="row" style="margin-top:6px">
-                    <input type="text" id="model" placeholder="模型名称（如 deepseek-chat）" value="deepseek-chat">
+                    <select id="model">
+                        <option value="deepseek-chat" selected>deepseek-chat（通用）</option>
+                        <option value="deepseek-reasoner">deepseek-reasoner（推理）</option>
+                    </select>
                     <select id="language">
                         <option value="zh-CN" selected>中文 (zh-CN)</option>
                         <option value="en">英文 (en)</option>
@@ -458,11 +461,63 @@
             localStorage.setItem('cag_config', JSON.stringify(cfg));
         }
 
+        // 模型列表 —— 按服务商分组，第一项为默认（最新/推荐）
+        const MODEL_MAP = {
+            'https://api.deepseek.com/v1': [
+                ['deepseek-chat', 'deepseek-chat（通用，推荐）'],
+                ['deepseek-reasoner', 'deepseek-reasoner（推理）']
+            ],
+            'https://api.moonshot.cn/v1': [
+                ['kimi-k2', 'kimi-k2（最新，推荐）'],
+                ['kimi-k2.5', 'kimi-k2.5'],
+                ['kimi-k2-thinking', 'kimi-k2-thinking（推理）']
+            ],
+            'https://api.openai.com/v1': [
+                ['gpt-4o', 'gpt-4o（最强，推荐）'],
+                ['gpt-4o-mini', 'gpt-4o-mini（性价比）'],
+                ['gpt-3.5-turbo', 'gpt-3.5-turbo（基础）']
+            ],
+            'https://api.minimaxi.com/v1': [
+                ['MiniMax-M3', 'MiniMax-M3（最新，1M 上下文）'],
+                ['MiniMax-M2.7', 'MiniMax-M2.7（推荐）'],
+                ['MiniMax-M2.5', 'MiniMax-M2.5（性价比）'],
+                ['MiniMax-M2.1', 'MiniMax-M2.1（编程专项）']
+            ],
+            'https://api.minimax.io/v1': [
+                ['MiniMax-M3', 'MiniMax-M3（最新，1M 上下文）'],
+                ['MiniMax-M2.7', 'MiniMax-M2.7（推荐）'],
+                ['MiniMax-M2.5', 'MiniMax-M2.5（性价比）'],
+                ['MiniMax-M2.1', 'MiniMax-M2.1（编程专项）']
+            ]
+        };
+
+        // 根据 api_base 切换 model 下拉列表
+        function updateModelSelect(apiBase) {
+            const modelSelect = document.getElementById('model');
+            const models = MODEL_MAP[apiBase];
+            if (!models) return; // 自定义不处理
+
+            const currentVal = modelSelect.value;
+            modelSelect.innerHTML = '';
+            models.forEach(([value, label]) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                modelSelect.appendChild(opt);
+            });
+            // 尽量保留用户之前选的模型，如果新列表中有
+            const hasCurrent = models.some(([v]) => v === currentVal);
+            modelSelect.value = hasCurrent ? currentVal : models[0][0];
+        }
+
+        // 初始化 model 列表
+        updateModelSelect(document.getElementById('apiBase').value);
+
         // 监听所有配置变更
-        ['apiKey','customBase','model','proxyUrl'].forEach(id => {
+        ['apiKey','customBase','proxyUrl'].forEach(id => {
             document.getElementById(id).addEventListener('input', saveConfig);
         });
-        ['apiBase','language','severityThreshold','maxTokens'].forEach(id => {
+        ['apiBase','language','severityThreshold','maxTokens','model'].forEach(id => {
             document.getElementById(id).addEventListener('change', saveConfig);
         });
         document.getElementById('temperature').addEventListener('input', function() {
@@ -475,16 +530,7 @@
         });
         document.getElementById('apiBase').addEventListener('change', function() {
             document.getElementById('customBase').style.display = this.value === 'custom' ? 'block' : 'none';
-            const base = this.value.toLowerCase();
-            const modelInput = document.getElementById('model');
-            if (base.includes('deepseek')) modelInput.value = 'deepseek-chat';
-            else if (base.includes('moonshot')) modelInput.value = 'kimi-k2';
-            else if (base.includes('minimax')) modelInput.value = 'MiniMax-M2.7';
-            else if (base.includes('openai')) modelInput.value = 'gpt-4o-mini';
-            // 如果用户已有 model 值，不覆盖（尊重用户选择）
-            if (!modelInput.value) {
-                modelInput.value = 'gpt-4o-mini';
-            }
+            updateModelSelect(this.value);
             saveConfig();
         });
 
