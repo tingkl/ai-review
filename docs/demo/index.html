@@ -596,6 +596,10 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
         // 启用开关变更时保存配置
         document.getElementById('enableCase').addEventListener('change', saveConfig);
         document.getElementById('enablePrompt').addEventListener('change', saveConfig);
+        // 案例 textarea 手动编辑时标记为自定义模式
+        document.getElementById('caseContent').addEventListener('input', function() {
+            isCustomEdited = true;
+        });
         document.getElementById('temperature').addEventListener('input', function() {
             document.getElementById('temperatureValue').textContent = this.value;
             saveConfig();
@@ -769,6 +773,7 @@ def get_user_name(user):
 
         // 案例多选状态
         const activeCases = new Set();
+        let isCustomEdited = false;  // 用户是否在自定义模式下手动编辑了 textarea
 
         // 案例格式化：根据 case_format 精简注入 prompt 的案例内容
         function formatCase(rawCase, format) {
@@ -799,6 +804,9 @@ def get_user_name(user):
         }
 
         function updateCaseTextarea() {
+            // 如果用户在自定义模式下手动编辑过，切换格式时不覆盖
+            if (isCustomEdited) return;
+
             const format = document.getElementById('caseFormat').value;
             const parts = [];
             activeCases.forEach(key => {
@@ -816,6 +824,8 @@ def get_user_name(user):
                 target.classList.add('active');
                 activeCases.add(type);
             }
+            // 切到"自定义"tab 时标记为可编辑，切到预设 tab 时重置
+            isCustomEdited = (type === 'custom');
             updateCaseTextarea();
         }
 
