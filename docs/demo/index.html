@@ -362,6 +362,9 @@
             <div class="panel-title">
                 <span class="icon">📝</span>
                 代码
+                <span style="margin-left:auto;font-size:12px;color:#8b949e;font-weight:400">
+                    <span id="displayLang">javascript</span> · <span id="displayFilename">example.js</span>
+                </span>
             </div>
             <div class="tabs">
                 <div class="tab active" onclick="loadExample('sql')">SQL 注入</div>
@@ -374,17 +377,8 @@
   const sql = `SELECT * FROM users WHERE id = ${userId}`;
   return db.query(sql);
 }</textarea>
-            <div class="row" style="margin-top:12px">
-                <select id="language">
-                    <option value="javascript">JavaScript</option>
-                    <option value="typescript">TypeScript</option>
-                    <option value="python">Python</option>
-                    <option value="java">Java</option>
-                    <option value="go">Go</option>
-                    <option value="vue">Vue</option>
-                </select>
-                <input type="text" id="filename" placeholder="文件名（可选）" value="example.js">
-            </div>
+            <input type="hidden" id="language" value="javascript">
+            <input type="hidden" id="filename" value="example.js">
         </div>
 
         <button class="btn" id="reviewBtn" onclick="startReview()">
@@ -561,12 +555,16 @@
             document.getElementById('code').value = ex.code;
             document.getElementById('language').value = ex.lang;
             document.getElementById('filename').value = ex.filename;
+            document.getElementById('displayLang').textContent = ex.lang;
+            document.getElementById('displayFilename').textContent = ex.filename;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
         }
 
         function clearCode() {
             document.getElementById('code').value = '';
+            document.getElementById('displayLang').textContent = '-';
+            document.getElementById('displayFilename').textContent = '-';
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
         }
