@@ -509,6 +509,8 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
             document.getElementById('caseFormat').value = cfg.case_format || 'compact';
             document.getElementById('temperature').value = cfg.temperature || '0.3';
             document.getElementById('temperatureValue').textContent = cfg.temperature || '0.3';
+            document.getElementById('enableCase').checked = cfg.enable_case !== false;  // 默认 true
+            document.getElementById('enablePrompt').checked = cfg.enable_prompt !== false;  // 默认 true
         }
         loadConfig();
 
@@ -524,7 +526,9 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
                 max_tokens: document.getElementById('maxTokens').value,
                 json_fix_mode: document.getElementById('jsonFixMode').value,
                 case_format: document.getElementById('caseFormat').value,
-                temperature: document.getElementById('temperature').value
+                temperature: document.getElementById('temperature').value,
+                enable_case: document.getElementById('enableCase').checked,
+                enable_prompt: document.getElementById('enablePrompt').checked
             };
             localStorage.setItem('cag_config', JSON.stringify(cfg));
         }
@@ -592,6 +596,9 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
         });
         // case_format 变更时重新格式化案例 textarea
         document.getElementById('caseFormat').addEventListener('change', updateCaseTextarea);
+        // 启用开关变更时保存配置
+        document.getElementById('enableCase').addEventListener('change', saveConfig);
+        document.getElementById('enablePrompt').addEventListener('change', saveConfig);
         document.getElementById('temperature').addEventListener('input', function() {
             document.getElementById('temperatureValue').textContent = this.value;
             saveConfig();
