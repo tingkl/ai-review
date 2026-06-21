@@ -337,10 +337,10 @@
                     </select>
                     <select id="maxTokens">
                         <option value="4096">4K tokens</option>
-                        <option value="8192" selected>8K tokens（推荐）</option>
+                        <option value="8192">8K tokens</option>
                         <option value="16384">16K tokens</option>
                         <option value="32768">32K tokens</option>
-                        <option value="131072">128K tokens</option>
+                        <option value="131072" selected>128K tokens（最大，推荐）</option>
                     </select>
                 </div>
                 <div style="margin-top:8px">
@@ -503,7 +503,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
             document.getElementById('model').value = cfg.model || 'deepseek-v4-pro';
             document.getElementById('language').value = cfg.language || 'zh-CN';
             document.getElementById('severityThreshold').value = cfg.severity_threshold || 'warning';
-            document.getElementById('maxTokens').value = cfg.max_tokens || '8192';
+            document.getElementById('maxTokens').value = cfg.max_tokens || '131072';
             document.getElementById('jsonFixMode').value = cfg.json_fix_mode || 'full';
             document.getElementById('caseFormat').value = cfg.case_format || 'compact';
             document.getElementById('temperature').value = cfg.temperature || '0.3';
@@ -1254,7 +1254,7 @@ ${code}
                         model: cfg.model,
                         messages: messages,
                         temperature: 0.0,
-                        max_tokens: parseInt(document.getElementById('maxTokens').value) || 8192
+                        max_tokens: parseInt(document.getElementById('maxTokens').value)
                     })
                 });
                 if (!resp.ok) return { result: null, history: attemptHistory };
