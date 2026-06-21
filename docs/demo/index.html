@@ -377,7 +377,7 @@
                 <div class="tab" onclick="loadExample('clean')">干净代码</div>
                 <div class="tab" onclick="clearCode()">清空</div>
             </div>
-            <textarea id="code" spellcheck="false">function getUser(userId) {
+            <textarea id="code" spellcheck="false" style="min-height:260px">function getUser(userId) {
   const sql = `SELECT * FROM users WHERE id = ${userId}`;
   return db.query(sql);
 }</textarea>
@@ -407,7 +407,7 @@
                 <div class="tab" onclick="loadCase('null-check')">空指针检查</div>
                 <div class="tab" onclick="loadCase('custom')">自定义</div>
             </div>
-            <textarea id="caseContent" spellcheck="false" style="min-height:120px;font-size:13px">---
+            <textarea id="caseContent" spellcheck="false" style="min-height:180px;font-size:13px">---
 title: "SQL 注入防护规范"
 category: "安全"
 severity: "error"
@@ -447,7 +447,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
                 <div class="tab" onclick="loadPrompt('performance')">性能优先</div>
                 <div class="tab" onclick="loadPrompt('custom')">自定义</div>
             </div>
-            <textarea id="promptContent" spellcheck="false" style="min-height:100px;font-size:13px">你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
+            <textarea id="promptContent" spellcheck="false" style="min-height:160px;font-size:13px">你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
 
 === 审核维度 ===
 1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题
