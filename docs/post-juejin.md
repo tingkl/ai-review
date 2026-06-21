@@ -1,10 +1,4 @@
-# 掘金帖子
-
-## 标题
-
-**git commit 前自动 AI 代码审查：commit-ai-guardian 实践分享（含在线 Demo）**
-
-## 正文
+# git commit 前自动 AI 代码审查：commit-ai-guardian 实践分享
 
 ## 背景
 
@@ -23,17 +17,24 @@
 3. 发现问题直接阻断 commit
 4. 没问题直接通过
 
+**效果：**
+
 ```
 $ git commit -m "feat: add login"
-🔍 AI 代码审核报告
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┌─ src/auth.ts ──────────────────────────────┐
-│  ⚠️  警告  🔒 安全  src/auth.ts:45          │
-│       >> SQL 拼接存在注入风险               │
-│       💡 使用参数化查询                     │
-│       📍  const sql = `SELECT * FROM ...`  │
-└──────────────────────────────────────────────┘
-❌ 审核未通过
+
+[WARNING] src/auth.ts:45
+  SQL 拼接存在注入风险
+  建议: 使用参数化查询 db.query("SELECT * FROM users WHERE id = ?", [userId])
+
+审核未通过 (1 warning)
+请修复后重试
+```
+
+修复后重新 commit：
+
+```
+$ git commit -m "feat: add login (fixed)"
+审核通过，所有文件符合代码质量标准
 ```
 
 ## 核心设计
@@ -42,9 +43,11 @@ $ git commit -m "feat: add login"
 
 不仅能让 AI 审代码，还能决定**怎么审**：
 
-- **标准审核**：全面检查 5 大维度
-- **安全优先**：专注 SQL 注入、XSS、权限绕过等安全漏洞
-- **性能优先**：专注算法复杂度、N+1 查询、内存泄漏
+| 规则 | 审核重点 |
+|------|----------|
+| 标准审核 | 全面检查 5 大维度（Bug/风格/性能/最佳实践/文档） |
+| 安全优先 | SQL 注入、XSS、CSRF、权限绕过、敏感信息泄露 |
+| 性能优先 | 算法复杂度、N+1 查询、内存泄漏、缓存未使用 |
 
 在 `.ai-review/prompts/` 下放自定义模板，切换审核视角。
 
@@ -115,8 +118,8 @@ cag install
 cag configure
 ```
 
-项目地址：https://github.com/tingkl/ai-review
-PyPI：https://pypi.org/project/commit-ai-guardian
+**项目地址**：https://github.com/tingkl/ai-review
+**PyPI**：https://pypi.org/project/commit-ai-guardian
 
 ## 写在最后
 
