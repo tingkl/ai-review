@@ -771,8 +771,14 @@ def get_user_name(user):
                 .forEach(t => t.classList.remove('active'));
         }
 
-        // 案例多选状态
+        // 案例多选状态：初始化时同步 HTML 中默认选中的 tab
         const activeCases = new Set();
+        const defaultCaseTab = document.querySelector('.panel:nth-of-type(3) .tab.active');
+        if (defaultCaseTab) {
+            const onclick = defaultCaseTab.getAttribute('onclick');
+            const m = onclick && onclick.match(/loadCase\('([^']+)'\)/);
+            if (m && m[1] !== 'custom') activeCases.add(m[1]);
+        }
         let isCustomEdited = false;  // 用户是否在自定义模式下手动编辑了 textarea
 
         // 案例格式化：根据 case_format 精简注入 prompt 的案例内容
@@ -1006,50 +1012,71 @@ ${code}
             try { return JSON.parse(s); } catch { return null; }
         }
 
-        // JSON 修复 AI：本地修复失败时调用
+        // JSON 修复 AI：本地修复失败时调用，最多重试 3 次
         async function callJsonFixAi(brokenContent) {
             const cfg = {
                 api_key: document.getElementById('apiKey').value.trim(),
                 api_base: document.getElementById('apiBase').value,
                 custom_base: document.getElementById('customBase').value.trim(),
                 model: document.getElementById('model').value.trim(),
-                json_fix_mode: document.getElementById('jsonFixMode').value,
             };
             const apiBase = cfg.api_base === 'custom' ? cfg.custom_base : cfg.api_base;
             const fetchUrl = `${apiBase}/chat/completions`;
 
-            const fixPrompt = `请将以下内容修复为合法的 JSON 格式。
-要求：
-1. 只输出合法的 JSON，不要解释
-2. 包裹在 <result> 标签中：<result>{...}</result>
-3. 保持原有的字段结构：summary, passed, issues[]
+            // 修复 AI system message
+            const fixSystem = `你是 JSON 修复专家。任务：把损坏的 JSON 修复为合法格式。
+规则：
+1. 只输出合法 JSON，不要解释文字
+2. 包裹在 <result> 标签中
+3. 保持字段结构：summary, passed, issues[]
+4. line_number 必须是整数，不是则设为 0
+5. 字符串中的双引号必须转义 \\"`;
 
-待修复的内容：
-${brokenContent}`;
+            // 累积对话历史（跟实际工具的 full/last 模式一致）
+            const historyMode = document.getElementById('jsonFixMode').value; // 'full' 或 'last'
+            let attemptHistory = [];
 
-            try {
-                const resp = await fetch(fetchUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${cfg.api_key}`
-                    },
-                    body: JSON.stringify({
-                        model: cfg.model,
-                        messages: [
-                            {"role": "system", "content": "你是 JSON 修复专家，只输出合法 JSON。"},
-                            {"role": "user", "content": fixPrompt}
-                        ],
-                        temperature: 0.0,
-                        max_tokens: 4096
-                    })
-                });
-                if (!resp.ok) return null;
-                const data = await resp.json();
-                return tryFixJson(data.choices[0].message.content);
-            } catch {
-                return null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const fixPrompt = attempt === 0
+                    ? `请修复以下内容为合法 JSON：\n\n${brokenContent}`
+                    : `上次修复结果不满足要求，请重新修复。\n\n原始损坏内容：\n${brokenContent}`;
+
+                const messages = [
+                    {"role": "system", "content": fixSystem},
+                    ...attemptHistory,
+                    {"role": "user", "content": fixPrompt}
+                ];
+
+                try {
+                    const resp = await fetch(fetchUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${cfg.api_key}`
+                        },
+                        body: JSON.stringify({
+                            model: cfg.model,
+                            messages: messages,
+                            temperature: 0.0,
+                            max_tokens: 4096
+                        })
+                    });
+                    if (!resp.ok) continue;
+                    const data = await resp.json();
+                    const fixed = data.choices[0].message.content;
+                    const result = tryFixJson(fixed);
+                    if (result) return result;  // 修复成功
+
+                    // 修复失败，记录本次对话用于下次（如果 full 模式）
+                    if (historyMode === 'full') {
+                        attemptHistory.push({"role": "user", "content": fixPrompt});
+                        attemptHistory.push({"role": "assistant", "content": fixed});
+                    }
+                } catch {
+                    continue;
+                }
             }
+            return null;  // 3 次都失败
         }
 
         async function displayResult(content) {
