@@ -381,6 +381,46 @@
             <input type="hidden" id="filename" value="example.js">
         </div>
 
+        <div class="panel">
+            <div class="panel-title">
+                <span class="icon">📚</span>
+                自定义案例
+                <label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#8b949e;font-weight:400">
+                    <input type="checkbox" id="enableCase" checked style="width:auto">
+                    启用案例
+                </label>
+            </div>
+            <div class="tabs">
+                <div class="tab active" onclick="loadCase('sql-injection')">SQL 注入规范</div>
+                <div class="tab" onclick="loadCase('vue-naming')">Vue 命名规范</div>
+                <div class="tab" onclick="loadCase('null-check')">空指针检查</div>
+                <div class="tab" onclick="loadCase('custom')">自定义</div>
+            </div>
+            <textarea id="caseContent" spellcheck="false" style="min-height:120px;font-size:13px">---
+title: "SQL 注入防护规范"
+category: "安全"
+severity: "error"
+---
+
+## 场景描述
+用户输入直接拼接到 SQL 查询中，存在注入风险。
+
+## 正确做法
+使用参数化查询或 ORM：
+```javascript
+db.query("SELECT * FROM users WHERE id = ?", [userId])
+```
+
+## 错误示例
+```javascript
+const sql = `SELECT * FROM users WHERE id = ${userId}`;
+```</textarea>
+            <div class="hint">
+                案例格式：YAML frontmatter + Markdown。AI 会参考案例中的"错误示例"来识别代码中的问题。
+                跟实际工具 <code>.ai-review/cases/</code> 下的案例文件格式一致。
+            </div>
+        </div>
+
         <button class="btn" id="reviewBtn" onclick="startReview()">
             <div class="btn-spinner"></div>
             <span class="btn-text">🔍 开始审核</span>
@@ -550,6 +590,70 @@
             }
         };
 
+        const cases = {
+            'sql-injection': `---
+title: "SQL 注入防护规范"
+category: "安全"
+severity: "error"
+---
+
+## 场景描述
+用户输入直接拼接到 SQL 查询中，存在注入风险。
+
+## 正确做法
+使用参数化查询或 ORM：
+\`\`\`javascript
+db.query("SELECT * FROM users WHERE id = ?", [userId])
+\`\`\`
+
+## 错误示例
+\`\`\`javascript
+const sql = \`SELECT * FROM users WHERE id = \${userId}\`;
+\`\`\``,
+            'vue-naming': `---
+title: "Vue 组件命名规范"
+category: "代码风格"
+severity: "warning"
+---
+
+## 场景描述
+Vue 组件文件名应该使用大驼峰（PascalCase）。
+
+## 正确做法
+\`\`\`
+UserProfile.vue
+\`\`\`
+
+## 错误示例
+\`\`\`
+user-profile.vue
+userProfile.vue
+\`\`\``,
+            'null-check': `---
+title: "空指针检查规范"
+category: "Bug 检测"
+severity: "info"
+---
+
+## 场景描述
+函数参数、外部传入的变量不做 null 假设，但明显的空指针要提示。
+
+## 正确做法
+\`\`\`python
+def get_user_name(user):
+    if user is None:
+        return ""
+    return user.get("name", "")
+\`\`\`
+
+## 错误示例
+\`\`\`python
+def get_user_name(user):
+    return user["name"]  # 如果 user 为 None 会崩溃
+\`\`\``,
+            'custom': ''
+        };
+
         function loadExample(type) {
             const ex = examples[type];
             document.getElementById('code').value = ex.code;
@@ -557,7 +661,9 @@
             document.getElementById('filename').value = ex.filename;
             document.getElementById('displayLang').textContent = ex.lang;
             document.getElementById('displayFilename').textContent = ex.filename;
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            // 代码区域的 tab 高亮
+            const codePanel = document.querySelectorAll('.panel')[2];
+            codePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
         }
 
@@ -565,7 +671,17 @@
             document.getElementById('code').value = '';
             document.getElementById('displayLang').textContent = '-';
             document.getElementById('displayFilename').textContent = '-';
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            const codePanel = document.querySelectorAll('.panel')[2];
+            codePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        function loadCase(type) {
+            const content = cases[type] || '';
+            document.getElementById('caseContent').value = content;
+            // 案例区域的 tab 高亮
+            const casePanel = document.querySelectorAll('.panel')[3];
+            casePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
         }
 
@@ -658,7 +774,14 @@
   - 函数命名不够清晰、缺少注释 → info，不要报 warning
   - warning 只用于有实际影响的问题（如性能下降、维护困难、潜在风险）`;
 
-            // user prompt —— 与 ai_engine.py _build_prompt 一致（简化版，无案例）
+            // 收集案例内容
+            const enableCase = document.getElementById('enableCase').checked;
+            const caseContent = document.getElementById('caseContent').value.trim();
+            const caseSection = (enableCase && caseContent)
+                ? `\n\n## 审核案例（参考以下规范检查代码）\n${caseContent}`
+                : '';
+
+            // user prompt —— 与 ai_engine.py _build_prompt 一致
             const prompt = `请对以下代码变更进行严格审核。
 
 ## 代码信息
@@ -669,7 +792,7 @@
 ## 代码变更内容
 \`\`\`${fileLanguage}
 ${code}
-\`\`\`
+\`\`\`${caseSection}
 
 ## 输出要求
 - 按通用审核维度进行检查
