@@ -1083,7 +1083,27 @@ ${code}
             // L1-L5: 本地修复（提取/过滤/补全）
             let result = tryFixJson(content);
 
-            // L6: 本地修复失败 → 调用 JSON 修复 AI
+            // L6: schema 校验（跟实际工具 _validate_review_schema 一致）
+            if (result) {
+                const required = ['summary', 'passed', 'issues'];
+                const missing = required.filter(f => !(f in result));
+                if (missing.length > 0) {
+                    showError(`JSON 字段缺失: 缺少顶层必填字段: ${missing.join(', ')}\n请检查 AI 返回的 JSON 结构。`);
+                    return;
+                }
+                // 校验 issues 数组中每个 issue 的必需字段
+                if (Array.isArray(result.issues)) {
+                    for (let i = 0; i < result.issues.length; i++) {
+                        const issue = result.issues[i];
+                        if (!issue.message || issue.message === '-') {
+                            showError(`JSON 校验失败: issues[${i}].message 为空或无效。\n请尝试切换模型重试。`);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // L7: 本地修复失败 → 调用 JSON 修复 AI
             if (!result) {
                 result = await callJsonFixAi(content);
             }
