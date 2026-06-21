@@ -299,10 +299,10 @@
                 <label style="font-size:12px;color:#8b949e;font-weight:600">API 配置</label>
                 <div class="row" style="margin-top:6px">
                     <select id="apiBase">
-                        <option value="https://api.deepseek.com/v1" selected>DeepSeek（推荐，稳定）</option>
+                        <option value="https://api.openai.com/v1" selected>OpenAI（默认）</option>
+                        <option value="https://api.deepseek.com/v1">DeepSeek</option>
                         <option value="https://api.moonshot.cn/v1">Moonshot（Kimi）</option>
-                        <option value="https://api.openai.com/v1">OpenAI</option>
-                        <option value="https://api.minimaxi.com/v1">MiniMax（国内，偶发 529）</option>
+                        <option value="https://api.minimaxi.com/v1">MiniMax（国内）</option>
                         <option value="https://api.minimax.io/v1">MiniMax（国际）</option>
                         <option value="custom">自定义...</option>
                     </select>
@@ -424,12 +424,12 @@
         function loadConfig() {
             const cfg = JSON.parse(localStorage.getItem('cag_config') || '{}');
             document.getElementById('apiKey').value = cfg.api_key || '';
-            document.getElementById('apiBase').value = cfg.api_base || 'https://api.deepseek.com/v1';
+            document.getElementById('apiBase').value = cfg.api_base || 'https://api.openai.com/v1';
             if ((cfg.api_base || '') === 'custom') {
                 document.getElementById('customBase').style.display = 'block';
                 document.getElementById('customBase').value = cfg.custom_base || '';
             }
-            document.getElementById('model').value = cfg.model || 'deepseek-chat';
+            document.getElementById('model').value = cfg.model || 'gpt-4o-mini';
             document.getElementById('language').value = cfg.language || 'zh-CN';
             document.getElementById('severityThreshold').value = cfg.severity_threshold || 'warning';
             document.getElementById('maxTokens').value = cfg.max_tokens || '8192';
@@ -576,36 +576,77 @@
             errorBanner.classList.remove('show');
 
             // 使用用户配置的语言和阻断阈值
-            const langPrompt = cfg.language === 'zh-CN' ? '中文' : 'English';
-            const severityMap = {info: 'info', warning: 'warning', error: 'error', critical: 'error'};
-            const minSeverity = severityMap[cfg.severity_threshold] || 'warning';
+            // system message —— 与 prompt_loader.py DEFAULT_SYSTEM_MESSAGE 完全一致
+            const systemMessage = `你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
 
-            const prompt = `请对以下代码进行严格审核，找出潜在问题。用 ${langPrompt} 回答。
+=== 输出格式 ===
+输出包裹在 <result> 标签中：<result>{...}</result>
+不要 \`\`\`json 代码块，不要解释文字。
+
+[规则1] JSON 自检（schema 已约束字段名和类型，只需确认内容）：
+  - message 必须是有意义的描述，不能为空或 '-'
+  - line_number 是单个整数（如 80），不写范围
+  - 字符串中的双引号必须转义 \\"
+  - code_snippet 中的 { } 必须在字符串引号内，不破坏 JSON 结构
+
+📌 注释是代码意图的重要说明：
+  - 代码中的注释是开发者写的意图说明，比代码本身更直接
+  - 判断代码是否正确时，要参考注释的说明
+  - 如果注释明确解释了某个做法的原因，要尊重注释的判断
+  - 不要无视注释，仅凭代码表面就下结论
+
+=== 审核维度（只审以下5类，其他不要报） ===
+1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题等
+2. 代码风格: 命名规范、代码格式、注释质量、代码组织
+3. 性能问题: 算法复杂度、内存泄漏、不必要的计算
+4. 最佳实践: 设计模式、代码复用、错误处理、日志规范
+5. 文档完整: 函数文档、参数说明、复杂逻辑注释
+
+🚨 约束：不在以上5类的问题不要报。包括但不限于：
+  - 不要假设业务场景（金融/医疗/支付等）来报问题
+  - 不要建议给函数参数加 typeof/isNaN 等防御性检查
+  - window.location.protocol/.host 等读取操作不要报安全问题
+
+📌 空指针检查（仅作为提示，不阻断）：
+  - 明显的空指针可以报，但 severity 必须是 info，不能是 warning/error/critical
+  - 函数参数、外部传入的变量不做 null 假设
+  - info 级别仅供参考，不会阻断提交
+
+🚨 案例强约束：如果案例中提供了坏代码示例，
+  代码中出现了案例中的坏代码模式 → 必须报，不能遗漏。
+  这是最高优先级规则，高于其他所有约束。
+
+🆗 白名单约束：如果案例中标记了"可接受代码"（🆗），
+  这种代码虽然看起来和坏代码相似，但实际上是允许的、合法的 → 不要报。
+  白名单的优先级高于坏代码检测，避免误报。
+  有些案例可能只有可接受代码（没有坏代码），此时只作为白名单参考。
+
+=== 严重级别定义 ===
+- critical: 必须修复，会导致系统崩溃
+- error: 应该修复，明确的 Bug
+- warning: 建议修复，风格或最佳实践问题
+- info: 仅供参考
+
+⚠️ severity 使用建议（避免过度使用 warning）：
+  - 函数命名不够清晰、缺少注释 → info，不要报 warning
+  - warning 只用于有实际影响的问题（如性能下降、维护困难、潜在风险）`;
+
+            // user prompt —— 与 ai_engine.py _build_prompt 一致（简化版，无案例）
+            const prompt = `请对以下代码变更进行严格审核。
 
 ## 代码信息
 - 文件: ${filename}
 - 语言: ${fileLanguage}
+- 变更类型: modified
 
-## 代码内容
+## 代码变更内容
 \`\`\`${fileLanguage}
 ${code}
 \`\`\`
 
-## 审核维度
-1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题
-2. 代码风格: 命名规范、代码格式、注释质量
-3. 性能问题: 算法复杂度、内存泄漏、不必要的计算
-4. 最佳实践: 设计模式、错误处理、日志规范
-5. 文档完整: 函数文档、参数说明
-
-## 阻断阈值
-只上报 severity >= "${minSeverity}" 的问题。
-
 ## 输出要求
-以 JSON 格式输出，包裹在 <result> 标签中：
-<result>{"summary":"总体评价","passed":true/false,"issues":[{"severity":"warning/error/info","category":"类别","line_number":行号,"message":"问题描述","suggestion":"修复建议","code_snippet":"相关代码"}]}</result>
-
-只输出 JSON，不要其他解释文字。`;
+- 按通用审核维度进行检查
+- 尽量给出具体的修复建议，不要泛泛而谈`;
 
             // 使用用户指定的 model，未填写则根据 api_base 推断
             const model = cfg.model || detectModel(apiBase);
@@ -620,7 +661,7 @@ ${code}
                     body: JSON.stringify({
                         model: model,
                         messages: [
-                            {"role": "system", "content": cfg.language === 'zh-CN' ? "你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。" : "You are a professional code reviewer expert at finding issues and providing improvement suggestions."},
+                            {"role": "system", "content": systemMessage},
                             {"role": "user", "content": prompt}
                         ],
                         temperature: cfg.temperature,
@@ -629,8 +670,19 @@ ${code}
                 });
 
                 if (!response.ok) {
-                    const err = await response.text();
-                    throw new Error(`API 错误 (${response.status}): ${err}`);
+                    const errText = await response.text();
+                    // 特殊错误码提示
+                    let suggestion = '';
+                    if (response.status === 529) {
+                        suggestion = '服务器过载，建议切换到 DeepSeek 或 OpenAI 再试';
+                    } else if (response.status === 401) {
+                        suggestion = 'API Key 无效，请检查 Key 是否正确';
+                    } else if (response.status === 429) {
+                        suggestion = '请求太频繁，请稍后再试';
+                    } else if (response.status === 0) {
+                        suggestion = '可能是 CORS 跨域被拦截，尝试勾选"使用 CORS 代理"或换浏览器';
+                    }
+                    throw new Error(`API 错误 (${response.status})${suggestion ? '：' + suggestion : ''}\n${errText.substring(0, 200)}`);
                 }
 
                 const data = await response.json();
