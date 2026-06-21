@@ -205,20 +205,24 @@ include_patterns:
 
 | 服务商 | 模型 | 默认 max_tokens | 最大可设 | 建议值 |
 |--------|------|----------------|---------|--------|
+| **DeepSeek** | deepseek-v4-pro | 4,096 | 1,048,576 (1M) | **16K** |
+| **DeepSeek** | deepseek-v4-flash | 4,096 | 1,048,576 (1M) | **16K** |
 | **DeepSeek** | deepseek-chat | 4,096 | 8,192 (8K) | **8K** |
 | **DeepSeek** | deepseek-reasoner | 4,096 | 8,192 (8K) | **8K** |
-| **Kimi** | kimi-k2 | 32,768 | 128K | **16K** |
-| **Kimi** | kimi-k2.5 | 32,768 | 128K | **16K** |
-| **Kimi** | kimi-k2-thinking | 32,768 | 128K | **16K** |
-| **MiniMax** | MiniMax-M3 | 很小（不设会截断） | 128K | **16K** |
-| **MiniMax** | MiniMax-M2.7 | 很小 | 128K | **16K** |
-| **MiniMax** | MiniMax-M2.5 | 很小 | 128K | **16K** |
-| **MiniMax** | MiniMax-M2.1 | 很小 | 128K | **16K** |
+| **Kimi** | kimi-k2.6 | 32,768 | 262,144 (256K) | **16K** |
+| **Kimi** | kimi-k2 | 32,768 | 262,144 (256K) | **16K** |
+| **Kimi** | kimi-k2-thinking | 32,768 | 262,144 (256K) | **16K** |
+| **MiniMax** | MiniMax-M3 | 很小（不设会截断） | 131,072 (128K) | **16K** |
+| **MiniMax** | MiniMax-M2.7 | 很小 | 131,072 (128K) | **16K** |
+| **MiniMax** | MiniMax-M2.5 | 很小 | 131,072 (128K) | **16K** |
+| **MiniMax** | MiniMax-M2.1 | 很小 | 131,072 (128K) | **16K** |
 | **OpenAI** | gpt-4o | ~4,096 | 16,384 (16K) | **8K** |
 | **OpenAI** | gpt-4o-mini | ~4,096 | 16,384 (16K) | **8K** |
 | **OpenAI** | gpt-3.5-turbo | ~4,096 | 4,096 (4K) | **4K** |
 
-> **为什么要配置**：MiniMax 如果不设 max_tokens，默认很小，JSON 几乎一定会被截断。默认值 `8192` 覆盖 95% 场景，使用 MiniMax 时可适当提高。
+> **模型推荐**：DeepSeek 请用 `deepseek-v4-pro`（1M 上下文，最强代码能力），`deepseek-chat` 将于 2026/07/24 停用。Kimi 请用 `kimi-k2.6`（最新版本）。
+>
+> **为什么要配置**：MiniMax 如果不设 max_tokens，默认很小，JSON 几乎一定会被截断。默认值 `8192` 覆盖 95% 场景，使用 MiniMax 或 DeepSeek V4 时可适当提高。
 >
 > **支持简写**：`4K` = 4096，`8K` = 8192，`16k` = 16384，纯数字也可以。
 
