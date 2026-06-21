@@ -295,17 +295,25 @@
             </div>
             <div class="row">
                 <select id="apiBase">
-                    <option value="https://api.minimaxi.com/v1">MiniMax（国内）</option>
-                    <option value="https://api.minimax.io/v1">MiniMax（国际）</option>
-                    <option value="https://api.deepseek.com/v1">DeepSeek</option>
+                    <option value="https://api.deepseek.com/v1" selected>DeepSeek（推荐，稳定）</option>
                     <option value="https://api.moonshot.cn/v1">Moonshot（Kimi）</option>
                     <option value="https://api.openai.com/v1">OpenAI</option>
+                    <option value="https://api.minimaxi.com/v1">MiniMax（国内，偶发 529）</option>
+                    <option value="https://api.minimax.io/v1">MiniMax（国际）</option>
                     <option value="custom">自定义...</option>
                 </select>
                 <input type="text" id="customBase" placeholder="自定义 API Base URL" style="display:none">
             </div>
+            <div style="margin-top:10px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#8b949e">
+                    <input type="checkbox" id="useProxy" style="width:auto">
+                    使用 CORS 代理（浏览器直接调用 AI API 可能被跨域拦截，勾选此项通过代理转发）
+                </label>
+            </div>
+            <input type="text" id="proxyUrl" placeholder="CORS 代理地址（默认: https://cors-anywhere.herokuapp.com/）"
+                   value="https://cors-anywhere.herokuapp.com/" style="margin-top:8px;display:none">
             <input type="password" id="apiKey" placeholder="输入你的 API Key" style="margin-top:10px">
-            <div class="hint">API Key 仅存储在浏览器本地，不会发送到任何第三方服务器</div>
+            <div class="hint">API Key 仅存储在浏览器本地，代码在本地执行，不会上传到服务器</div>
         </div>
 
         <div class="panel">
