@@ -1168,20 +1168,20 @@ ${code}
             // 本地解析（完全对齐 Python parse_ai_response）
             let result = tryFixJson(content);
 
-            // _needsFix = true 表示本地解析到结构但字段有问题，需要修复 AI
+            // 修复 AI 循环：本地解析失败(null) 或 字段有问题(_needsFix) 都触发
             let fixAttempt = 0;
-            while (result && result._needsFix && fixAttempt < 3) {
-                const schemaErrors = [result.summary];
-                result = await callJsonFixAi(content, schemaErrors);
-                if (result) {
-                    result = tryFixJson(JSON.stringify(result));  // 再解析一次
-                    fixAttempt++;
-                } else {
-                    break;
-                }
+            for (let i = 0; i < 3; i++) {
+                // 不需要修复：解析成功且字段完整
+                if (result && !result._needsFix) break;
+
+                fixAttempt++;
+                const schemaErrors = result ? [result.summary] : ['JSON 解析失败'];
+                const fixed = await callJsonFixAi(content, schemaErrors);
+                if (!fixed) break;  // 修复 AI 也失败，退出循环
+                result = tryFixJson(JSON.stringify(fixed));
             }
 
-            if (!result || (result && result._needsFix)) {
+            if (!result || result._needsFix) {
                 showError(`AI 返回的 JSON 解析失败，已尝试 ${fixAttempt} 次修复均未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。`);
                 return;
             }
