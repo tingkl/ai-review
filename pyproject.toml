@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "commit-ai-guardian"
-version = "0.2.5"
-description = "Git Pre-commit Hook AI 代码审核系统"
+version = "0.2.6"
+description = "Git commit 前 AI 自动代码审查工具 — 支持 OpenAI/MiniMax/DeepSeek/Kimi，自定义审核规则和案例"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
-    {name = "Commit AI Guardian"},
+    {name = "tingkl"},
 ]
-keywords = ["git", "hook", "pre-commit", "ai", "code-review", "code-quality"]
+keywords = ["git", "hook", "pre-commit", "ai", "code-review", "code-quality", "llm", "openai", "deepseek", "minimax", "kimi", "static-analysis", "developer-tools"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -38,8 +38,11 @@ commit-ai-guardian = "commit_ai_guardian.cli:main"
 cag = "commit_ai_guardian.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/commit-ai-guardian"
-Issues = "https://github.com/yourusername/commit-ai-guardian/issues"
+Homepage = "https://github.com/tingkl/ai-review"
+Documentation = "https://github.com/tingkl/ai-review/blob/main/README.md"
+Repository = "https://github.com/tingkl/ai-review"
+Issues = "https://github.com/tingkl/ai-review/issues"
+Changelog = "https://github.com/tingkl/ai-review/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
