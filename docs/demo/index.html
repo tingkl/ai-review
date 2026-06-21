@@ -421,6 +421,37 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
             </div>
         </div>
 
+        <div class="panel">
+            <div class="panel-title">
+                <span class="icon">📐</span>
+                自定义审核规则（Prompt）
+                <label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#8b949e;font-weight:400">
+                    <input type="checkbox" id="enablePrompt" checked style="width:auto">
+                    启用规则
+                </label>
+            </div>
+            <div class="tabs">
+                <div class="tab active" onclick="loadPrompt('standard')">标准审核</div>
+                <div class="tab" onclick="loadPrompt('security')">安全优先</div>
+                <div class="tab" onclick="loadPrompt('performance')">性能优先</div>
+                <div class="tab" onclick="loadPrompt('custom')">自定义</div>
+            </div>
+            <textarea id="promptContent" spellcheck="false" style="min-height:100px;font-size:13px">你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
+
+=== 审核维度 ===
+1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题
+2. 代码风格: 命名规范、代码格式、注释质量
+3. 性能问题: 算法复杂度、内存泄漏、不必要的计算
+4. 最佳实践: 设计模式、错误处理、日志规范
+5. 文档完整: 函数文档、参数说明
+
+=== 输出格式 ===
+输出包裹在 &lt;result&gt; 标签中，不要解释文字。</textarea>
+            <div class="hint">
+                这是 system message，决定 AI 的审核视角和标准。与实际工具 <code>.ai-review/prompts/</code> 下的模板文件格式一致。
+            </div>
+        </div>
+
         <button class="btn" id="reviewBtn" onclick="startReview()">
             <div class="btn-spinner"></div>
             <span class="btn-text">🔍 开始审核</span>
@@ -590,6 +621,43 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
             }
         };
 
+        const prompts = {
+            standard: `你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
+
+=== 审核维度 ===
+1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题
+2. 代码风格: 命名规范、代码格式、注释质量
+3. 性能问题: 算法复杂度、内存泄漏、不必要的计算
+4. 最佳实践: 设计模式、错误处理、日志规范
+5. 文档完整: 函数文档、参数说明
+
+=== 输出格式 ===
+输出包裹在 <result> 标签中，不要解释文字。`,
+            security: `你是一位安全导向的代码审核专家，专注于发现安全风险。
+
+=== 审核重点（按优先级排序） ===
+1. 🔒 安全漏洞: SQL 注入、XSS、CSRF、敏感信息泄露、权限绕过
+2. 🛡️ 输入校验: 所有外部输入必须校验（用户输入、URL 参数、文件上传）
+3. 🔐 认证授权: 身份验证、权限检查、会话管理
+4. 📡 数据安全: 加密传输、密码存储、日志脱敏
+5. 其他维度仅作简要检查
+
+=== 输出格式 ===
+输出包裹在 <result> 标签中，安全问题的 severity 必须是 error 或 critical。`,
+            performance: `你是一位性能导向的代码审核专家，专注于发现性能瓶颈。
+
+=== 审核重点（按优先级排序） ===
+1. ⚡ 算法复杂度: O(n²) 以上必须优化，大数据量场景分析
+2. 💾 数据库: N+1 查询、缺少索引、全表扫描、大事务
+3. 🔄 内存管理: 内存泄漏、大对象缓存、循环引用
+4. 🌐 网络: 重复请求、同步阻塞、未使用缓存
+5. 其他维度仅作简要检查
+
+=== 输出格式 ===
+输出包裹在 <result> 标签中，性能问题的 severity 必须是 warning 或 error。`,
+            custom: ''
+        };
+
         const cases = {
             'sql-injection': `---
 title: "SQL 注入防护规范"
@@ -685,6 +753,15 @@ def get_user_name(user):
             event.target.classList.add('active');
         }
 
+        function loadPrompt(type) {
+            const content = prompts[type] || '';
+            document.getElementById('promptContent').value = content;
+            // prompt 区域的 tab 高亮
+            const promptPanel = document.querySelectorAll('.panel')[4];
+            promptPanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
         async function startReview() {
             const cfg = {
                 api_key: document.getElementById('apiKey').value.trim(),
@@ -719,60 +796,30 @@ def get_user_name(user):
             errorBanner.classList.remove('show');
 
             // 使用用户配置的语言和阻断阈值
-            // system message —— 与 prompt_loader.py DEFAULT_SYSTEM_MESSAGE 完全一致
-            const systemMessage = `你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
+            // system message：使用自定义审核规则（prompt），如果启用的话
+            const enablePrompt = document.getElementById('enablePrompt').checked;
+            const customPrompt = document.getElementById('promptContent').value.trim();
+            const systemMessage = (enablePrompt && customPrompt)
+                ? customPrompt
+                : `你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。
 
 === 输出格式 ===
 输出包裹在 <result> 标签中：<result>{...}</result>
 不要 \`\`\`json 代码块，不要解释文字。
 
-[规则1] JSON 自检（schema 已约束字段名和类型，只需确认内容）：
-  - message 必须是有意义的描述，不能为空或 '-'
-  - line_number 是单个整数（如 80），不写范围
-  - 字符串中的双引号必须转义 \\"
-  - code_snippet 中的 { } 必须在字符串引号内，不破坏 JSON 结构
+[规则1] JSON 自检：
+  - message 不能为 '-'
+  - line_number 是单个整数
+  - 双引号必须转义 \\"
 
-📌 注释是代码意图的重要说明：
-  - 代码中的注释是开发者写的意图说明，比代码本身更直接
-  - 判断代码是否正确时，要参考注释的说明
-  - 如果注释明确解释了某个做法的原因，要尊重注释的判断
-  - 不要无视注释，仅凭代码表面就下结论
+=== 审核维度（只审以下5类） ===
+1. Bug 检测 2. 代码风格 3. 性能问题 4. 最佳实践 5. 文档完整
 
-=== 审核维度（只审以下5类，其他不要报） ===
-1. Bug 检测: 逻辑错误、边界条件、资源泄漏、并发问题等
-2. 代码风格: 命名规范、代码格式、注释质量、代码组织
-3. 性能问题: 算法复杂度、内存泄漏、不必要的计算
-4. 最佳实践: 设计模式、代码复用、错误处理、日志规范
-5. 文档完整: 函数文档、参数说明、复杂逻辑注释
+🚨 案例强约束：案例中有坏代码示例 → 代码中出现 → 必须报
+🆗 白名单约束：案例标记 🆗 → 不要报
 
-🚨 约束：不在以上5类的问题不要报。包括但不限于：
-  - 不要假设业务场景（金融/医疗/支付等）来报问题
-  - 不要建议给函数参数加 typeof/isNaN 等防御性检查
-  - window.location.protocol/.host 等读取操作不要报安全问题
-
-📌 空指针检查（仅作为提示，不阻断）：
-  - 明显的空指针可以报，但 severity 必须是 info，不能是 warning/error/critical
-  - 函数参数、外部传入的变量不做 null 假设
-  - info 级别仅供参考，不会阻断提交
-
-🚨 案例强约束：如果案例中提供了坏代码示例，
-  代码中出现了案例中的坏代码模式 → 必须报，不能遗漏。
-  这是最高优先级规则，高于其他所有约束。
-
-🆗 白名单约束：如果案例中标记了"可接受代码"（🆗），
-  这种代码虽然看起来和坏代码相似，但实际上是允许的、合法的 → 不要报。
-  白名单的优先级高于坏代码检测，避免误报。
-  有些案例可能只有可接受代码（没有坏代码），此时只作为白名单参考。
-
-=== 严重级别定义 ===
-- critical: 必须修复，会导致系统崩溃
-- error: 应该修复，明确的 Bug
-- warning: 建议修复，风格或最佳实践问题
-- info: 仅供参考
-
-⚠️ severity 使用建议（避免过度使用 warning）：
-  - 函数命名不够清晰、缺少注释 → info，不要报 warning
-  - warning 只用于有实际影响的问题（如性能下降、维护困难、潜在风险）`;
+=== 严重级别 ===
+- critical: 系统崩溃 - error: 明确 Bug - warning: 建议修复 - info: 仅供参考`;
 
             // 收集案例内容
             const enableCase = document.getElementById('enableCase').checked;
