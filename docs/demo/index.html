@@ -317,8 +317,7 @@
                 <label style="font-size:12px;color:#8b949e;font-weight:600">模型与参数</label>
                 <div class="row" style="margin-top:6px">
                     <select id="model">
-                        <option value="deepseek-chat" selected>deepseek-chat（通用）</option>
-                        <option value="deepseek-reasoner">deepseek-reasoner（推理）</option>
+                        <option value="deepseek-v4-pro" selected>deepseek-v4-pro（最新，推荐）</option>
                     </select>
                     <select id="language">
                         <option value="zh-CN" selected>中文 (zh-CN)</option>
@@ -501,7 +500,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
                 document.getElementById('customBase').style.display = 'block';
                 document.getElementById('customBase').value = cfg.custom_base || '';
             }
-            document.getElementById('model').value = cfg.model || 'deepseek-chat';
+            document.getElementById('model').value = cfg.model || 'deepseek-v4-pro';
             document.getElementById('language').value = cfg.language || 'zh-CN';
             document.getElementById('severityThreshold').value = cfg.severity_threshold || 'warning';
             document.getElementById('maxTokens').value = cfg.max_tokens || '8192';
@@ -537,9 +536,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
         const MODEL_MAP = {
             'https://api.deepseek.com/v1': [
                 ['deepseek-v4-pro', 'deepseek-v4-pro（最新，推荐）'],
-                ['deepseek-v4-flash', 'deepseek-v4-flash（快速）'],
-                ['deepseek-chat', 'deepseek-chat（即将停用）'],
-                ['deepseek-reasoner', 'deepseek-reasoner（即将停用）']
+                ['deepseek-v4-flash', 'deepseek-v4-flash（快速）']
             ],
             'https://api.moonshot.cn/v1': [
                 ['kimi-k2.6', 'kimi-k2.6（最新，推荐）'],
@@ -965,7 +962,7 @@ ${code}
         function detectModel(apiBase) {
             const base = apiBase.toLowerCase();
             if (base.includes('minimax')) return 'MiniMax-M2.7';
-            if (base.includes('deepseek')) return 'deepseek-chat';
+            if (base.includes('deepseek')) return 'deepseek-v4-pro';
             if (base.includes('moonshot')) return 'kimi-k2';
             return 'gpt-4o-mini';
         }

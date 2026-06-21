@@ -360,8 +360,6 @@ def configure(config_path):
         click.echo("  +---------------------+-------------------------------+------------+")
         click.echo("  | deepseek-v4-pro     | 最新 V4，1M 上下文（推荐）     | 1,048,576  |")
         click.echo("  | deepseek-v4-flash   | V4 快速版，性价比              | 1,048,576  |")
-        click.echo("  | deepseek-chat       | 旧版，2026/07/24 停用          | 64K        |")
-        click.echo("  | deepseek-reasoner   | 旧版推理，2026/07/24 停用      | 64K        |")
         click.echo("  +---------------------+-------------------------------+------------+")
     elif "moonshot" in api_base_lower:
         click.echo("  Moonshot(Kimi) 推荐模型：")
@@ -385,7 +383,7 @@ def configure(config_path):
         click.echo("  模型名称示例：")
         click.echo("    OpenAI: gpt-4o, gpt-4o-mini")
         click.echo("    MiniMax: MiniMax-M3, MiniMax-M2.7")
-        click.echo("    DeepSeek: deepseek-chat, deepseek-reasoner")
+        click.echo("    DeepSeek: deepseek-v4-pro, deepseek-v4-flash")
         click.echo("    Kimi: kimi-k2, kimi-k2-thinking")
     click.echo("")
     

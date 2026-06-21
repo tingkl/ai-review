@@ -162,7 +162,7 @@ cag 在 hook 文件中写入特定的 marker 标记来识别：
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
 | `api_key` | AI API 密钥 | `""` |
-| `model` | 模型名称（如 `gpt-4o-mini`、`deepseek-chat`） | `gpt-4o-mini` |
+| `model` | 模型名称（如 `gpt-4o-mini`、`deepseek-v4-pro`） | `gpt-4o-mini` |
 | `api_base` | API 服务地址 | `https://api.openai.com/v1` |
 | `language` | 审核输出语言（`zh-CN` / `en-US`） | `zh-CN` |
 | `enabled` | 是否启用审查 | `true` |
@@ -214,8 +214,6 @@ include_patterns:
 |--------|------|----------------|---------|--------|
 | **DeepSeek** | deepseek-v4-pro | 4,096 | 1,048,576 (1M) | **16K** |
 | **DeepSeek** | deepseek-v4-flash | 4,096 | 1,048,576 (1M) | **16K** |
-| **DeepSeek** | deepseek-chat | 4,096 | 8,192 (8K) | **8K** |
-| **DeepSeek** | deepseek-reasoner | 4,096 | 8,192 (8K) | **8K** |
 | **Kimi** | kimi-k2.6 | 32,768 | 262,144 (256K) | **16K** |
 | **Kimi** | kimi-k2 | 32,768 | 262,144 (256K) | **16K** |
 | **Kimi** | kimi-k2-thinking | 32,768 | 262,144 (256K) | **16K** |
@@ -227,7 +225,7 @@ include_patterns:
 | **OpenAI** | gpt-4o-mini | ~4,096 | 16,384 (16K) | **8K** |
 | **OpenAI** | gpt-3.5-turbo | ~4,096 | 4,096 (4K) | **4K** |
 
-> **模型推荐**：DeepSeek 请用 `deepseek-v4-pro`（1M 上下文，最强代码能力），`deepseek-chat` 将于 2026/07/24 停用。Kimi 请用 `kimi-k2.6`（最新版本）。
+> **模型推荐**：DeepSeek 请用 `deepseek-v4-pro`（1M 上下文，最强代码能力）。Kimi 请用 `kimi-k2.6`（最新版本）。
 >
 > **为什么要配置**：MiniMax 如果不设 max_tokens，默认很小，JSON 几乎一定会被截断。默认值 `8192` 覆盖 95% 场景，使用 MiniMax 或 DeepSeek V4 时可适当提高。
 >
