@@ -451,11 +451,14 @@
         // 模型列表 —— 按服务商分组，第一项为默认（最新/推荐）
         const MODEL_MAP = {
             'https://api.deepseek.com/v1': [
-                ['deepseek-chat', 'deepseek-chat（通用，推荐）'],
-                ['deepseek-reasoner', 'deepseek-reasoner（推理）']
+                ['deepseek-v4-pro', 'deepseek-v4-pro（最新，推荐）'],
+                ['deepseek-v4-flash', 'deepseek-v4-flash（快速）'],
+                ['deepseek-chat', 'deepseek-chat（即将停用）'],
+                ['deepseek-reasoner', 'deepseek-reasoner（即将停用）']
             ],
             'https://api.moonshot.cn/v1': [
-                ['kimi-k2', 'kimi-k2（最新，推荐）'],
+                ['kimi-k2.6', 'kimi-k2.6（最新，推荐）'],
+                ['kimi-k2', 'kimi-k2'],
                 ['kimi-k2-thinking', 'kimi-k2-thinking（推理）']
             ],
             'https://api.openai.com/v1': [
