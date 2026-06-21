@@ -336,6 +336,11 @@
                         <option value="auto" selected>JSON 修复: 自动（推荐）</option>
                         <option value="manual">JSON 修复: 手动（失败时报错）</option>
                     </select>
+                    <select id="caseFormat">
+                        <option value="default">案例格式: 完整（详细）</option>
+                        <option value="compact" selected>案例格式: 精简（推荐）</option>
+                        <option value="minimal">案例格式: 最小（省 token）</option>
+                    </select>
                     <select id="maxTokens">
                         <option value="4096">4K tokens</option>
                         <option value="8192" selected>8K tokens（推荐）</option>
@@ -499,6 +504,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
             document.getElementById('severityThreshold').value = cfg.severity_threshold || 'warning';
             document.getElementById('maxTokens').value = cfg.max_tokens || '8192';
             document.getElementById('jsonFixMode').value = cfg.json_fix_mode || 'auto';
+            document.getElementById('caseFormat').value = cfg.case_format || 'compact';
             document.getElementById('temperature').value = cfg.temperature || '0.3';
             document.getElementById('temperatureValue').textContent = cfg.temperature || '0.3';
         }
@@ -515,6 +521,7 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
                 severity_threshold: document.getElementById('severityThreshold').value,
                 max_tokens: document.getElementById('maxTokens').value,
                 json_fix_mode: document.getElementById('jsonFixMode').value,
+                case_format: document.getElementById('caseFormat').value,
                 temperature: document.getElementById('temperature').value
             };
             localStorage.setItem('cag_config', JSON.stringify(cfg));
@@ -578,9 +585,11 @@ const sql = `SELECT * FROM users WHERE id = ${userId}`;
         ['apiKey','customBase'].forEach(id => {
             document.getElementById(id).addEventListener('input', saveConfig);
         });
-        ['apiBase','language','severityThreshold','maxTokens','model'].forEach(id => {
+        ['apiBase','language','severityThreshold','maxTokens','model','jsonFixMode','caseFormat'].forEach(id => {
             document.getElementById(id).addEventListener('change', saveConfig);
         });
+        // case_format 变更时重新格式化案例 textarea
+        document.getElementById('caseFormat').addEventListener('change', updateCaseTextarea);
         document.getElementById('temperature').addEventListener('input', function() {
             document.getElementById('temperatureValue').textContent = this.value;
             saveConfig();
@@ -755,9 +764,40 @@ def get_user_name(user):
         // 案例多选状态
         const activeCases = new Set();
 
+        // 案例格式化：根据 case_format 精简注入 prompt 的案例内容
+        function formatCase(rawCase, format) {
+            if (format === 'default' || !rawCase) return rawCase;
+
+            // 解析 YAML frontmatter
+            const fmMatch = rawCase.match(/^---\n([\s\S]*?)\n---\n/);
+            if (!fmMatch) return rawCase;
+
+            const yaml = fmMatch[1];
+            const body = rawCase.slice(fmMatch[0].length);
+
+            // 提取 title, category, severity
+            const title = (yaml.match(/title:\s*"?([^"\n]+)"?/) || [])[1] || '';
+            const category = (yaml.match(/category:\s*"?([^"\n]+)"?/) || [])[1] || '';
+            const severity = (yaml.match(/severity:\s*"?([^"\n]+)"?/) || [])[1] || '';
+
+            if (format === 'minimal') {
+                // 最小格式：只保留检查清单
+                return `---\ntitle: "${title}"\ncategory: "${category}"\nseverity: "${severity}"\n---\n\n## 检查项\n- [ ] ${title}`;
+            }
+
+            // compact：精简格式（frontmatter + 错误示例）
+            const errorMatch = body.match(/## 错误示例\n([\s\S]*?)(?=\n## |\n*$)/);
+            const errorExample = errorMatch ? errorMatch[1].trim() : '';
+
+            return `---\ntitle: "${title}"\ncategory: "${category}"\nseverity: "${severity}"\n---\n\n## 错误示例\n${errorExample}`;
+        }
+
         function updateCaseTextarea() {
+            const format = document.getElementById('caseFormat').value;
             const parts = [];
-            activeCases.forEach(key => { if (cases[key]) parts.push(cases[key]); });
+            activeCases.forEach(key => {
+                if (cases[key]) parts.push(formatCase(cases[key], format));
+            });
             document.getElementById('caseContent').value = parts.join('\n\n---\n\n');
         }
 
