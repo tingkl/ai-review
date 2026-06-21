@@ -983,33 +983,97 @@ ${code}
             return 'gpt-4o-mini';
         }
 
-        // JSON 修复：模拟实际工具的四级容错（简化版）
-        function tryFixJson(content) {
-            // L1: 提取 <result> 标签
-            let m = content.match(/<result>([\s\S]*?)<\/result>/);
-            let s = m ? m[1] : content;
+        // 完全对齐 Python ai_engine.py 的 parse_ai_response 逻辑
+        function tryFixJson(response) {
+            if (!response || !response.trim()) return null;
 
-            // L2: 过滤 <think> 标签
-            s = s.replace(/<think>[\s\S]*?<\/think>/g, '');
+            // 1. 过滤 <think> 标签
+            let filtered = response.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
-            // L3: 过滤 markdown 代码块
-            s = s.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
-            s = s.replace(/```\s*/g, '');
+            // 2. 从 <result> 标签提取（最优先）
+            let jsonStr = null;
+            const resultMatch = filtered.match(/<result>([\s\S]*?)<\/result>/);
+            if (resultMatch) {
+                jsonStr = resultMatch[1].trim();
+                if (!jsonStr) return { summary: '审核完成，未发现问题', passed: true, issues: [] };
+            }
 
-            // L4: 清理前后空白和非 JSON 前缀
-            s = s.trim();
-            s = s.replace(/^[^{\[]*/, '');  // 去掉开头的非 JSON 字符
-            s = s.replace(/[^}\]]*$/, '');  // 去掉结尾的非 JSON 字符
+            // 3. 从 ```json 代码块提取
+            if (!jsonStr) {
+                const codeMatch = filtered.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+                if (codeMatch) jsonStr = codeMatch[1].trim();
+            }
 
-            // L5: 括号补全
-            const openBrace = (s.match(/\{/g) || []).length;
-            const closeBrace = (s.match(/\}/g) || []).length;
-            const openBracket = (s.match(/\[/g) || []).length;
-            const closeBracket = (s.match(/\]/g) || []).length;
-            for (let i = 0; i < openBrace - closeBrace; i++) s += '}';
-            for (let i = 0; i < openBracket - closeBracket; i++) s += ']';
+            // 4. 花括号匹配
+            if (!jsonStr) {
+                const braceMatch = filtered.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+                if (braceMatch) jsonStr = braceMatch[0].trim();
+            }
 
-            try { return JSON.parse(s); } catch { return null; }
+            // 5. 前缀清理
+            if (!jsonStr) {
+                jsonStr = filtered;
+                for (const prefix of ['以下是', '这是', '审核结果', '结果如下', 'JSON 如下', '返回结果']) {
+                    if (jsonStr.includes(prefix) && jsonStr.includes('{')) {
+                        const idx = jsonStr.indexOf('{');
+                        if (idx > 0) { jsonStr = jsonStr.slice(idx); break; }
+                    }
+                }
+            }
+
+            if (!jsonStr) return null;
+
+            // 6. 快速处理：空数组 [] → 通过
+            const stripped = jsonStr.trim();
+            if (stripped === '[]') return { summary: '审核完成，未发现问题', passed: true, issues: [] };
+            // 7. 快速处理：空对象 {} → 通过
+            if (stripped === '{}') return { summary: '审核完成，未发现问题', passed: true, issues: [] };
+
+            // 8. 多种 JSON 解析尝试（对齐 _try_parse_json）
+            let data = _tryParseJson(jsonStr);
+            if (!data) return null;
+
+            // 9. 空数组处理
+            if (Array.isArray(data)) {
+                if (data.length === 0) return { summary: '审核完成，未发现问题', passed: true, issues: [] };
+                // 非空数组 → 需要修复 AI 处理
+                return { _needsFix: true, _raw: response, summary: `JSON 类型错误: 期望对象，实际得到数组（${data.length} 个元素）`, passed: false, issues: [] };
+            }
+            if (typeof data !== 'object') return { _needsFix: true, _raw: response, summary: `JSON 类型错误: 期望对象，实际得到 ${typeof data}`, passed: false, issues: [] };
+
+            // 10. 顶层字段检查
+            const requiredTop = ['summary', 'passed', 'issues'];
+            const missingTop = requiredTop.filter(f => !(f in data));
+            if (missingTop.length > 0) {
+                return { _needsFix: true, _raw: response, summary: `JSON 字段缺失: 缺少顶层必填字段: ${missingTop.join(', ')}`, passed: false, issues: [] };
+            }
+
+            // 11. issue message 检查
+            const issues = data.issues || [];
+            if (Array.isArray(issues)) {
+                for (let i = 0; i < issues.length; i++) {
+                    const issue = issues[i];
+                    if (!issue.message || !String(issue.message).trim() || issue.message === '-') {
+                        return { _needsFix: true, _raw: response, summary: `JSON 字段缺失: issue[${i}].message 为空或无效`, passed: false, issues: [] };
+                    }
+                }
+            }
+
+            return data;
+        }
+
+        // 对齐 Python _try_parse_json
+        function _tryParseJson(s) {
+            const attempts = [
+                () => JSON.parse(s),
+                () => JSON.parse(s.replace(/,\s*([}\]])/g, '$1')),  //  trailing comma
+                () => JSON.parse(s.replace(/([{,]\s*)(\w+):/g, '$1"$2":')),  // unquoted keys
+                () => JSON.parse(s.replace(/'/g, '"')),  // single quotes
+            ];
+            for (const fn of attempts) {
+                try { return fn(); } catch { continue; }
+            }
+            return null;
         }
 
         // schema 校验（跟实际工具 _validate_review_schema 一致）
@@ -1056,11 +1120,11 @@ ${code}
 
             for (let attempt = 0; attempt < 3; attempt++) {
                 const schemaHint = schemaErrors && schemaErrors.length > 0
-                    ? `\n\nSchema 校验错误（必须修复）：\n${schemaErrors.map(e => '- ' + e).join('\n')}`
+                    ? `\n\nSchema 校验错误：\n${schemaErrors.map(e => '- ' + e).join('\n')}`
                     : '';
             const fixPrompt = attempt === 0
-                    ? `请修复以下内容为合法 JSON：\n\n${brokenContent}${schemaHint}`
-                    : `上次修复结果不满足要求，请重新修复。\n\n原始损坏内容：\n${brokenContent}${schemaHint}`;
+                    ? `请将以下损坏的 JSON 修复为合法格式。只修复语法（转义、逗号、括号），不修改内容。\n\n${brokenContent}${schemaHint}`
+                    : `以上修复结果不满足 schema 要求，具体错误：\n${schemaErrors.join('\n')}\n\n请根据以上错误修正 JSON，确保满足 schema 约束。`;
 
                 const messages = [
                     {"role": "system", "content": fixSystem},
@@ -1101,25 +1165,23 @@ ${code}
         }
 
         async function displayResult(content) {
-            // L1-L5: 本地修复（提取/过滤/补全）
+            // 本地解析（完全对齐 Python parse_ai_response）
             let result = tryFixJson(content);
 
-            // L6: schema 校验
-            let schemaErrors = result ? validateSchema(result) : ['JSON 解析失败'];
-
-            // L7: 本地修复失败 或 schema 校验失败 → 调用 JSON 修复 AI（最多3次）
+            // _needsFix = true 表示本地解析到结构但字段有问题，需要修复 AI
             let fixAttempt = 0;
-            while ((!result || schemaErrors.length > 0) && fixAttempt < 3) {
+            while (result && result._needsFix && fixAttempt < 3) {
+                const schemaErrors = [result.summary];
                 result = await callJsonFixAi(content, schemaErrors);
-                fixAttempt++;
                 if (result) {
-                    schemaErrors = validateSchema(result);
+                    result = tryFixJson(JSON.stringify(result));  // 再解析一次
+                    fixAttempt++;
                 } else {
-                    schemaErrors = ['JSON 修复 AI 返回解析失败'];
+                    break;
                 }
             }
 
-            if (!result || schemaErrors.length > 0) {
+            if (!result || (result && result._needsFix)) {
                 showError(`AI 返回的 JSON 解析失败，已尝试 ${fixAttempt} 次修复均未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。`);
                 return;
             }
