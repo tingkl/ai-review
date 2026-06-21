@@ -74,8 +74,19 @@ class Config:
     temperature: float = 0.3                 # 随机性 (0~2)
     proxy: str = ""                          # HTTP 代理地址
     use_cache: bool = True                   # 是否启用缓存
-    json_fix_history_mode: str = "full"      # JSON 修复上下文: full/last
+    json_fix_history_mode: str = "full"      # JSON 修复 AI 上下文: full/last
 ```
+
+**json_fix_history_mode 详解**：
+
+控制 JSON 修复 AI 的上下文累积策略：
+
+| 模式 | 行为 | 适用场景 |
+|------|------|----------|
+| `full` | 每次修复失败后，把 `[assistant(json), user(error)]` 追加到历史，后续 attempt 能看到完整过程 | JSON 结构复杂、多次不同错误时 |
+| `last` | 每次只保留最近一次，清空之前的历史 | prompt 长度敏感、简单格式错误时 |
+
+实现位置：`ai_engine.py` `_fix_json_with_ai()` 方法。
 
 ### 配置加载时序
 
