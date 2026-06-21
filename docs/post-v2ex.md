@@ -2,7 +2,7 @@
 
 ## 标题
 
-**[分享创造] 写了个 AI 代码审查工具，git commit 前自动拦截 Bug，已发 PyPI**
+**[分享创造] 写了个 AI 代码审查工具，git commit 前自动拦截 Bug，已发 PyPI，有在线 Demo**
 
 ## 正文
 
@@ -31,17 +31,21 @@ $ git commit -m "feat: add login"
 
 **核心能力**：
 - 5 大审核维度（Bug/风格/性能/最佳实践/文档）
-- 自定义案例系统（团队规范写成 Markdown 案例，AI 按案例审核）
-- 四级 JSON 容错（本地修复 → AI 修复 → Schema 校验 → 兜底通过）
+- **自定义审核规则**（system prompt，可切换标准/安全优先/性能优先视角）
+- **自定义案例系统**（团队规范写成 Markdown 案例，AI 按案例精准审核）
+- 四级 JSON 容错（本地修复 → AI 修复 3 次 → Schema 校验 → 兜底通过）
 - 缓存机制（相同内容不重复审核）
-- 支持 OpenAI/MiniMax/DeepSeek/Kimi
+- 支持 OpenAI/MiniMax/DeepSeek/Kimi（**推荐 DeepSeek V4，1M 上下文**）
 
-**安装**：
+**在线体验**（不用安装，粘贴代码就能试）：
+https://tingkl.github.io/ai-review/demo/
+
+**安装**（一行搞定）：
 ```bash
 uv tool install commit-ai-guardian
 cd your-project
 cag install
-cag configure  # 配 API Key
+cag configure  # 配 API Key，推荐 DeepSeek
 ```
 
 **项目地址**：https://github.com/tingkl/ai-review
@@ -55,7 +59,7 @@ cag configure  # 配 API Key
 
 现有工具要么太重（SonarQube 要搭服务器），要么太轻（只是语法检查）。我想要的是：
 1. 能理解业务逻辑的 AI 审查
-2. 能自定义团队规范
+2. **既能自定义审核视角（prompt），又能自定义具体规则（案例）**
 3. 安装简单，一行搞定
 4. 不花钱（用自己的 API Key，按需付费）
 

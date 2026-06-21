@@ -2,7 +2,7 @@
 
 ## 标题
 
-**git commit 前自动 AI 代码审查：commit-ai-guardian 实践分享**
+**git commit 前自动 AI 代码审查：commit-ai-guardian 实践分享（含在线 Demo）**
 
 ## 正文
 
@@ -38,9 +38,19 @@ $ git commit -m "feat: add login"
 
 ## 核心设计
 
+### 自定义审核规则（Prompt）
+
+不仅能让 AI 审代码，还能决定**怎么审**：
+
+- **标准审核**：全面检查 5 大维度
+- **安全优先**：专注 SQL 注入、XSS、权限绕过等安全漏洞
+- **性能优先**：专注算法复杂度、N+1 查询、内存泄漏
+
+在 `.ai-review/prompts/` 下放自定义模板，切换审核视角。
+
 ### 自定义案例系统
 
-每个团队规范不同。我们在 `.ai-review/cases/` 下放了团队规范案例：
+每个团队规范不同。我们在 `.ai-review/cases/` 下放团队规范案例：
 
 ```yaml
 ---
@@ -56,16 +66,16 @@ severity: "warning"
 user-profile.vue（Kebab case 在 Vue 项目中不推荐）
 ```
 
-AI 会参考这些案例审核代码，相当于**把团队规范编程化了**。
+AI 会参考这些案例精准审核代码，相当于**把团队规范编程化了**。支持按语言分子目录，case_format=compact 时精简注入减少 token。
 
 ### 四级 JSON 容错
 
-AI 返回 JSON 经常出问题，我们做了四层容错：
+AI 返回 JSON 经常出问题，做了四层容错：
 
 | 层级 | 策略 | 作用 |
 |------|------|------|
 | L1 本地修复 | 过滤 think 标签、代码块匹配、括号补全 | 处理 80% 的格式问题 |
-| L2 AI 修复 | 调用专门的 JSON 修复 AI，带完整对话历史 | 处理复杂语法错误 |
+| L2 AI 修复 | 调用 JSON 修复 AI，最多重试 3 次，带完整对话历史 | 处理复杂语法错误 |
 | L3 Schema 校验 | 校验字段名、类型、必填项 | 确保结构正确 |
 | L4 兜底通过 | 所有修复失败时记录日志但不阻断 | 避免卡死提交 |
 
@@ -84,6 +94,13 @@ AI 返回 JSON 经常出问题，我们做了四层容错：
 - 人工 CR 时间减少 50%，人更关注架构和设计
 - 自定义了 15 个团队案例，覆盖 Vue/Java 常见规范
 
+## 在线体验
+
+不用安装，粘贴代码就能试：
+https://tingkl.github.io/ai-review/demo/
+
+支持选择模型、配置审核规则、加载案例，完整体验审核效果。
+
 ## 安装使用
 
 ```bash
@@ -94,7 +111,7 @@ uv tool install commit-ai-guardian
 cd your-project
 cag install
 
-# 配置 API Key
+# 配置 API Key（推荐 DeepSeek V4，1M 上下文）
 cag configure
 ```
 
