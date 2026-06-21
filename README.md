@@ -1,384 +1,256 @@
-# Commit AI Guardian
+<div align="center">
 
-基于 AI 的 Git pre-commit 代码审查工具，在每次提交前自动拦截代码风险，守护代码质量。
+# 🛡️ Commit AI Guardian
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)
-![License MIT](https://img.shields.io/badge/license-MIT-green)
-[![PyPI](https://img.shields.io/pypi/v/commit-ai-guardian)](https://pypi.org/project/commit-ai-guardian/)
+**AI 驱动的 Git pre-commit 代码审查工具**
 
-> **📚 学习笔记**：[STUDY.md](STUDY.md) — 设计原理与常见问题解答（适合初学者）  
-> **🔧 技术细节**：[TECHNICAL.md](TECHNICAL.md) — 架构设计、实现原理、Prompt 工程等（适合开发者）
+在每次 `git commit` 前自动拦截代码风险，守护代码质量
 
----
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
+[![PyPI](https://img.shields.io/pypi/v/commit-ai-guardian?style=for-the-badge&logo=pypi&color=green)](https://pypi.org/project/commit-ai-guardian/)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-## 目录
-
-- [安装与升级](#安装与升级)
-- [项目初始化](#项目初始化)
-- [配置](#配置)
-- [命令参考](#命令参考)
-- [使用技巧](#使用技巧)
-- [常见问题](#常见问题)
-- [License](#license)
+</div>
 
 ---
 
-## 安装与升级
+## 🚀 30 秒快速开始
 
-### 安装
+```bash
+# 1. 安装
+uv tool install commit-ai-guardian
 
-#### 从 PyPI 安装（推荐）
+# 2. 进入项目初始化
+cd your-project
+cag install
+
+# 3. 配置 API Key
+cag configure
+
+# 4. 完成！以后每次 git commit 自动审查
+```
+
+> 💡 **无需修改任何代码**，安装即生效
+
+---
+
+## ✨ 核心能力
+
+### 🔍 5 大审核维度
+
+| 维度 | 检查内容 | 典型问题 |
+|------|----------|----------|
+| 🐛 **Bug 检测** | 逻辑错误、边界条件、资源泄漏 | 空指针、死循环、数组越界 |
+| 🎨 **代码风格** | 命名规范、格式、注释 | 变量命名不清、缺少注释 |
+| ⚡ **性能问题** | 算法复杂度、内存、缓存 | N+1 查询、内存泄漏 |
+| 🛡️ **最佳实践** | 设计模式、错误处理、安全 | 未处理异常、SQL 注入 |
+| 📝 **文档完整** | 函数文档、参数说明 | 复杂函数无注释 |
+
+### 📝 自定义审核规则（Prompt）
+
+决定 **"怎么审"** —— 切换 AI 的审核视角：
+
+- **📐 标准审核**：全面检查 5 大维度（默认）
+- **🔒 安全优先**：专注 SQL 注入、XSS、权限绕过
+- **⚡ 性能优先**：专注算法复杂度、N+1 查询、内存泄漏
+
+```
+.ai-review/prompts/
+├── default.md    # 标准审核
+├── security.md   # 安全优先
+└── performance.md # 性能优先
+```
+
+### 📚 自定义案例系统
+
+决定 **"查什么"** —— 让 AI 按你的团队规范审核：
+
+```yaml
+---
+title: "Vue 组件命名规范"
+category: "代码风格"
+severity: "warning"
+---
+
+## 正确
+UserProfile.vue
+
+## 错误
+user-profile.vue
+```
+
+> 🎯 相当于 **把团队规范编程化**，AI 参考案例精准审核
+
+### 🔄 四级 JSON 容错
+
+AI 返回 JSON 经常出问题，内置四层容错不卡死：
+
+```
+┌─────────────────────────────────────────────────────┐
+│  L1 本地修复 → L2 修复 AI → L3 Schema → L4 兜底     │
+│                                                      │
+│  过滤think标签    最多重试3次    字段校验    日志记录  │
+│  代码块匹配       带对话历史     类型检查    不阻断    │
+│  括号补全                                        │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📦 安装
+
+### 推荐方式：PyPI
 
 ```bash
 uv tool install commit-ai-guardian
 ```
 
-#### 从 GitHub 安装
+### 其他方式
 
 ```bash
+# GitHub（最新开发版）
 uv tool install git+https://github.com/tingkl/ai-review.git
-```
 
-#### 从 GitLab 安装（公司内部）
-
-```bash
+# GitLab（公司内部）
 uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
 ```
 
-### 三种方式对比
-
-| | PyPI | GitHub | GitLab |
-|---|---|---|---|
-| 安装源 | 公开包仓库 | 公开 GitHub | 内部 GitLab |
-| 协议 | HTTPS | HTTPS | SSH |
-| 代码版本 | 发布的稳定版 | 最新 main 分支 | 最新 main 分支 |
-| 适用场景 | 普通用户、生产环境 | 外部开发者贡献 | 公司内部开发 |
-| 当前状态 | ✅ **推荐** | ✅ 可用 | ✅ 可用 |
-
-### 升级
-
-无论通过哪种方式安装，升级命令都相同（uv 内部自动追踪安装来源）：
-
-```bash
-# 方式一：使用 uv（推荐）
-uv tool upgrade commit-ai-guardian
-
-# 方式二：使用封装命令
-# cag upgrade
-
-# 方式三：使用完整 Git URL（GitLab 安装时）
-# uv tool upgrade git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
-```
-
-**本地开发模式**（修改源码后重装）：
-
-```bash
-uv pip install --reinstall -e .
-```
-
-# 升级
-uv tool upgrade commit-ai-guardian
-```
-
-**适用场景**：
-- 普通用户安装稳定版本
-- 生产环境部署（固定版本，经过充分测试）
-- 没有内网 GitLab 访问权限
-
-**特点**：
-- 从 PyPI 下载预发布的稳定版本
-- 不需要 SSH key，公开网络可安装
-- 版本固定，升级可控
+| 方式 | 场景 | 稳定性 |
+|------|------|--------|
+| PyPI | 普通用户、生产环境 | ⭐⭐⭐⭐⭐ |
+| GitHub | 开发者贡献 | ⭐⭐⭐ |
+| GitLab | 公司内部 | ⭐⭐⭐ |
 
 ---
 
-## 项目初始化
+## ⚙️ 配置
 
-进入任意 Git 仓库，运行：
+### 两级配置机制
 
-```bash
-cag install
+```
+全局配置 ~/.commit_ai_guardian/config.yaml
+         │
+         ▼ 项目配置覆盖全局
+         
+项目配置 .ai-review/config.yaml  ← 优先级更高
 ```
 
-**`--force` 选项**：已安装过或存在其他 hook 时强制覆盖
-
-| 场景 | `cag install` | `cag install --force` |
-|------|--------------|----------------------|
-| 全新安装 | ✅ 正常安装 | ✅ 正常安装 |
-| 已安装过（有 cag marker） | ⚠️ 提示已安装，不覆盖 | ✅ 去掉旧的，重新安装 |
-| 有其他自定义 hook（如 lint-staged） | ❌ 报错，不覆盖 | ✅ 备份原 hook，覆盖安装 |
-| config.yaml 补全新字段 | ❌ 不补全 | ✅ 自动补全缺失字段 |
-
-**如何判断"有其他 hook"**：
-
-cag 在 hook 文件中写入特定的 marker 标记来识别：
-
-| hook 文件 | cag 的 marker 标记 |
-|-----------|-------------------|
-| `.git/hooks/pre-commit` | `# === commit-ai-guardian ===` |
-| `.husky/pre-commit` | `# === commit-ai-guardian ===` |
-
-判断逻辑：文件存在但 **不含上述 marker** → 视为"有其他自定义 hook"（如 lint-staged、husky 默认模板、用户手写脚本等）。
-
-此命令会在当前项目中创建以下结构：
-
-| 文件/目录 | 说明 |
-|-----------|------|
-| `.git/hooks/pre-commit` | Git pre-commit 钩子脚本 |
-| `.ai-review/config.yaml` | 项目级配置文件 |
-| `.ai-review/prompts/` | 自定义审核规则模板目录 |
-| `.ai-review/cases/` | 项目案例库目录 |
-
-**备份命名规则**：`{原文件名}.backup`
-
-| 被覆盖的文件 | 备份路径 |
-|-------------|---------|
-| `.git/hooks/pre-commit` | `.git/hooks/pre-commit.backup` |
-| `.husky/pre-commit` | `.husky/pre-commit.backup` |
-| `.ai-review/prompts/{file}` | `.ai-review/prompts/{file}.backup` |
-
-**prompts 覆盖规则**：
-
-| 场景 | 操作 |
-|------|------|
-| 文件不存在 | 直接写入 |
-| 文件存在，**内容一样** | **跳过** |
-| 文件存在，**内容不一样** | 备份 `.backup` 后覆盖 |
-
-> 提示：自定义过 prompts 的用户，升级 cag 后检查 `.backup` 文件，合并自己的修改。
-
----
-
-## 配置
-
-### 配置方式
-
-采用**两级配置**机制：全局配置 `~/.commit-ai-guardian/config.yaml` + 项目配置 `.ai-review/config.yaml`，项目配置优先级更高，会覆盖同名全局配置。
-
-> 🔧 配置字段的详细说明见 [TECHNICAL.md](TECHNICAL.md#13-配置文件)
-
-### 常用配置项
-
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| `api_key` | AI API 密钥 | `""` |
-| `model` | 模型名称（如 `gpt-4o-mini`、`deepseek-v4-pro`） | `gpt-4o-mini` |
-| `api_base` | API 服务地址 | `https://api.openai.com/v1` |
-| `language` | 审核输出语言（`zh-CN` / `en-US`） | `zh-CN` |
-| `enabled` | 是否启用审查 | `true` |
-| `severity_threshold` | 阻断阈值（`info` / `warning` / `error`） | `warning` |
-| `diff_mode` | 审核范围（`full` 全部文件 / `diff` 仅变更） | `full` |
-| `use_cache` | 是否启用结果缓存 | `true` |
-| `include_patterns` | 审核文件范围（glob 数组） | `["*"]` |
-| `case_format` | 案例输出格式（`default` / `compact` / `minimal`） | `compact` |
-| `max_tokens` | AI 最大返回长度（token 数） | `8192` |
-| `max_file_size` | 最大审核文件大小，**单位 KB** | `500` |
-| `temperature` | AI 随机性（0=最保守, 0.3=平衡, 0.7=灵活） | `0.3` |
-| `json_fix_history_mode` | JSON 修复 AI 上下文策略（`full` / `last`） | `full` |
-
-**json_fix_history_mode 说明**：
-
-| 模式 | 行为 | 适用场景 |
-|------|------|----------|
-| `full` (默认) | 保留完整对话历史，第 3 次修复能看到第 1、2 次的错误 | 复杂 JSON 错误，需要上下文 |
-| `last` | 只带上一次修复结果，历史不累积 | prompt 更短，适合简单格式问题 |
-
-> **temperature 设计说明**：
-> - 主审核 AI（`0.3`）：需要一定灵活性发现不同角度的问题，太小容易思维僵化
-> - JSON 修复 AI（`0.0`，固定）：纯格式转换（补全字段、修复引号/括号），不需要任何随机性，完全确定性输出更可靠
-
-### 配置示例
-
-`.ai-review/config.yaml`：
+### 常用配置
 
 ```yaml
-api_key: "sk-xxx"
-model: "gpt-4o-mini"
-max_tokens: 8192
-max_file_size: 500          # 单位 KB，超过 500KB 的文件跳过审核
-temperature: 0.3             # 0=最保守, 0.3=平衡(默认), 0.7=更灵活
-language: "zh-CN"
-severity_threshold: "warning"
-diff_mode: "diff"
-use_cache: true
-include_patterns:
-  - "src/**/*.ts"
-  - "src/**/*.vue"
+api_key: "sk-xxx"                    # API 密钥
+model: "deepseek-v4-pro"             # 模型（推荐 DeepSeek V4，1M上下文）
+api_base: "https://api.deepseek.com/v1"
+language: "zh-CN"                    # 审核语言
+severity_threshold: "warning"        # 阻断阈值
+case_format: "compact"               # 案例格式
+temperature: 0.3                     # 随机性
+max_tokens: 8192                     # 最大返回长度
 ```
 
-### 主流模型 max_tokens 参考
+### 模型推荐
 
-`max_tokens` 限制的是 **AI 输出长度**（JSON 响应），不是输入。不同模型默认值差异很大，建议显式配置：
+| 服务商 | 推荐模型 | 上下文 | 特点 |
+|--------|----------|--------|------|
+| **DeepSeek** | `deepseek-v4-pro` | 1M | 最强代码能力，推荐 |
+| **Kimi** | `kimi-k2.6` | 256K | 最新版本 |
+| **MiniMax** | `MiniMax-M3` | 128K | 编程专项 |
+| **OpenAI** | `gpt-4o` | 128K | 通用能力强 |
 
-| 服务商 | 模型 | 默认 max_tokens | 最大可设 | 建议值 |
-|--------|------|----------------|---------|--------|
-| **DeepSeek** | deepseek-v4-pro | 4,096 | 1,048,576 (1M) | **16K** |
-| **DeepSeek** | deepseek-v4-flash | 4,096 | 1,048,576 (1M) | **16K** |
-| **Kimi** | kimi-k2.6 | 32,768 | 262,144 (256K) | **16K** |
-| **Kimi** | kimi-k2 | 32,768 | 262,144 (256K) | **16K** |
-| **Kimi** | kimi-k2-thinking | 32,768 | 262,144 (256K) | **16K** |
-| **MiniMax** | MiniMax-M3 | 很小（不设会截断） | 131,072 (128K) | **16K** |
-| **MiniMax** | MiniMax-M2.7 | 很小 | 131,072 (128K) | **16K** |
-| **MiniMax** | MiniMax-M2.5 | 很小 | 131,072 (128K) | **16K** |
-| **MiniMax** | MiniMax-M2.1 | 很小 | 131,072 (128K) | **16K** |
-| **OpenAI** | gpt-4o | ~4,096 | 16,384 (16K) | **8K** |
-| **OpenAI** | gpt-4o-mini | ~4,096 | 16,384 (16K) | **8K** |
-| **OpenAI** | gpt-3.5-turbo | ~4,096 | 4,096 (4K) | **4K** |
+---
 
-> **模型推荐**：DeepSeek 请用 `deepseek-v4-pro`（1M 上下文，最强代码能力）。Kimi 请用 `kimi-k2.6`（最新版本）。
->
-> **为什么要配置**：MiniMax 如果不设 max_tokens，默认很小，JSON 几乎一定会被截断。默认值 `8192` 覆盖 95% 场景，使用 MiniMax 或 DeepSeek V4 时可适当提高。
->
-> **支持简写**：`4K` = 4096，`8K` = 8192，`16k` = 16384，纯数字也可以。
+## 🖥️ 在线体验
 
-### 查看配置状态
+不用安装，浏览器直接体验完整功能：
+
+**👉 [https://tingkl.github.io/ai-review/demo/](https://tingkl.github.io/ai-review/demo/)**
+
+支持：选择模型 ✓ 配置审核规则 ✓ 加载案例 ✓ 自定义 Prompt ✓
+
+---
+
+## 📖 命令参考
 
 ```bash
-cag status
+cag install          # 安装 pre-commit 钩子
+cag install --force  # 强制覆盖（备份原 hook）
+cag uninstall        # 卸载
+cag configure        # 交互式配置
+cag status           # 查看配置状态
+cag review           # 手动审查暂存区
+cag audit            # 全量审查
+cag upgrade          # 升级版本
 ```
 
 ---
 
-## 命令参考
+## 📝 案例格式
 
-| 命令 | 说明 |
-|------|------|
-| `cag install` | 在当前 Git 仓库安装 pre-commit 钩子 |
-| `cag install --force` | 强制覆盖安装（已存在 hook 时备份后覆盖） |
-| `cag uninstall` | 卸载当前仓库的 pre-commit 钩子 |
-| `cag audit` | 手动触发全量代码审查 |
-| `cag review` | 审查当前暂存区的变更 |
-| `cag configure` | 交互式配置（设置 API Key、模型等） |
-| `cag status` | 查看当前配置与运行状态 |
-| `cag validate-cases` | 验证 `.ai-review/cases/` 下的案例格式 |
-| `cag debug-log` | 查看最近一次审查的详细日志 |
-| `cag upgrade` | 升级到最新版本（`uv tool upgrade` 封装） |
-
+```markdown
 ---
-
-## 使用技巧
-
-### 跳过本次审查
-
-```bash
-git commit -m "docs: update readme" --no-verify
-```
-
-### 自定义审核规则
-
-编辑 `.ai-review/prompts/` 下的模板文件，即可覆盖默认审查规则。修改后下次提交自动生效。
-
-### 编写案例
-
-在 `.ai-review/cases/` 目录下添加 Markdown 文件，增强 AI 对项目特定场景的理解。
-
-格式要求：**Markdown + YAML frontmatter**：
-
-```yaml
----
-title: "SQL 注入防护规范"
-category: "security"
+title: "SQL 注入防护"
+category: "安全"
 severity: "error"
 ---
 
 ## 场景描述
-用户输入直接拼接到 SQL 查询中...
+用户输入直接拼接到 SQL...
 
 ## 正确做法
-使用参数化查询...
+使用参数化查询
 
 ## 错误示例
-```python
-cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
-```
+const sql = `SELECT * FROM users WHERE id = ${id}`
 ```
 
-### 双仓库推送（GitLab + GitHub）
-
-```bash
-# 添加 GitLab 远程（默认推送目标）
-git remote add origin https://gitlab.example.com/your/project.git
-
-# 添加 GitHub 远程（额外推送目标）
-git remote add github https://github.com/your/project.git
-
-# 同时推送
-git push origin main && git push github main
-```
-
-### 配置网络代理（HTTP Proxy）
-
-如果你的网络需要代理才能访问 AI API（例如公司内网、或 Clash/V2Ray 规则模式），可以配置代理地址。
-
-**怎么判断是否需要配 proxy：**
-
-先不配 proxy 直接运行 `cag review`，能正常返回结果就不需要；如果报连接超时 / `Connection refused`，再配置。
-
-**配置方式：**
-
-```bash
-# 方式一：交互式配置
-cag configure
-# 提示输入 proxy 时填写：http://127.0.0.1:7890
-
-# 方式二：直接编辑配置文件
-vim ~/.commit_ai_guardian/config.yaml
-# proxy: "http://127.0.0.1:7890"
-```
-
-**常见代理地址：**
-
-| 工具 | 默认地址 |
-|------|----------|
-| Clash | `http://127.0.0.1:7890` |
-| V2RayN | `http://127.0.0.1:10809` |
-| Surge | `http://127.0.0.1:6152` |
-
-> 如果你的 Clash 开了**全局/TUN 模式**，系统所有流量自动走代理，不需要额外配置。只在**规则模式**下需要配置 proxy，因为 Python 不会自动读取系统代理设置。
->
-> proxy 只影响命令行工具，不影响 Git hook（hook 继承 shell 环境变量）。
+> 📂 放在 `.ai-review/cases/` 下，支持子目录按语言组织
 
 ---
 
-## 常见问题
+## 🔧 网络代理
 
-**1. 为什么审查没有触发？**
+公司内网或 Clash/V2Ray 规则模式需要配置：
 
-确认已执行 `cag install`，且当前分支未被配置排除。运行 `cag status` 检查运行状态。
-
-**2. API Key 如何获取？**
-
-访问你的 AI 服务商控制台（如 OpenAI、DeepSeek 等），在 API 管理页面创建 Key。
-
-**3. 提交被 AI 拦截了怎么办？**
-
-根据 AI 反馈修改代码后重新提交。若确认无风险，使用 `git commit --no-verify` 强制跳过。
-
-**4. 支持哪些编程语言？**
-
-默认支持所有文本文件，包括 Python、JavaScript、Java、Go、Markdown 等。
-
-**5. 如何更新版本？**
-
-```bash
-# 升级（uv 自动追踪安装来源，GitLab/GitHub/PyPI 都支持）
-uv tool upgrade commit-ai-guardian
-# 或
-cag upgrade
-
-# 本地开发模式（修改源码后重装）
-uv pip install --reinstall -e .
+```yaml
+# ~/.commit_ai_guardian/config.yaml
+proxy: "http://127.0.0.1:7890"   # Clash
+proxy: "http://127.0.0.1:10809"  # V2RayN
+proxy: "http://127.0.0.1:6152"  # Surge
 ```
 
-> **命令说明**：
-> - `uv tool upgrade commit-ai-guardian`：升级已安装的工具（uv 内部记录 Git 或 PyPI 来源）
-> - `cag upgrade`：同上，封装命令
-> - `uv pip install --reinstall -e .`：在项目源码上可编辑安装，修改后立即生效，适合开发者
-
-> 更多问答（如「二进制文件怎么判断的」「为什么并发异常要阻断 commit」等）：查看 [STUDY.md](STUDY.md)
+> Clash 开 **全局/TUN 模式** 不需要配置
 
 ---
 
-## License
+## ❓ 常见问题
 
-MIT
+**Q: 为什么审查没有触发？**
+A: 确认已执行 `cag install`，运行 `cag status` 检查状态。
+
+**Q: API Key 怎么获取？**
+A: 访问 AI 服务商控制台（DeepSeek/OpenAI 等），在 API 管理页面创建。
+
+**Q: 提交被拦截了怎么办？**
+A: 根据 AI 反馈修改代码后重提交。确认无风险可用 `git commit --no-verify` 跳过。
+
+**Q: 支持哪些语言？**
+A: 所有文本文件，Python/JS/Java/Go/Vue/Markdown 等。
+
+---
+
+## 📚 更多文档
+
+| 文档 | 内容 | 适合 |
+|------|------|------|
+| [STUDY.md](STUDY.md) | 设计原理与常见问题 | 初学者 |
+| [TECHNICAL.md](TECHNICAL.md) | 架构设计、Prompt 工程 | 开发者 |
+
+---
+
+<div align="center">
+
+**[GitHub](https://github.com/tingkl/ai-review)** · **[PyPI](https://pypi.org/project/commit-ai-guardian/)** · **[在线 Demo](https://tingkl.github.io/ai-review/demo/)**
+
+MIT License
+
+</div>
