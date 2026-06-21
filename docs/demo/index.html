@@ -724,15 +724,21 @@ def get_user_name(user):
 
         function loadExample(type) {
             const ex = examples[type];
+            const codePanel = document.querySelectorAll('.panel')[2];
+            const tabs = codePanel.querySelectorAll('.tab');
+            const target = event.target;
+            // 如果点击已选中的 tab，取消选中（不加载）
+            if (target.classList.contains('active')) {
+                target.classList.remove('active');
+                return;
+            }
             document.getElementById('code').value = ex.code;
             document.getElementById('language').value = ex.lang;
             document.getElementById('filename').value = ex.filename;
             document.getElementById('displayLang').textContent = ex.lang;
             document.getElementById('displayFilename').textContent = ex.filename;
-            // 代码区域的 tab 高亮
-            const codePanel = document.querySelectorAll('.panel')[2];
-            codePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            tabs.forEach(t => t.classList.remove('active'));
+            target.classList.add('active');
         }
 
         function clearCode() {
@@ -741,25 +747,34 @@ def get_user_name(user):
             document.getElementById('displayFilename').textContent = '-';
             const codePanel = document.querySelectorAll('.panel')[2];
             codePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
         }
 
         function loadCase(type) {
             const content = cases[type] || '';
-            document.getElementById('caseContent').value = content;
-            // 案例区域的 tab 高亮
             const casePanel = document.querySelectorAll('.panel')[3];
-            casePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            const tabs = casePanel.querySelectorAll('.tab');
+            const target = event.target;
+            if (target.classList.contains('active')) {
+                target.classList.remove('active');
+                return;
+            }
+            document.getElementById('caseContent').value = content;
+            tabs.forEach(t => t.classList.remove('active'));
+            target.classList.add('active');
         }
 
         function loadPrompt(type) {
             const content = prompts[type] || '';
-            document.getElementById('promptContent').value = content;
-            // prompt 区域的 tab 高亮
             const promptPanel = document.querySelectorAll('.panel')[4];
-            promptPanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            const tabs = promptPanel.querySelectorAll('.tab');
+            const target = event.target;
+            if (target.classList.contains('active')) {
+                target.classList.remove('active');
+                return;
+            }
+            document.getElementById('promptContent').value = content;
+            tabs.forEach(t => t.classList.remove('active'));
+            target.classList.add('active');
         }
 
         async function startReview() {
