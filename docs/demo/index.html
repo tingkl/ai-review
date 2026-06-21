@@ -1012,8 +1012,26 @@ ${code}
             try { return JSON.parse(s); } catch { return null; }
         }
 
-        // JSON 修复 AI：本地修复失败时调用，最多重试 3 次
-        async function callJsonFixAi(brokenContent) {
+        // schema 校验（跟实际工具 _validate_review_schema 一致）
+        function validateSchema(data) {
+            const errors = [];
+            const required = ['summary', 'passed', 'issues'];
+            const missing = required.filter(f => !(f in data));
+            if (missing.length > 0) {
+                errors.push(`缺少顶层必填字段: ${missing.join(', ')}`);
+            }
+            if (Array.isArray(data.issues)) {
+                data.issues.forEach((issue, i) => {
+                    if (!issue.message || issue.message === '-') {
+                        errors.push(`issues[${i}].message 为空或无效`);
+                    }
+                });
+            }
+            return errors;
+        }
+
+        // JSON 修复 AI：本地修复或 schema 校验失败时调用，最多重试 3 次
+        async function callJsonFixAi(brokenContent, schemaErrors) {
             const cfg = {
                 api_key: document.getElementById('apiKey').value.trim(),
                 api_base: document.getElementById('apiBase').value,
@@ -1037,9 +1055,12 @@ ${code}
             let attemptHistory = [];
 
             for (let attempt = 0; attempt < 3; attempt++) {
-                const fixPrompt = attempt === 0
-                    ? `请修复以下内容为合法 JSON：\n\n${brokenContent}`
-                    : `上次修复结果不满足要求，请重新修复。\n\n原始损坏内容：\n${brokenContent}`;
+                const schemaHint = schemaErrors && schemaErrors.length > 0
+                    ? `\n\nSchema 校验错误（必须修复）：\n${schemaErrors.map(e => '- ' + e).join('\n')}`
+                    : '';
+            const fixPrompt = attempt === 0
+                    ? `请修复以下内容为合法 JSON：\n\n${brokenContent}${schemaHint}`
+                    : `上次修复结果不满足要求，请重新修复。\n\n原始损坏内容：\n${brokenContent}${schemaHint}`;
 
                 const messages = [
                     {"role": "system", "content": fixSystem},
@@ -1083,33 +1104,23 @@ ${code}
             // L1-L5: 本地修复（提取/过滤/补全）
             let result = tryFixJson(content);
 
-            // L6: schema 校验（跟实际工具 _validate_review_schema 一致）
-            if (result) {
-                const required = ['summary', 'passed', 'issues'];
-                const missing = required.filter(f => !(f in result));
-                if (missing.length > 0) {
-                    showError(`JSON 字段缺失: 缺少顶层必填字段: ${missing.join(', ')}\n请检查 AI 返回的 JSON 结构。`);
-                    return;
-                }
-                // 校验 issues 数组中每个 issue 的必需字段
-                if (Array.isArray(result.issues)) {
-                    for (let i = 0; i < result.issues.length; i++) {
-                        const issue = result.issues[i];
-                        if (!issue.message || issue.message === '-') {
-                            showError(`JSON 校验失败: issues[${i}].message 为空或无效。\n请尝试切换模型重试。`);
-                            return;
-                        }
-                    }
+            // L6: schema 校验
+            let schemaErrors = result ? validateSchema(result) : ['JSON 解析失败'];
+
+            // L7: 本地修复失败 或 schema 校验失败 → 调用 JSON 修复 AI（最多3次）
+            let fixAttempt = 0;
+            while ((!result || schemaErrors.length > 0) && fixAttempt < 3) {
+                result = await callJsonFixAi(content, schemaErrors);
+                fixAttempt++;
+                if (result) {
+                    schemaErrors = validateSchema(result);
+                } else {
+                    schemaErrors = ['JSON 修复 AI 返回解析失败'];
                 }
             }
 
-            // L7: 本地修复失败 → 调用 JSON 修复 AI
-            if (!result) {
-                result = await callJsonFixAi(content);
-            }
-
-            if (!result) {
-                showError('AI 返回的 JSON 解析失败，本地修复和修复 AI 均未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。');
+            if (!result || schemaErrors.length > 0) {
+                showError(`AI 返回的 JSON 解析失败，已尝试 ${fixAttempt} 次修复均未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。`);
                 return;
             }
 
