@@ -290,6 +290,32 @@ git remote add github https://github.com/your/project.git
 git push origin main && git push github main
 ```
 
+### 配置网络代理（HTTP Proxy）
+
+如果你的网络需要代理才能访问 AI API（例如公司内网、或 Clash/V2Ray 规则模式），可以配置代理地址：
+
+```bash
+cag configure
+# 然后输入代理地址，例如：http://127.0.0.1:7890
+```
+
+或者在 `~/.commit_ai_guardian/config.yaml` 中直接编辑：
+
+```yaml
+proxy: "http://127.0.0.1:7890"
+```
+
+**代理 vs CORS 代理的区别**：
+
+| | HTTP Proxy | CORS 代理（Demo 页面） |
+|---|---|---|
+| 场景 | `cag` 命令行工具 | 浏览器在线 Demo 页面 |
+| 作用 | 让 Python 请求走代理服务器 | 绕过浏览器跨域安全限制 |
+| 格式 | `http://host:port` | `https://proxy.com/` |
+| 例子 | `http://127.0.0.1:7890`（Clash） | `https://cors-anywhere.herokuapp.com/` |
+
+> 如果你的 Clash 开了**全局/TUN 模式**，系统所有流量自动走代理，不需要额外配置。只在**规则模式**下需要配置 proxy，因为 Python 不会自动读取系统代理设置。
+
 ---
 
 ## 常见问题
