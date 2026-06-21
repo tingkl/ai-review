@@ -727,18 +727,14 @@ def get_user_name(user):
             const codePanel = document.querySelectorAll('.panel')[2];
             const tabs = codePanel.querySelectorAll('.tab');
             const target = event.target;
-            // 如果点击已选中的 tab，取消选中（不加载）
-            if (target.classList.contains('active')) {
-                target.classList.remove('active');
-                return;
-            }
+            // 单选互斥：点另一个时取消前一个，点已选中的不取消
+            tabs.forEach(t => t.classList.remove('active'));
+            target.classList.add('active');
             document.getElementById('code').value = ex.code;
             document.getElementById('language').value = ex.lang;
             document.getElementById('filename').value = ex.filename;
             document.getElementById('displayLang').textContent = ex.lang;
             document.getElementById('displayFilename').textContent = ex.filename;
-            tabs.forEach(t => t.classList.remove('active'));
-            target.classList.add('active');
         }
 
         function clearCode() {
@@ -749,18 +745,33 @@ def get_user_name(user):
             codePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         }
 
+        // 案例多选状态
+        const activeCases = new Set();
+
+        function updateCaseTextarea() {
+            const parts = [];
+            activeCases.forEach(key => {
+                if (cases[key]) parts.push(cases[key]);
+            });
+            document.getElementById('caseContent').value = parts.join('\n\n---\n\n');
+        }
+
         function loadCase(type) {
-            const content = cases[type] || '';
             const casePanel = document.querySelectorAll('.panel')[3];
             const tabs = casePanel.querySelectorAll('.tab');
             const target = event.target;
+            const idx = Array.from(tabs).indexOf(target);
+
             if (target.classList.contains('active')) {
+                // 取消选中
                 target.classList.remove('active');
-                return;
+                activeCases.delete(type);
+            } else {
+                // 选中（多选，不互斥）
+                target.classList.add('active');
+                activeCases.add(type);
             }
-            document.getElementById('caseContent').value = content;
-            tabs.forEach(t => t.classList.remove('active'));
-            target.classList.add('active');
+            updateCaseTextarea();
         }
 
         function loadPrompt(type) {
@@ -768,13 +779,10 @@ def get_user_name(user):
             const promptPanel = document.querySelectorAll('.panel')[4];
             const tabs = promptPanel.querySelectorAll('.tab');
             const target = event.target;
-            if (target.classList.contains('active')) {
-                target.classList.remove('active');
-                return;
-            }
-            document.getElementById('promptContent').value = content;
+            // 单选互斥：点另一个时取消前一个
             tabs.forEach(t => t.classList.remove('active'));
             target.classList.add('active');
+            document.getElementById('promptContent').value = content;
         }
 
         async function startReview() {
