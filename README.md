@@ -299,20 +299,35 @@ git push origin main && git push github main
 
 ### 配置网络代理（HTTP Proxy）
 
-如果你的网络需要代理才能访问 AI API（例如公司内网、或 Clash/V2Ray 规则模式），可以配置代理地址：
+如果你的网络需要代理才能访问 AI API（例如公司内网、或 Clash/V2Ray 规则模式），可以配置代理地址。
+
+**怎么判断是否需要配 proxy：**
+
+先不配 proxy 直接运行 `cag review`，能正常返回结果就不需要；如果报连接超时 / `Connection refused`，再配置。
+
+**配置方式：**
 
 ```bash
+# 方式一：交互式配置
 cag configure
-# 然后输入代理地址，例如：http://127.0.0.1:7890
+# 提示输入 proxy 时填写：http://127.0.0.1:7890
+
+# 方式二：直接编辑配置文件
+vim ~/.commit_ai_guardian/config.yaml
+# proxy: "http://127.0.0.1:7890"
 ```
 
-或者在 `~/.commit_ai_guardian/config.yaml` 中直接编辑：
+**常见代理地址：**
 
-```yaml
-proxy: "http://127.0.0.1:7890"
-```
+| 工具 | 默认地址 |
+|------|----------|
+| Clash | `http://127.0.0.1:7890` |
+| V2RayN | `http://127.0.0.1:10809` |
+| Surge | `http://127.0.0.1:6152` |
 
 > 如果你的 Clash 开了**全局/TUN 模式**，系统所有流量自动走代理，不需要额外配置。只在**规则模式**下需要配置 proxy，因为 Python 不会自动读取系统代理设置。
+>
+> proxy 只影响命令行工具，不影响 Git hook（hook 继承 shell 环境变量）。
 
 ---
 
