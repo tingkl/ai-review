@@ -1107,23 +1107,16 @@ ${code}
             const fetchUrl = `${apiBase}/chat/completions`;
             const historyMode = document.getElementById('jsonFixMode').value; // 'full' 或 'last'
 
-            // 修复 AI system message
-            const fixSystem = `你是 JSON 修复专家。任务：把损坏或非 JSON 的内容转为合法 JSON。
-规则：
-1. 只输出合法 JSON，不要解释文字
-2. 包裹在 <result> 标签中
-3. 保持字段结构：summary, passed, issues[]
-4. 如果输入是 Markdown 报告，提取关键信息构造 JSON
-5. line_number 必须是整数，不是则设为 0
-6. 字符串中的双引号必须转义 \\"`;
+            // 修复 AI system message：极简，减少思考开销
+            const fixSystem = `输出合法 JSON，包裹在 <result> 标签中。字段：summary, passed, issues[{severity, category, line_number, message, suggestion, code_snippet}]。不要解释。`;
 
             // 构造 user prompt
             const schemaHint = schemaErrors && schemaErrors.length > 0
                 ? `\n\nSchema 校验错误：\n${schemaErrors.map(e => '- ' + e).join('\n')}`
                 : '';
             const fixPrompt = attempt === 0
-                ? `请将以下内容转为合法 JSON。如果内容已经是 JSON 则修复语法错误；如果是 Markdown 报告则提取信息构造 JSON。\n\n${brokenContent}${schemaHint}`
-                : `以上修复结果不满足 schema 要求，具体错误：\n${schemaErrors.join('\n')}\n\n请根据以上错误修正 JSON，确保满足 schema 约束。`;
+                ? `转为 JSON：\n${brokenContent}${schemaHint}`
+                : `修正错误：\n${schemaErrors.join('\n')}\n\n原文：\n${brokenContent}`;
 
             const messages = [
                 {"role": "system", "content": fixSystem},
@@ -1142,7 +1135,7 @@ ${code}
                         model: cfg.model,
                         messages: messages,
                         temperature: 0.0,
-                        max_tokens: 8192
+                        max_tokens: 4096
                     })
                 });
                 if (!resp.ok) return { result: null, history: attemptHistory };
