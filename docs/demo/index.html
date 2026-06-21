@@ -1094,8 +1094,9 @@ ${code}
             return errors;
         }
 
-        // JSON 修复 AI：本地修复或 schema 校验失败时调用，最多重试 3 次
-        async function callJsonFixAi(brokenContent, schemaErrors) {
+        // JSON 修复 AI：本地修复或 schema 校验失败时调用
+        // 返回 {result, attemptHistory}，result 是 tryFixJson 的结果，attemptHistory 用于累积上下文
+        async function callJsonFixAi(brokenContent, schemaErrors, attemptHistory, attempt) {
             const cfg = {
                 api_key: document.getElementById('apiKey').value.trim(),
                 api_base: document.getElementById('apiBase').value,
@@ -1104,8 +1105,9 @@ ${code}
             };
             const apiBase = cfg.api_base === 'custom' ? cfg.custom_base : cfg.api_base;
             const fetchUrl = `${apiBase}/chat/completions`;
+            const historyMode = document.getElementById('jsonFixMode').value; // 'full' 或 'last'
 
-            // 修复 AI system message
+            // 修复 AI system message（对齐 prompt_loader.py json_fix_system_message）
             const fixSystem = `你是 JSON 修复专家。任务：把损坏的 JSON 修复为合法格式。
 规则：
 1. 只输出合法 JSON，不要解释文字
@@ -1114,54 +1116,57 @@ ${code}
 4. line_number 必须是整数，不是则设为 0
 5. 字符串中的双引号必须转义 \\"`;
 
-            // 累积对话历史（跟实际工具的 full/last 模式一致）
-            const historyMode = document.getElementById('jsonFixMode').value; // 'full' 或 'last'
-            let attemptHistory = [];
-
-            for (let attempt = 0; attempt < 3; attempt++) {
-                const schemaHint = schemaErrors && schemaErrors.length > 0
-                    ? `\n\nSchema 校验错误：\n${schemaErrors.map(e => '- ' + e).join('\n')}`
-                    : '';
+            // 构造 user prompt
+            const schemaHint = schemaErrors && schemaErrors.length > 0
+                ? `\n\nSchema 校验错误：\n${schemaErrors.map(e => '- ' + e).join('\n')}`
+                : '';
             const fixPrompt = attempt === 0
-                    ? `请将以下损坏的 JSON 修复为合法格式。只修复语法（转义、逗号、括号），不修改内容。\n\n${brokenContent}${schemaHint}`
-                    : `以上修复结果不满足 schema 要求，具体错误：\n${schemaErrors.join('\n')}\n\n请根据以上错误修正 JSON，确保满足 schema 约束。`;
+                ? `请将以下损坏的 JSON 修复为合法格式。只修复语法（转义、逗号、括号），不修改内容。\n\n${brokenContent}${schemaHint}`
+                : `以上修复结果不满足 schema 要求，具体错误：\n${schemaErrors.join('\n')}\n\n请根据以上错误修正 JSON，确保满足 schema 约束。`;
 
-                const messages = [
-                    {"role": "system", "content": fixSystem},
-                    ...attemptHistory,
-                    {"role": "user", "content": fixPrompt}
-                ];
+            const messages = [
+                {"role": "system", "content": fixSystem},
+                ...attemptHistory,
+                {"role": "user", "content": fixPrompt}
+            ];
 
-                try {
-                    const resp = await fetch(fetchUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${cfg.api_key}`
-                        },
-                        body: JSON.stringify({
-                            model: cfg.model,
-                            messages: messages,
-                            temperature: 0.0,
-                            max_tokens: 4096
-                        })
-                    });
-                    if (!resp.ok) continue;
-                    const data = await resp.json();
-                    const fixed = data.choices[0].message.content;
-                    const result = tryFixJson(fixed);
-                    if (result) return result;  // 修复成功
+            try {
+                const resp = await fetch(fetchUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${cfg.api_key}`
+                    },
+                    body: JSON.stringify({
+                        model: cfg.model,
+                        messages: messages,
+                        temperature: 0.0,
+                        max_tokens: 4096
+                    })
+                });
+                if (!resp.ok) return { result: null, history: attemptHistory };
+                const data = await resp.json();
+                const fixedRaw = data.choices[0].message.content;
+                const result = tryFixJson(fixedRaw);
 
-                    // 修复失败，记录本次对话用于下次（如果 full 模式）
-                    if (historyMode === 'full') {
-                        attemptHistory.push({"role": "user", "content": fixPrompt});
-                        attemptHistory.push({"role": "assistant", "content": fixed});
-                    }
-                } catch {
-                    continue;
+                // 更新历史：assistant(AI返回) + user(错误反馈)
+                // 顺序必须正确：先 assistant（AI的JSON），后 user（用户的修正指令）
+                const newHistory = [...attemptHistory];
+                newHistory.push({"role": "assistant", "content": fixedRaw});
+                newHistory.push({"role": "user", "content": (
+                    result && result._needsFix
+                        ? `以上修复结果不满足 schema 要求，具体错误：\n${result.summary}\n\n请根据以上错误修正 JSON。`
+                        : `以上修复结果不满足 schema 要求，请重新修正 JSON，确保满足 schema 约束。`
+                )});
+
+                if (historyMode === 'last') {
+                    // last 模式：只保留最后一次对话
+                    return { result, history: newHistory.slice(-2) };
                 }
+                return { result, history: newHistory };
+            } catch {
+                return { result: null, history: attemptHistory };
             }
-            return null;  // 3 次都失败
         }
 
         async function displayResult(content) {
@@ -1169,16 +1174,22 @@ ${code}
             let result = tryFixJson(content);
 
             // 修复 AI 循环：本地解析失败(null) 或 字段有问题(_needsFix) 都触发
+            // 最多 3 次，attemptHistory 在调用间持久化（支持 full/last 模式）
             let fixAttempt = 0;
+            let attemptHistory = [];
+
             for (let i = 0; i < 3; i++) {
                 // 不需要修复：解析成功且字段完整
                 if (result && !result._needsFix) break;
 
                 fixAttempt++;
-                const schemaErrors = result ? [result.summary] : ['JSON 解析失败'];
-                const fixed = await callJsonFixAi(content, schemaErrors);
-                if (!fixed) break;  // 修复 AI 也失败，退出循环
-                result = tryFixJson(JSON.stringify(fixed));
+                const schemaErrors = result && result.summary ? [result.summary] : ['JSON 解析失败'];
+                const fixResult = await callJsonFixAi(content, schemaErrors, attemptHistory, i);
+
+                attemptHistory = fixResult.history;
+                if (!fixResult.result) break;  // 修复 AI 也失败，退出循环
+
+                result = fixResult.result;
             }
 
             if (!result || result._needsFix) {
