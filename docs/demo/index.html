@@ -723,14 +723,14 @@ def get_user_name(user):
             'custom': ''
         };
 
+        // panel index: [0]=配置 [1]=代码 [2]=案例 [3]=审核规则 [4]=结果
+        const PANEL_CODE = 1, PANEL_CASE = 2, PANEL_PROMPT = 3;
+
         function loadExample(type) {
             const ex = examples[type];
-            const codePanel = document.querySelectorAll('.panel')[2];
-            const tabs = codePanel.querySelectorAll('.tab');
-            const target = event.target;
-            // 单选互斥：点另一个时取消前一个，点已选中的不取消
+            const tabs = document.querySelectorAll('.panel')[PANEL_CODE].querySelectorAll('.tab');
             tabs.forEach(t => t.classList.remove('active'));
-            target.classList.add('active');
+            event.target.classList.add('active');
             document.getElementById('code').value = ex.code;
             document.getElementById('language').value = ex.lang;
             document.getElementById('filename').value = ex.filename;
@@ -742,8 +742,8 @@ def get_user_name(user):
             document.getElementById('code').value = '';
             document.getElementById('displayLang').textContent = '-';
             document.getElementById('displayFilename').textContent = '-';
-            const codePanel = document.querySelectorAll('.panel')[2];
-            codePanel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel')[PANEL_CODE].querySelectorAll('.tab')
+                .forEach(t => t.classList.remove('active'));
         }
 
         // 案例多选状态
@@ -751,24 +751,16 @@ def get_user_name(user):
 
         function updateCaseTextarea() {
             const parts = [];
-            activeCases.forEach(key => {
-                if (cases[key]) parts.push(cases[key]);
-            });
+            activeCases.forEach(key => { if (cases[key]) parts.push(cases[key]); });
             document.getElementById('caseContent').value = parts.join('\n\n---\n\n');
         }
 
         function loadCase(type) {
-            const casePanel = document.querySelectorAll('.panel')[3];
-            const tabs = casePanel.querySelectorAll('.tab');
             const target = event.target;
-            const idx = Array.from(tabs).indexOf(target);
-
             if (target.classList.contains('active')) {
-                // 取消选中
                 target.classList.remove('active');
                 activeCases.delete(type);
             } else {
-                // 选中（多选，不互斥）
                 target.classList.add('active');
                 activeCases.add(type);
             }
@@ -777,12 +769,9 @@ def get_user_name(user):
 
         function loadPrompt(type) {
             const content = prompts[type] || '';
-            const promptPanel = document.querySelectorAll('.panel')[4];
-            const tabs = promptPanel.querySelectorAll('.tab');
-            const target = event.target;
-            // 单选互斥：点另一个时取消前一个
+            const tabs = document.querySelectorAll('.panel')[PANEL_PROMPT].querySelectorAll('.tab');
             tabs.forEach(t => t.classList.remove('active'));
-            target.classList.add('active');
+            event.target.classList.add('active');
             document.getElementById('promptContent').value = content;
         }
 
@@ -926,16 +915,40 @@ ${code}
             return 'gpt-4o-mini';
         }
 
-        function displayResult(content) {
-            // 提取 <result> 中的 JSON
-            const match = content.match(/<result>([\s\S]*?)<\/result>/);
-            const jsonStr = match ? match[1] : content;
+        // JSON 修复：模拟实际工具的四级容错（简化版）
+        function tryFixJson(content) {
+            // L1: 提取 <result> 标签
+            let m = content.match(/<result>([\s\S]*?)<\/result>/);
+            let s = m ? m[1] : content;
 
-            let result;
-            try {
-                result = JSON.parse(jsonStr);
-            } catch {
-                showError('AI 返回的 JSON 解析失败，请重试');
+            // L2: 过滤 <think> 标签
+            s = s.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+            // L3: 过滤 markdown 代码块
+            s = s.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
+            s = s.replace(/```\s*/g, '');
+
+            // L4: 清理前后空白和非 JSON 前缀
+            s = s.trim();
+            s = s.replace(/^[^{\[]*/, '');  // 去掉开头的非 JSON 字符
+            s = s.replace(/[^}\]]*$/, '');  // 去掉结尾的非 JSON 字符
+
+            // L5: 括号补全
+            const openBrace = (s.match(/\{/g) || []).length;
+            const closeBrace = (s.match(/\}/g) || []).length;
+            const openBracket = (s.match(/\[/g) || []).length;
+            const closeBracket = (s.match(/\]/g) || []).length;
+            for (let i = 0; i < openBrace - closeBrace; i++) s += '}';
+            for (let i = 0; i < openBracket - closeBracket; i++) s += ']';
+
+            try { return JSON.parse(s); } catch { return null; }
+        }
+
+        function displayResult(content) {
+            let result = tryFixJson(content);
+
+            if (!result) {
+                showError('AI 返回的 JSON 解析失败，已尝试自动修复但未成功。\n建议：切换模型（如 DeepSeek）或降低 max_tokens 重试。');
                 return;
             }
 
