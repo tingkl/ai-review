@@ -512,10 +512,22 @@ def status(repo):
         
         click.echo()
         if installer.is_git_repo():
+            hook_path = installer.get_hook_path()
+            hook_exists = Path(hook_path).exists() if hook_path else False
             if installer.is_hook_installed():
-                click.echo(f"Git Hook: ✅ 已安装 ({installer.get_hook_path()})")
+                click.echo(f"Git Hook: ✅ 已安装 ({hook_path})")
             else:
-                click.echo(f"Git Hook: ❌ 未安装 (运行 'commit-ai-guardian install' 安装)")
+                if hook_exists:
+                    click.echo(f"Git Hook: ❌ 未识别 (文件存在但 marker 不匹配: {hook_path})")
+                    click.echo(f"  提示: 如果 hook 是其他工具安装的，建议先备份再运行 'cag install --force'")
+                else:
+                    click.echo(f"Git Hook: ❌ 未安装 ({hook_path} 不存在)")
+                    click.echo(f"  运行 'cag install' 安装")
+            
+            # 调试信息：显示 git/hook 目录状态
+            click.echo(f"  [调试] .git 目录: {installer.git_dir} (存在: {installer.git_dir.exists()})")
+            click.echo(f"  [调试] hooks 目录: {installer.hooks_dir} (存在: {installer.hooks_dir.exists()})")
+            click.echo(f"  [调试] has_husky: {installer.has_husky}")
             
             # 检查 .ai-review/ 目录
             review_dir = Path(repo) / ".ai-review"
@@ -525,6 +537,8 @@ def status(repo):
                 click.echo(f"案例目录: ✅ {cases_dir} ({len(case_files)} 个案例)")
         else:
             click.echo("Git Hook: ⚠️ 当前目录不是 Git 仓库")
+            click.echo(f"  [调试] repo_path: {installer.repo_path}")
+            click.echo(f"  [调试] git_dir: {installer.git_dir}")
             
     except Exception as e:
         click.echo(f"❌ 错误: {e}")
