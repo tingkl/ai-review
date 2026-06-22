@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "commit-ai-guardian"
-version = "0.2.7"
+version = "0.2.8"
 description = "Git commit 前 AI 自动代码审查工具 — 支持 OpenAI/MiniMax/DeepSeek/Kimi，自定义审核规则和案例"
 readme = "README.md"
 license = {text = "MIT"}
