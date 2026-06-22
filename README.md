@@ -18,7 +18,7 @@
 
 - [🚀 30 秒快速开始](#-30-秒快速开始)
 - [✨ 核心能力](#-核心能力)
-- [📦 安装](#-安装)
+- [📦 安装与升级](#-安装与升级)
 - [⚙️ 配置](#-配置)
 - [🖥️ 在线体验](#-在线体验)
 - [📖 命令参考](#-命令参考)
@@ -127,15 +127,17 @@ AI 返回 JSON 经常出问题，内置四层容错不卡死：
 
 ---
 
-## 📦 安装
+## 📦 安装与升级
 
-### 推荐方式：PyPI
+### 安装
+
+#### 推荐方式：PyPI
 
 ```bash
 uv tool install commit-ai-guardian
 ```
 
-### 其他方式
+#### 其他方式
 
 ```bash
 # GitHub（最新开发版）
@@ -150,6 +152,24 @@ uv tool install git+ssh://git@124.223.189.152:7022/gaoq/ai-review.git
 | PyPI | 普通用户、生产环境 | ⭐⭐⭐⭐⭐ |
 | GitHub | 开发者贡献 | ⭐⭐⭐ |
 | GitLab | 公司内部 | ⭐⭐⭐ |
+
+### 升级
+
+```bash
+# 升级到最新版本（uv 自动追踪安装来源）
+uv tool upgrade commit-ai-guardian
+
+# 或使用封装命令
+cag upgrade
+```
+
+> uv 内部记录了包的原始安装来源（PyPI/GitHub/GitLab），`upgrade` 命令会自动从正确的源升级。
+
+### 卸载
+
+```bash
+uv tool uninstall commit-ai-guardian
+```
 
 ---
 
