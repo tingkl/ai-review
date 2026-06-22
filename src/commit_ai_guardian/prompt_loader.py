@@ -209,6 +209,9 @@ class PromptLoader:
             if file_path.exists():
                 try:
                     content = file_path.read_text(encoding='utf-8')
+                    # 过滤占位符内容（用户未填写自定义规则）
+                    if '团队自定义规则' in content and '在此添加' in content:
+                        return ''
                     # 只打印一次（并发安全）
                     path_str = str(file_path)
                     if path_str not in PromptLoader._printed:
