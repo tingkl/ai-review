@@ -489,6 +489,7 @@ def status(repo):
                 click.echo(f"          (创建 .ai-review/config.yaml 可覆盖全局配置)")
         
         click.echo()
+        click.echo(f"  - 检测路径: {Path(repo).resolve()}")
         click.echo(f"  - 审核开关: {'已启用 ✅' if config.enabled else '已禁用 ⚠️'}")
         click.echo(f"  - API Key: {'已配置 ✅' if config.api_key else '未配置 ❌'}")
         click.echo(f"  - API Base: {config.api_base}")
