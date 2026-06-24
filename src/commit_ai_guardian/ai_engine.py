@@ -292,13 +292,11 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         # 非空数组 = 有 issues 但没有 summary/passed 包装，交给修复 AI 处理
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到数组（{len(data)} 个元素）"
         result.passed = False
-        result.raw_response = response
         return result
     
     if not isinstance(data, dict):
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到 {type(data).__name__}"
         result.passed = False
-        result.raw_response = response
         return result
 
     # 检查顶层必需字段
@@ -307,7 +305,6 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     if missing_top:
         result.summary = f"JSON 字段缺失: 缺少顶层必填字段: {', '.join(sorted(missing_top))}"
         result.passed = False
-        result.raw_response = response
         return result
 
     # 提取各字段
@@ -328,7 +325,6 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                 if missing:
                     result.summary = f"JSON 字段缺失: issue 缺少必填字段 {missing}"
                     result.passed = False
-                    result.raw_response = response
                     return result
                 
                 # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
@@ -336,7 +332,6 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                 if severity not in _VALID_SEVERITIES:
                     result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
                     result.passed = False
-                    result.raw_response = response
                     return result
                 
                 if severity in ('warning', 'error', 'critical'):
@@ -1691,7 +1686,6 @@ class AIEngine:
                     if not message_val or not str(message_val).strip():
                         result.summary = "JSON 字段缺失: issue 缺少必填字段 message"
                         result.passed = False
-                        result.raw_response = raw_response
                         return result
                     
                     # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
@@ -1699,7 +1693,6 @@ class AIEngine:
                     if severity not in ('critical', 'error', 'warning', 'info'):
                         result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
                         result.passed = False
-                        result.raw_response = raw_response
                         return result
                     
                     # category 直接用中文（schema 枚举已改为中文）
