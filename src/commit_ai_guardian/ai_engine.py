@@ -536,10 +536,10 @@ class AIEngine:
         # 计算缓存 key（MD5 前7位，用于缓存文件名和 ai.log 命名）
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
-            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
+            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
         else:
             full_content = ""
-            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
         
         # 检查缓存（可配置关闭）
         use_cache = getattr(self.config, 'use_cache', True)
@@ -716,12 +716,12 @@ class AIEngine:
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
             if full_content:
-                return hashlib.md5(full_content.encode('utf-8')).hexdigest()
+                return hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
             return None
         else:
             diff_content = getattr(file_diff, 'diff_content', '')
             if diff_content:
-                return hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+                return hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
             return None
     
     def _review_file_no_cache(self, file_diff: Any) -> ReviewResult:
@@ -745,13 +745,13 @@ class AIEngine:
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
             if full_content:
-                cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
+                cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
                 prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key)
             else:
-                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
                 prompt = self._build_prompt(file_diff, cache_key)
         else:
-            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
             prompt = self._build_prompt(file_diff, cache_key)
         
         try:
@@ -1716,7 +1716,7 @@ class AIEngine:
         content = getattr(source_file, 'content', '')
         
         # 计算缓存 key（无论是否启用缓存，都用于 ai.log 命名）
-        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
         
         # 检查缓存（可配置关闭）
         use_cache = getattr(self.config, 'use_cache', True)
@@ -1761,7 +1761,7 @@ class AIEngine:
         """
         content = getattr(source_file, 'content', '')
         if content:
-            return hashlib.md5(content.encode('utf-8')).hexdigest()
+            return hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
         return None
     
     def _review_source_no_cache(self, source_file: Any) -> ReviewResult:
@@ -1779,7 +1779,7 @@ class AIEngine:
         print(f"[信息] AI 审核中: {filename}\n")
         
         content = getattr(source_file, 'content', '')
-        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
         
         try:
             prompt = self._build_full_file_prompt(source_file, cache_key)
