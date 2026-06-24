@@ -1759,7 +1759,24 @@ class AIEngine:
         result = parse_ai_response(response, filename)
 
         # ===== 阶段2: 解析或校验失败 → AI 修复 =====
-        # JSON 语法解析失败 或 schema 校验不通过（字段缺失/别名/类型错误）都触发修复
+        #
+        # 为什么用关键词匹配？
+        # passed=False 有两种完全不同的含义：
+        #   1. JSON 本身有问题（语法错误、字段缺失、类型不对）→ 需要修复 AI 修 JSON
+        #   2. JSON 合法，但审核发现代码有问题（有 warning/error issue）→ 不需要修复 JSON
+        #
+        # 这两种情况在 parse_ai_response 里都返回 passed=False，
+        # 但 summary 文本不同。关键词匹配是区分它们的唯一方式。
+        #
+        # 关键词来源（parse_ai_response 和 _build_result_from_dict 中标准化生成的错误文本）：
+        #   "JSON 解析失败"        → _try_parse_json 所有策略都失败
+        #   "无法从响应中解析 JSON"  → 找不到任何 JSON 内容（花括号匹配、代码块提取都失败）
+        #   "JSON 字段缺失"        → 顶层字段（summary/passed/issues）或 issue.message 缺失/为空
+        #   "JSON 字段名错误"      → issue 使用了非标准字段名（如 description 而不是 message）
+        #   "JSON 类型错误"        → severity 不在枚举中、line_number 不是整数等
+        #
+        # 如果 matched：说明 JSON 结构有问题，调用修复 AI
+        # 如果 not matched：说明 JSON 合法，只是审核不通过，不调用修复 AI
         json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
         if not result.passed and any(kw in result.summary for kw in json_error_keywords):
             broken_json = self._extract_json_str(response)
