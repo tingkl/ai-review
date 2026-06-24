@@ -1360,14 +1360,11 @@ class AIEngine:
                 )
                 raw_content = response.choices[0].message.content or ""
                 
-                # 检测 AI 响应是否可能被截断（JSON 不完整）
-                # 先过滤 <think> 再检测，避免 think 内容干扰判断
-                filtered_for_check = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
-                if filtered_for_check and not filtered_for_check.endswith('}'):
-                    current_max = getattr(self.config, 'max_tokens', 4096)
-                    print(f"\n⚠️  AI 返回内容可能被截断（文件: {filename}，当前 max_tokens={current_max}）")
-                    print(f"    建议: 运行 'commit-ai-guardian configure' 增加 max_tokens 值")
-                    print(f"    或:   直接修改 .ai-review/config.yaml 中的 max_tokens\n")
+                # 打印文件名和 ai.log 路径（方便查看定位）
+                if cache_md5:
+                    log_path = Path(self.repo_path) / ".ai-review" / "logs" / f"{cache_md5}.ai.log"
+                    print(f"    {filename}")
+                    print(f"    {os.path.relpath(log_path)}")
                 
                 # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
                 self._write_ai_response_log(filename, raw_content, cache_md5, system_message=system_msg, user_message=prompt)
