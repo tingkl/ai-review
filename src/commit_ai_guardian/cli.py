@@ -14,7 +14,7 @@ from rich.console import Console
 from .config import ConfigManager
 from .hook_installer import HookInstaller
 from .diff_collector import DiffCollector
-from .ai_engine import AIEngine, parse_ai_response
+from .ai_engine import AIEngine, JSON_ERROR_KEYWORDS, parse_ai_response
 from .result_formatter import ResultFormatter
 
 # Rich 控制台实例（用于 loading 动画和彩色输出）
@@ -177,13 +177,11 @@ def audit(repo, output, config_path):
         has_blocking_issue = False
         has_system_error = False
         for result in results:
-            # 检查1：AI 审核未通过（passed=False）→ 阻断
-            # 这包括 JSON 解析失败、API 异常、字段缺失等所有非成功场景
-            if not result.passed:
+            # 检查1：系统错误（JSON 解析失败、API 异常等）→ 阻断
+            # passed=False 且 summary 包含 JSON 错误关键词 = 真正的系统错误
+            if not result.passed and any(kw in result.summary for kw in JSON_ERROR_KEYWORDS):
                 has_system_error = True
-                # 打印具体原因（帮助用户定位问题）
-                if not result.issues:
-                    click.echo(f"  ⚠️  {result.filename}: {result.summary}")
+                click.echo(f"  ⚠️  {result.filename}: {result.summary}")
                 break
             # 检查2：有 issue 且 severity >= threshold → 阻断
             for issue in result.issues:
