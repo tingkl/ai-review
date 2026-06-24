@@ -1094,8 +1094,7 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        name = cache_md5 if cache_md5 else self._sanitize_log_filename(filename)
-        ai_log = logs_dir / f"{name}.ai.log"
+        ai_log = logs_dir / f"{cache_md5}.ai.log"
         try:
             from datetime import datetime
             sep_line = "=" * 60
@@ -1185,7 +1184,7 @@ class AIEngine:
                         code_snippet=issue_data.get('code_snippet', ''),
                     ))
             # cache_md5 从 JSON 恢复，如果没有则用传入的 content_md5
-            cache_md5 = data.get('cache_md5', '') or content_md5
+            cache_md5 = data.get('cache_md5', content_md5)
             return ReviewResult(
                 filename=data.get('filename', ''),
                 issues=issues,
@@ -1389,20 +1388,11 @@ class AIEngine:
                     **extra_params,      # 主流模型禁用 think 的额外参数（如 enable_thinking=false）
                 )
                 raw_content = response.choices[0].message.content or ""
-                # 过滤 <think> 标签，后续处理都基于过滤后的内容
-                filtered_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
-                
                 # 将原始响应写入 ai.log（调试用），返回 ai.log 路径
-                ai_log = self._write_ai_response_log(filename, raw_content, cache_md5,
+                self._write_ai_response_log(filename, raw_content, cache_md5,
                                                       system_message=system_msg, user_message=prompt)
                 
-                # 检测截断（基于过滤后的内容），截断时提示 JSON 问题并打印路径
-                if filtered_content and not filtered_content.endswith('}') and ai_log:
-                    print(f"⚠️  JSON 可能被截断（缺少闭合括号）")
-                    print(f"    {filename}")
-                    print(f"    {os.path.relpath(ai_log)}")
-                
-                return filtered_content
+                return raw_content
             
             except openai.RateLimitError:  # API 限流（429）
                 if attempt < max_retries - 1:
