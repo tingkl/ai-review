@@ -1063,7 +1063,6 @@ class AIEngine:
         
         return prompt
     
-    @staticmethod
     def _write_ai_response_log(self, filename: str, response: str,
                                 cache_md5: str = "",
                                 system_message: str = "",
