@@ -1360,18 +1360,19 @@ class AIEngine:
                     **extra_params,      # 主流模型禁用 think 的额外参数（如 enable_thinking=false）
                 )
                 raw_content = response.choices[0].message.content or ""
+                # 过滤 <think> 标签，后续处理都基于过滤后的内容
+                filtered_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
                 
-                # 将 AI 返回的原始响应写入 ai.log，返回 ai.log 路径
+                # 将原始响应写入 ai.log（调试用），返回 ai.log 路径
                 ai_log = self._write_ai_response_log(filename, raw_content, cache_md5,
                                                       system_message=system_msg, user_message=prompt)
                 
-                # 检测截断，截断时打印 filename 和 ai.log 路径
-                filtered_for_check = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
-                if filtered_for_check and not filtered_for_check.endswith('}') and ai_log:
+                # 检测截断（基于过滤后的内容），截断时打印 filename 和 ai.log 路径
+                if filtered_content and not filtered_content.endswith('}') and ai_log:
                     print(f"    {filename}")
                     print(f"    {os.path.relpath(ai_log)}")
                 
-                return raw_content
+                return filtered_content
             
             except openai.RateLimitError:  # API 限流（429）
                 if attempt < max_retries - 1:
