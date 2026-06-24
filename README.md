@@ -192,8 +192,10 @@ api_key: "sk-xxx"                    # API 密钥
 model: "deepseek-v4-pro"             # 模型（推荐 DeepSeek V4，1M上下文）
 api_base: "https://api.deepseek.com/v1"
 language: "zh-CN"                    # 审核语言
-severity_threshold: "warning"        # 阻断阈值
-case_format: "compact"               # 案例格式
+severity_threshold: "warning"        # 阻断阈值 (info/warning/error/critical)
+case_format: "compact"               # 案例格式 (default/compact/minimal)
+json_fix_max_attempts: 5             # JSON 修复 AI 最大尝试次数
+json_fix_history_mode: "full"        # 修复 AI 上下文模式 (full=完整历史/last=只带上一次)
 temperature: 0.3                     # 随机性
 max_tokens: 8192                     # 最大返回长度
 ```
