@@ -118,6 +118,33 @@ def _try_parse_json(json_str: str) -> Optional[Dict]:
     return None
 
 
+def _extract_json(text: str) -> str:
+    """从文本中提取 JSON 字符串（层层降级）
+
+    1. 从 ```json ... ``` 代码块提取
+    2. 找第一个 {...}
+    3. 整个文本作为 JSON
+
+    Args:
+        text: 已过滤 <think> 标签后的文本
+
+    Returns:
+        JSON 字符串（不会返回空字符串）
+    """
+    # 策略 0: 从 ```json 代码块提取
+    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+
+    # 策略 1: 找第一个 {...}
+    m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if m:
+        return m.group(0).strip()
+
+    # 策略 2: 整个文本作为 JSON
+    return text.strip()
+
+
 def _read_file_full_content(repo_path: str, filename: str) -> str:
     """读取文件的完整内容（diff_mode=full 时使用）
     
@@ -223,7 +250,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.passed = True
         return result
 
-    # ===== JSON 提取策略（层层降级） =====
+    # ===== JSON 提取（层层降级） =====
 
     # 先过滤 <think> 标签（避免其内容干扰后续提取，也减少 token 占用）
     filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
@@ -231,21 +258,8 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         response = filtered_response
         print(f"[信息] 已过滤 <think> 推理标签")
 
-    # 策略 0（最优先）：从 ```json ... ``` 代码块中提取（兼容旧格式）
-    json_str = None
-    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
-    if json_match:
-        json_str = json_match.group(1).strip()
-
-    # 策略 1：从响应中找第一个 {...}（非贪婪，可能因 code_snippet 中的花括号而提取不完整）
-    if json_str is None:
-        brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
-        if brace_match:
-            json_str = brace_match.group(0).strip()
-
-    # 策略 2：整个响应直接作为 JSON（前面策略都失败时的最后尝试）
-    if json_str is None:
-        json_str = response.strip()
+    # 提取 JSON 字符串（代码块 → 花括号 → 整个响应）
+    json_str = _extract_json(response)
 
     if not json_str:
         result.summary = "无法从响应中解析 JSON"
@@ -1402,36 +1416,6 @@ class AIEngine:
         
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
-    def _extract_json_str(self, response: str) -> str:
-        """从 AI 响应中提取 JSON 字符串
-
-        提取策略（层层降级）：
-        1. 从 ```json ... ``` 代码块提取
-        2. 找第一个 {...}
-        3. 整个响应作为 JSON（给修复 AI 去修）
-
-        Args:
-            response: AI 返回的原始文本
-
-        Returns:
-            JSON 字符串（不会返回 None，最坏情况返回原始响应）
-        """
-        # 先过滤 <think> 标签
-        filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
-        
-        # 策略 0: 从 ```json 代码块提取
-        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
-        if m:
-            return m.group(1).strip()
-
-        # 策略 1: 找第一个 {...}
-        m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
-        if m:
-            return m.group(0).strip()
-
-        # 策略 2: 整个响应作为 JSON（修复 AI 会去修）
-        return filtered
-
     def _write_json_fix_log(self, filename: str, cache_md5: str,
                              system_message: str, user_message: str,
                              ai_response: str) -> None:
@@ -1628,7 +1612,7 @@ class AIEngine:
                 all_attempts_log.append(f"--- 尝试 {attempt + 1} ---\n{fixed}")
 
                 # 提取 JSON
-                fixed_json = self._extract_json_str(fixed)
+                fixed_json = _extract_json(fixed)
 
                 # 验证：先解析，再校验 schema
                 data = _try_parse_json(fixed_json)
@@ -1785,7 +1769,7 @@ class AIEngine:
         # 如果 not matched：说明 JSON 合法，只是审核不通过，不调用修复 AI
         json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
         if not result.passed and any(kw in result.summary for kw in json_error_keywords):
-            broken_json = self._extract_json_str(response)
+            broken_json = _extract_json(response)
 
             if broken_json and self.client:
                 print(f"[信息] JSON 本地解析失败，调用 AI 修复...")
