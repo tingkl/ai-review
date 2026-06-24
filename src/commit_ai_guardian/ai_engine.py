@@ -1590,6 +1590,9 @@ class AIEngine:
                         fixed_result.summary = f"发现 {issue_count} 个问题（{', '.join(sev_parts)}）"
                     elif not fixed_result.summary or fixed_result.summary in ('修复说明', ''):
                         fixed_result.summary = 'AI 审核完成，未发现问题'
+                    # 兜底：确保 summary 不为空
+                    if not fixed_result.summary:
+                        fixed_result.summary = "审核完成（系统异常，默认阻断）"
                     # 写入日志（包含所有失败尝试），返回 ReviewResult
                     self._write_json_fix_log(filename, cache_md5,
                                              system_msg, fix_prompt, 
@@ -1687,10 +1690,6 @@ class AIEngine:
             print(f"    {os.path.relpath(cache_path)}")
             print(f"    {os.path.relpath(ai_log)}")
             print(f"    {os.path.relpath(json_fix_log)}")
-
-        # ===== 阶段3: 兜底：确保 summary 不为空 =====
-        if not result.summary:
-            result.summary = "审核完成（系统异常，默认阻断）"
 
         return result
 
