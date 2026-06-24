@@ -1072,28 +1072,6 @@ class AIEngine:
         return prompt
     
     @staticmethod
-    def _sanitize_log_filename(filename: str) -> str:
-        """把文件路径转成安全的日志文件名
-        
-        把 / 替换为 _，去掉开头的 ./，去掉 .ai-review/logs/ 前缀
-        
-        如:
-            src/auth.ts              → src_auth_ts
-            ./src/auth.ts            → src_auth_ts
-            .ai-review/logs/test.ts  → test_ts
-        
-        Args:
-            filename: 原始文件路径
-            
-        Returns:
-            安全的日志文件名（不含扩展名，不含路径分隔符）
-        """
-        name = filename
-        for prefix in ['.ai-review/logs/', './']:
-            if name.startswith(prefix):
-                name = name[len(prefix):]
-        return name.replace('/', '_').replace('\\', '_').replace('.', '_')
-    
     def _write_ai_response_log(self, filename: str, response: str,
                                 cache_md5: str = "",
                                 system_message: str = "",
