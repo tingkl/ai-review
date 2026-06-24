@@ -1382,40 +1382,56 @@ ${code}
             // 修复 AI system message：与 Python DEFAULT_JSON_FIX_SYSTEM_MESSAGE 严格对齐
             const fixSystem = `你是 JSON 修复专家。严格按以下规则输出：
 
-[规则1] 输出格式——直接输出 JSON 对象：
-  {"summary":"...","passed":true/false,"issues":[...]}
-  必须是对象 {}，不要返回数组 [] 或纯文本。
-  不要 \`\`\`json 代码块，不要解释文字。
+=== 返回数据结构（字段名不可更改）===
+{
+  "summary": "总体评价（2-3句话）",
+  "passed": true/false,
+  "issues": [
+    {
+      "severity": "严重级别",
+      "category": "问题类别",
+      "line_number": 0,
+      "message": "问题描述（必填）",
+      "suggestion": "修复建议",
+      "code_snippet": "相关代码片段"
+    }
+  ]
+}
+字段说明与约束：
+- summary: 审核总结，2-3句话
+- passed: 布尔值，true=通过，false=不通过
+  计算规则：有 warning/error/critical 级别 issue → false；只有 info 或 issues 为空 → true
+- issues: 问题列表。空数组表示没有问题
+- severity: 枚举值，只能是 critical/error/warning/info 之一
+- category: 枚举值，只能是 Bug检测/安全/代码风格/性能/最佳实践/文档 之一
+- line_number: 问题所在行号，单个整数（如 80），不写范围
+- message: 问题描述，必填，必须是有意义的描述，不能为空字符串或'-'
+- suggestion: 修复建议，可选
+- code_snippet: 相关代码片段，可选，其中 { } 必须在字符串引号内，不破坏 JSON 结构
+- 字符串中的双引号必须转义 \\"
 
-[规则2] 必须包含 3 个顶层字段（缺一不可）：
-  - summary: 字符串，有意义的内容（如"发现X个问题"），不要写"修复说明"
-  - passed: 布尔值（true/false），取决于 issues 的 severity
-  - issues: 数组，每个 issue 必须有 severity/category/line_number/message
+=== 修复规则 ===
+[规则1] 输出格式：
+  - 必须是对象 {}，不要返回数组 [] 或纯文本
+  - 不要 \`\`\`json 代码块，不要解释文字
 
-[规则3] passed 的值规则（不要硬编码）：
-  - 有 warning/error/critical 级别 issue → passed: false
-  - 只有 info 级别或 issues 为空 → passed: true
+[规则2] 允许修正的内容（仅修正语法和类型，不改动文本）：
+  - 引号转义、逗号缺失、括号闭合、trailing comma
+  - 非标准字段名改为标准名称（如 description → message）
 
-[规则4] 修复语法为主，但为了满足 schema 可以修正字段值：
-  - 必须修复：引号转义、逗号缺失、括号闭合、trailing comma
-  - 可以修正字段值（如果原值不满足 schema）：
-      • line_number 必须是整数，不是整数时改为 0
-      • severity 必须是：critical/error/warning/info（或中文：致命/错误/警告/提示）
-      • category 必须是：Bug检测/安全/代码风格/性能/最佳实践/文档
-  - 输出数据结构（字段名不可更改）：
-      {"severity":"严重级别","category":"问题类别","line_number":0,"message":"问题描述（必填）","suggestion":"修复建议","code_snippet":"相关代码片段"}
-      字段说明：severity=严重级别(取值critical/error/warning/info), category=问题类别(取值Bug检测/安全/代码风格/性能/最佳实践/文档), line_number=行号, message=问题描述(必填), suggestion=修复建议(可选), code_snippet=代码片段(可选)
-  - 不要修改 message/suggestion/code_snippet 的文本内容
-  - 特别小心 code_snippet 和 suggestion 中的 { } 不要破坏 JSON 结构
+[规则3] 禁止修改的内容：
+  - message / suggestion / code_snippet 的文本内容
+  - issue 的数量（不要删除 issue）
+  - 字段名已标为'不可更改'，输出时必须使用标准名称
 
-[规则5] 截断检测——输出前自检：
-  - JSON 必须完整闭合（所有 { 有 }，所有 [ 有 ]）
+[规则4] 截断检测——输出前自检：
+  - 所有 { 有 }，所有 [ 有 ]
   - 最后一个字段后不能有逗号
-  - 字符串中的双引号必须转义 \\"
 
-[规则6] 错误反馈——如果收到错误提示，针对性修复：
-  - 根据具体错误精准修复，不要忽略反馈
-  - 常见错误：字段缺失、类型不对、用了别名（description/fix_suggestion）`;
+=== 常见错误 ===
+- 字段缺失：根据数据结构补齐
+- 类型不对：按字段约束修正
+- 非标准字段名：见规则2`;
 
             // 构造 user prompt
             const schemaHint = schemaErrors && schemaErrors.length > 0
