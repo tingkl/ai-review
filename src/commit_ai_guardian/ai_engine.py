@@ -235,9 +235,9 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     无需重新调用 AI（不花钱、不耗时间）。
 
     解析策略（层层降级）：
-    1. 过滤 <think> 标签
-    2. 从 markdown 代码块 ```json ... ``` 中提取 JSON（兼容旧格式）
-    3. 找第一个 {...}
+    1. 从 markdown 代码块 ```json ... ``` 中提取 JSON（兼容旧格式）
+    2. 找第一个 {...}
+    3. 整个响应作为 JSON
     4. 尝试修复常见问题（BOM、单引号等）
     5. 最后都失败 → passed=False（让用户知道出问题了）
 
@@ -257,14 +257,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         return result
 
     # ===== JSON 提取（层层降级） =====
-
-    # 先过滤 <think> 标签（避免其内容干扰后续提取，也减少 token 占用）
-    filtered_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
-    if filtered_response != response:
-        response = filtered_response
-        print(f"[信息] 已过滤 <think> 推理标签")
-
-    # 提取 JSON 字符串（代码块 → 花括号 → 整个响应）
+    # _extract_json 内部已过滤 <think> 标签，无需预处理
     json_str = _extract_json(response)
 
     if not json_str:
