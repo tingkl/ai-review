@@ -1243,8 +1243,8 @@ class AIEngine:
                         "properties": {
                             "severity": {
                                 "type": "string",
-                                "enum": ["critical", "error", "warning", "info", "致命", "错误", "警告", "提示"],
-                                "description": "严重级别（支持中英文）"
+                                "enum": ["critical", "error", "warning", "info"],
+                                "description": "严重级别"
                             },
                             "category": {
                                 "type": "string",
