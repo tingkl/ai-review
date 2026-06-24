@@ -1,8 +1,4 @@
-"""Tests for hook_installer module.
-
-Note: _sanitize_log_filename is defined in ai_engine.AIEngine but tested here
-as requested (it is a static utility method for sanitizing file paths).
-"""
+"""Tests for hook_installer module."""
 
 import sys
 from pathlib import Path
@@ -179,90 +175,6 @@ class TestConfigFields:
         for key in HookInstaller._CONFIG_FIELDS:
             assert key == key.lower(), f"{key} is not lowercase"
             assert " " not in key, f"{key} contains spaces"
-
-
-# ---- _sanitize_log_filename (from AIEngine) ----
-
-class TestSanitizeLogFilename:
-    """Tests for AIEngine._sanitize_log_filename static method.
-
-    This method converts file paths into safe log filenames by:
-    - Stripping .ai-review/logs/ and ./ prefixes
-    - Replacing path separators and dots with underscores
-    """
-
-    def test_plain_relative_path(self):
-        """Plain relative path should have separators replaced."""
-        result = AIEngine._sanitize_log_filename("src/auth.ts")
-        assert result == "src_auth_ts"
-
-    def test_path_with_leading_dot_slash(self):
-        """Path starting with ./ should have prefix stripped."""
-        result = AIEngine._sanitize_log_filename("./src/auth.ts")
-        assert result == "src_auth_ts"
-
-    def test_path_with_ai_review_logs_prefix(self):
-        """Path starting with .ai-review/logs/ should have prefix stripped."""
-        result = AIEngine._sanitize_log_filename(".ai-review/logs/test.ts")
-        assert result == "test_ts"
-
-    def test_single_filename(self):
-        """Single filename should have dot replaced."""
-        result = AIEngine._sanitize_log_filename("main.py")
-        assert result == "main_py"
-
-    def test_empty_string(self):
-        """Empty string should return empty string."""
-        result = AIEngine._sanitize_log_filename("")
-        assert result == ""
-
-    def test_path_with_backslash(self):
-        """Windows-style backslash path should be sanitized."""
-        result = AIEngine._sanitize_log_filename("src\\auth.ts")
-        assert result == "src_auth_ts"
-
-    def test_deeply_nested_path(self):
-        """Deeply nested path should have all separators replaced."""
-        result = AIEngine._sanitize_log_filename("a/b/c/d/e.py")
-        assert result == "a_b_c_d_e_py"
-
-    def test_only_dot_slash_prefix(self):
-        """Only ./ prefix should return empty after stripping."""
-        result = AIEngine._sanitize_log_filename("./")
-        assert result == ""
-
-    def test_both_prefixes_order_matters(self):
-        """.ai-review/logs/ prefix should be stripped before ./ prefix check."""
-        result = AIEngine._sanitize_log_filename(".ai-review/logs/src/auth.ts")
-        # .ai-review/logs/ stripped first → src/auth.ts → src_auth_ts
-        assert result == "src_auth_ts"
-
-    def test_does_not_strip_non_prefix_dot_slash(self):
-        """./ inside path (not at start) should not be stripped as prefix."""
-        result = AIEngine._sanitize_log_filename("src/./auth.ts")
-        # ./ is not at the start, so dots and slashes are both replaced with _
-        assert result == "src___auth_ts"
-
-    def test_filename_with_multiple_dots(self):
-        """Filename with multiple dots should have all dots replaced."""
-        result = AIEngine._sanitize_log_filename("some.lib.min.js")
-        assert result == "some_lib_min_js"
-
-    def test_root_level_file(self):
-        """Root-level file path should be sanitized correctly."""
-        result = AIEngine._sanitize_log_filename("Dockerfile")
-        assert result == "Dockerfile"  # no dots or slashes
-
-    def test_path_with_leading_slash(self):
-        """Absolute Unix path should have leading slash replaced."""
-        result = AIEngine._sanitize_log_filename("/home/user/project/main.py")
-        # The leading / is replaced with _, then rest follows
-        assert "_home_user_project_main_py" in result
-
-    def test_special_chars_preserved_except_separators(self):
-        r"""Special characters (other than / \ .) should be preserved."""
-        result = AIEngine._sanitize_log_filename("file-name@2x.test.ts")
-        assert result == "file-name@2x_test_ts"
 
 
 # ---- HookInstaller initialization ----

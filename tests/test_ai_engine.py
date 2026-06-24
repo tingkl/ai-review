@@ -1,7 +1,6 @@
 """Tests for commit_ai_guardian.ai_engine module
 
-Covers parse_ai_response, _check_prerequisites, _sanitize_log_filename,
-ReviewIssue.__post_init__, and _try_parse_json.
+Covers parse_ai_response, _check_prerequisites, _try_parse_json.
 """
 
 import sys
@@ -256,103 +255,36 @@ class TestCheckPrerequisites:
 
 
 # ---------------------------------------------------------------------------
-# 3. _sanitize_log_filename()
+# 3. ReviewIssue
 # ---------------------------------------------------------------------------
 
-class TestSanitizeLogFilename:
-    """Verify _sanitize_log_filename produces safe file names."""
-
-    def test_simple_filename_unchanged_except_extension(self):
-        result = AIEngine._sanitize_log_filename("main.py")
-        assert result == "main_py"
-
-    def test_nested_path_replaces_separators(self):
-        result = AIEngine._sanitize_log_filename("src/utils/helper.py")
-        assert result == "src_utils_helper_py"
-
-    def test_leading_dot_slash_removed(self):
-        result = AIEngine._sanitize_log_filename("./src/auth.ts")
-        assert result == "src_auth_ts"
-
-    def test_ai_review_logs_prefix_removed(self):
-        result = AIEngine._sanitize_log_filename(".ai-review/logs/test.ts")
-        assert result == "test_ts"
-
-    def test_windows_backslash_replaced(self):
-        result = AIEngine._sanitize_log_filename("src\\auth.ts")
-        assert result == "src_auth_ts"
-
-    def test_multiple_dots_replaced(self):
-        result = AIEngine._sanitize_log_filename("some.file.name.py")
-        assert result == "some_file_name_py"
-
-    def test_empty_string_returns_empty(self):
-        result = AIEngine._sanitize_log_filename("")
-        assert result == ""
-
-
-# ---------------------------------------------------------------------------
-# 4. ReviewIssue.__post_init__
-# ---------------------------------------------------------------------------
-
-class TestReviewIssuePostInit:
-    """Verify ReviewIssue field validation in __post_init__."""
-
-    def test_valid_severity_preserved(self):
-        for valid in ["critical", "error", "warning", "info"]:
-            issue = ReviewIssue(severity=valid)
-            assert issue.severity == valid
-
-    def test_invalid_severity_fallback_to_info(self):
-        issue = ReviewIssue(severity="unknown")
-        assert issue.severity == "info"
-
-    def test_valid_category_preserved(self):
-        for valid in ["bug", "security", "style", "performance", "best-practice", "documentation"]:
-            issue = ReviewIssue(category=valid)
-            assert issue.category == valid
-
-    def test_invalid_category_fallback_to_best_practice(self):
-        issue = ReviewIssue(category="unknown")
-        assert issue.category == "best-practice"
-
-    def test_integer_line_number_preserved(self):
-        issue = ReviewIssue(line_number=42)
-        assert issue.line_number == 42
-
-    def test_string_line_number_converted_to_int(self):
-        issue = ReviewIssue(line_number="80")
-        assert issue.line_number == 80
-
-    def test_line_number_range_extracts_first_number(self):
-        """AI may return "80-81"; we keep the first number."""
-        issue = ReviewIssue(line_number="80-81")
-        assert issue.line_number == 80
-
-    def test_none_line_number_stays_none(self):
-        issue = ReviewIssue(line_number=None)
-        assert issue.line_number is None
-
-    def test_non_numeric_string_line_number_becomes_none(self):
-        issue = ReviewIssue(line_number="not-a-number")
-        assert issue.line_number is None
+class TestReviewIssue:
+    """Verify ReviewIssue basic creation."""
 
     def test_all_default_fields(self):
         issue = ReviewIssue()
         assert issue.severity == "info"
-        assert issue.category == "best-practice"
+        assert issue.category == "最佳实践"
         assert issue.line_number is None
         assert issue.message == ""
         assert issue.suggestion == ""
         assert issue.code_snippet == ""
 
-    def test_line_number_with_whitespace_extracted(self):
-        issue = ReviewIssue(line_number="  123  ")
-        assert issue.line_number == 123
-
-    def test_empty_string_line_number_becomes_none(self):
-        issue = ReviewIssue(line_number="")
-        assert issue.line_number is None
+    def test_custom_values(self):
+        issue = ReviewIssue(
+            severity="warning",
+            category="代码风格",
+            line_number=42,
+            message="test",
+            suggestion="fix it",
+            code_snippet="const x = 1;",
+        )
+        assert issue.severity == "warning"
+        assert issue.category == "代码风格"
+        assert issue.line_number == 42
+        assert issue.message == "test"
+        assert issue.suggestion == "fix it"
+        assert issue.code_snippet == "const x = 1;"
 
 
 # ---------------------------------------------------------------------------

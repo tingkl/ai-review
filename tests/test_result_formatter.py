@@ -34,7 +34,6 @@ class MockReviewResult:
     summary: str = ""
     passed: bool = True
     raw_response: str = ""
-    first_line_number: Optional[int] = None
     cache_md5: str = ""
 
 
