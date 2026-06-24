@@ -37,7 +37,7 @@ _REVIEW_DATA_STRUCTURE = (
     "- passed: 布尔值，true=通过，false=不通过\n"
     "  计算规则：有 warning/error/critical 级别 issue → false；只有 info 或 issues 为空 → true\n"
     "- issues: 问题列表。空数组表示没有问题\n"
-    "- severity: 取值 critical/error/warning/info（或中文：致命/错误/警告/提示）\n"
+    "- severity: 取值 critical/error/warning/info\n"
     "- category: 取值 Bug检测/安全/代码风格/性能/最佳实践/文档\n"
     "- line_number: 问题所在行号，单个整数（如 80），不写范围\n"
     "- message: 问题描述，必填，必须是有意义的描述，不能为空字符串或'-'\n"
