@@ -244,10 +244,18 @@ def _validate_issue_core(issue_data: dict, index: int) -> list:
     if sev is not None and sev not in ('critical', 'error', 'warning', 'info'):
         errors.append(f"issues[{index}].severity 值非法: '{sev}'，必须是 critical/error/warning/info 之一")
 
-    # line_number 类型（必须是整数或 null）
+    # line_number：尝试本地修复（字符串→整数），修不了才报错
     ln = issue_data.get('line_number')
     if ln is not None and not isinstance(ln, int):
-        errors.append(f"issues[{index}].line_number 必须是整数，当前类型: {type(ln).__name__}")
+        try:
+            line_str = str(ln).strip()
+            match = re.search(r'\d+', line_str)
+            if match:
+                issue_data['line_number'] = int(match.group())  # 就地修复
+            else:
+                errors.append(f"issues[{index}].line_number 必须是整数，当前值无法解析: {ln}")
+        except (ValueError, TypeError):
+            errors.append(f"issues[{index}].line_number 必须是整数，当前值无法解析: {ln}")
 
     # message 非空
     msg = issue_data.get('message')
