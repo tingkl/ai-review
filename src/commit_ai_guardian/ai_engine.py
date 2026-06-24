@@ -1765,7 +1765,7 @@ class AIEngine:
         # 如果 not matched：说明 JSON 合法，只是审核不通过，不调用修复 AI
         json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
         if not result.passed and any(kw in result.summary for kw in json_error_keywords):
-            broken_json = result.extracted_json or _extract_json(response)
+            broken_json = result.extracted_json
 
             if broken_json and self.client:
                 print(f"[信息] JSON 本地解析失败，调用 AI 修复...")
