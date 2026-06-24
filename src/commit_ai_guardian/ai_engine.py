@@ -155,10 +155,11 @@ def _extract_json(text: str) -> str:
     if m:
         return m.group(1).strip()
 
-    # 策略 1: 找第一个 {...}
-    m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
-    if m:
-        return m.group(0).strip()
+    # 策略 1: 找第一个 { 和最后一个 } 之间的内容（处理嵌套 JSON）
+    first_brace = filtered.find('{')
+    last_brace = filtered.rfind('}')
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        return filtered[first_brace:last_brace + 1].strip()
 
     # 策略 2: 整个文本作为 JSON
     return filtered
