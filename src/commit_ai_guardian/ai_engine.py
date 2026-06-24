@@ -197,7 +197,7 @@ def _build_cases_check_instruction() -> str:
 class ReviewIssue:
     """单个审核问题"""
     severity: str = "info"  # critical / error / warning / info
-    category: str = "best-practice"  # bug / security / style / performance / best-practice / documentation
+    category: str = "最佳实践"  # Bug检测 / 安全 / 代码风格 / 性能 / 最佳实践 / 文档
     line_number: Optional[int] = None
     message: str = ""
     suggestion: str = ""
@@ -365,7 +365,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                 
                 issue = ReviewIssue(
                     severity=severity,
-                    category=issue_data.get('category', 'best-practice'),
+                    category=issue_data.get('category', '最佳实践'),
                     line_number=issue_data.get('line_number'),
                     message=issue_data.get('message', ''),
                     suggestion=issue_data.get('suggestion', ''),
@@ -1178,7 +1178,7 @@ class AIEngine:
                 if isinstance(issue_data, dict):
                     issues.append(ReviewIssue(
                         severity=issue_data.get('severity', 'info'),
-                        category=issue_data.get('category', 'best-practice'),
+                        category=issue_data.get('category', '最佳实践'),
                         line_number=issue_data.get('line_number'),
                         message=issue_data.get('message', ''),
                         suggestion=issue_data.get('suggestion', ''),
