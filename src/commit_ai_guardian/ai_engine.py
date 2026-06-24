@@ -1601,7 +1601,7 @@ class AIEngine:
                 print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{fixed_result.summary}")
                 if history_mode == "last":
                     attempt_history.clear()  # 只保留最后一次
-                attempt_history.append({"role": "assistant", "content": fixed_json})
+                attempt_history.append({"role": "assistant", "content": fixed})
                 attempt_history.append({"role": "user", "content": (
                     f"以上修复结果不满足 schema 要求，具体错误：\n{error_msg}\n"
                     f"\n请根据以上错误修正 JSON，确保满足 schema 约束。"
