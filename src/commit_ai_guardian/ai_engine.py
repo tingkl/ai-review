@@ -335,8 +335,8 @@ def parse_ai_response(response: str, filename: str = "unknown",
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到 {type(data).__name__}"
         return result
 
-    # 检查顶层必需字段
-    _REQUIRED_TOP_FIELDS = {'summary', 'passed', 'issues'}
+    # 检查顶层必需字段（passed 由系统根据 severity 自动计算，不需要 AI 填写）
+    _REQUIRED_TOP_FIELDS = {'summary', 'issues'}
     missing_top = _REQUIRED_TOP_FIELDS - set(data.keys())
     if missing_top:
         result.summary = f"JSON 字段缺失: 缺少顶层必填字段: {', '.join(sorted(missing_top))}"
@@ -1515,8 +1515,8 @@ class AIEngine:
         """
         errors = []
         
-        # 1. 顶层必填字段
-        for field in ['summary', 'passed', 'issues']:
+        # 1. 顶层必填字段（passed 由系统计算，不需要 AI 填写）
+        for field in ['summary', 'issues']:
             if field not in data:
                 errors.append(f"缺少顶层必填字段: '{field}'")
         
@@ -1526,8 +1526,6 @@ class AIEngine:
         # 2. 类型检查
         if not isinstance(data.get('summary'), str):
             errors.append("'summary' 必须是字符串")
-        if not isinstance(data.get('passed'), bool):
-            errors.append("'passed' 必须是布尔值 (true/false)")
         if not isinstance(data.get('issues'), list):
             errors.append("'issues' 必须是数组")
             return errors
@@ -1669,8 +1667,7 @@ class AIEngine:
             data = {"summary": "AI 返回了数组格式，已自动转换", "passed": False, "issues": []}
         
         result.summary = data.get('summary', '') or '审核完成'
-        # 先取 AI 返回的 passed，后面会根据 issues 修正
-        result.passed = bool(data.get('passed', True))
+        # passed 由系统根据 severity_threshold 自动计算，不读取 AI 返回的值
 
         # issue 字段名校验：必须有 message 字段且非空
         issues_data = data.get('issues', [])
