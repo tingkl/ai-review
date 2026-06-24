@@ -342,6 +342,14 @@ def parse_ai_response(response: str, filename: str = "unknown",
         result.summary = f"JSON 字段缺失: 缺少顶层必填字段: {', '.join(sorted(missing_top))}"
         return result
 
+    # 检查顶层字段类型
+    if not isinstance(data.get('summary'), str):
+        result.summary = "JSON 类型错误: 'summary' 必须是字符串"
+        return result
+    if not isinstance(data.get('issues'), list):
+        result.summary = "JSON 类型错误: 'issues' 必须是数组"
+        return result
+
     # 提取 summary（passed 由系统根据 severity 自动计算，不依赖 AI 填写）
     result.summary = data.get('summary', '审核完成')
 
@@ -1501,44 +1509,6 @@ class AIEngine:
         except Exception as e:
             print(f"[警告] 写入 json_fix.log 失败: {e}")
 
-    def _validate_review_schema(self, data: dict) -> list:
-        """校验审核结果 JSON 是否满足 schema 要求
-        
-        返回具体的错误信息列表，用于反馈给 JSON 修复 AI。
-        空列表表示校验通过。
-        
-        Args:
-            data: 解析后的 JSON dict
-            
-        Returns:
-            错误信息列表（空列表表示通过）
-        """
-        errors = []
-        
-        # 1. 顶层必填字段（passed 由系统计算，不需要 AI 填写）
-        for field in ['summary', 'issues']:
-            if field not in data:
-                errors.append(f"缺少顶层必填字段: '{field}'")
-        
-        if errors:
-            return errors  # 缺少顶层字段，不再检查 issues
-        
-        # 2. 类型检查
-        if not isinstance(data.get('summary'), str):
-            errors.append("'summary' 必须是字符串")
-        if not isinstance(data.get('issues'), list):
-            errors.append("'issues' 必须是数组")
-            return errors
-        
-        # 3. issues 数组中每个 issue 的校验（用 _validate_issue_core 统一校验）
-        for i, issue in enumerate(data['issues']):
-            if not isinstance(issue, dict):
-                errors.append(f"issues[{i}] 必须是对象")
-                continue
-            errors.extend(_validate_issue_core(issue, i))
-        
-        return errors
-
     def _fix_json_with_ai(self, broken_json: str, filename: str,
                            cache_md5: str = "") -> Optional[str]:
         """AI 修复 JSON 语法错误
@@ -1600,15 +1570,10 @@ class AIEngine:
                 # 提取 JSON
                 fixed_json = _extract_json(fixed)
 
-                # 验证：先解析，再校验 schema
-                data = _try_parse_json(fixed_json)
-                if not data or not isinstance(data, dict):
-                    last_error = "JSON 语法解析失败，请确保是合法的 JSON 格式"
-                    continue
-
-                # Schema 校验
-                schema_errors = self._validate_review_schema(data)
-                if not schema_errors:
+                # 验证：用 parse_ai_response 做完整校验（顶层类型 + issue 级别）
+                temp_result = parse_ai_response(fixed_json, filename)
+                json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 类型错误")
+                if not any(kw in temp_result.summary for kw in json_error_keywords):
                     # 校验通过，写入日志（包含所有失败尝试），返回修复后的 JSON
                     self._write_json_fix_log(filename, cache_md5,
                                              system_msg, fix_prompt, 
@@ -1616,8 +1581,8 @@ class AIEngine:
                     return fixed_json  # 校验通过，返回修复后的 JSON
 
                 # 校验失败，更新对话历史供下次使用
-                error_msg = "\n".join(schema_errors)
-                print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{schema_errors[0]}")
+                error_msg = temp_result.summary
+                print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{temp_result.summary}")
                 if history_mode == "last":
                     attempt_history.clear()  # 只保留最后一次
                 attempt_history.append({"role": "assistant", "content": fixed_json})
