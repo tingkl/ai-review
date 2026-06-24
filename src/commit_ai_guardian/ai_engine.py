@@ -24,6 +24,15 @@
 
 import hashlib
 import json
+
+# JSON 错误关键词（用于判断是否需要调用修复 AI）
+JSON_ERROR_KEYWORDS = (
+    "JSON 解析失败",
+    "无法从响应中解析 JSON",
+    "JSON 字段缺失",
+    "JSON 字段名错误",
+    "JSON 类型错误",
+)
 import os
 import re
 import time
@@ -1572,8 +1581,7 @@ class AIEngine:
 
                 # 验证：用 parse_ai_response 做完整校验（顶层类型 + issue 级别）
                 temp_result = parse_ai_response(fixed_json, filename)
-                json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 类型错误")
-                if not any(kw in temp_result.summary for kw in json_error_keywords):
+                if not any(kw in temp_result.summary for kw in JSON_ERROR_KEYWORDS):
                     # 校验通过，写入日志（包含所有失败尝试），返回修复后的 JSON
                     self._write_json_fix_log(filename, cache_md5,
                                              system_msg, fix_prompt, 
@@ -1718,8 +1726,7 @@ class AIEngine:
         #
         # 如果 matched：说明 JSON 结构有问题，调用修复 AI
         # 如果 not matched：说明 JSON 合法，只是审核不通过，不调用修复 AI
-        json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
-        if not result.passed and any(kw in result.summary for kw in json_error_keywords):
+        if not result.passed and any(kw in result.summary for kw in JSON_ERROR_KEYWORDS):
             broken_json = result.extracted_json
 
             if broken_json and self.client:
