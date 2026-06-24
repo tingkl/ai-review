@@ -1367,8 +1367,9 @@ class AIEngine:
                 ai_log = self._write_ai_response_log(filename, raw_content, cache_md5,
                                                       system_message=system_msg, user_message=prompt)
                 
-                # 检测截断（基于过滤后的内容），截断时打印 filename 和 ai.log 路径
+                # 检测截断（基于过滤后的内容），截断时提示 JSON 问题并打印路径
                 if filtered_content and not filtered_content.endswith('}') and ai_log:
+                    print(f"⚠️  JSON 可能被截断（缺少闭合括号）")
                     print(f"    {filename}")
                     print(f"    {os.path.relpath(ai_log)}")
                 
