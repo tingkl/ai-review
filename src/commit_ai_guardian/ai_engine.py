@@ -138,9 +138,8 @@ def _extract_json(text: str) -> str:
 
     1. 过滤 <think> 标签
     2. 从 ```json ... ``` 代码块提取（取最长匹配，避免内部代码块截断）
-    3. 从 <result> 标签提取
-    4. 用栈计数找匹配的 {...}（处理嵌套 JSON）
-    5. 整个文本作为 JSON
+    3. 用栈计数找匹配的 {...}（处理嵌套 JSON）
+    4. 整个文本作为 JSON
 
     Args:
         text: AI 返回的原始响应文本（可包含 <think> 标签）
@@ -161,12 +160,7 @@ def _extract_json(text: str) -> str:
         if end_match:
             return filtered[start_idx:start_idx + end_match.start()].strip()
 
-    # 策略 1: 从 <result> 标签提取
-    m = re.search(r'<result>\s*(.*?)\s*</result>', filtered, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-
-    # 策略 2: 用栈计数找匹配的 {} 边界（正确处理嵌套）
+    # 策略 1: 用栈计数找匹配的 {} 边界（正确处理嵌套）
     first_brace = filtered.find('{')
     if first_brace != -1:
         brace_count = 0

@@ -1196,13 +1196,7 @@ ${code}
                 }
             }
 
-            // 3. 从 <result> 标签提取
-            if (!jsonStr) {
-                const resultMatch = filtered.match(/<result>\s*([\s\S]*?)\s*<\/result>/);
-                if (resultMatch) jsonStr = resultMatch[1].trim();
-            }
-
-            // 4. 用栈计数找匹配的 {} 边界（正确处理嵌套）
+            // 3. 用栈计数找匹配的 {} 边界（正确处理嵌套）
             if (!jsonStr) {
                 const firstBrace = filtered.indexOf('{');
                 if (firstBrace !== -1) {
