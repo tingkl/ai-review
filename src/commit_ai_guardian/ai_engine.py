@@ -1048,7 +1048,8 @@ class AIEngine:
     def _write_ai_response_log(self, filename: str, response: str,
                                 cache_md5: str = "",
                                 system_message: str = "",
-                                user_message: str = "") -> None:
+                                user_message: str = "",
+                                truncated: bool = False) -> None:
         """将 AI 审核的完整对话记录写入 .ai-review/logs/{cache_md5}.ai.log
 
         记录完整的 API 调用上下文：system message + user message + AI response，
@@ -1110,6 +1111,11 @@ class AIEngine:
                 )
 
             ai_log.write_text("\n".join(parts), encoding='utf-8')
+            
+            # 截断时打印 filename 和 ai.log 路径（方便定位）
+            if truncated and cache_md5:
+                print(f"    {filename}")
+                print(f"    {os.path.relpath(ai_log)}")
         except Exception:
             pass
 
@@ -1360,14 +1366,14 @@ class AIEngine:
                 )
                 raw_content = response.choices[0].message.content or ""
                 
-                # 打印文件名和 ai.log 路径（方便查看定位）
-                if cache_md5:
-                    log_path = Path(self.repo_path) / ".ai-review" / "logs" / f"{cache_md5}.ai.log"
-                    print(f"    {filename}")
-                    print(f"    {os.path.relpath(log_path)}")
+                # 检测 AI 响应是否可能被截断（JSON 不完整）
+                filtered_for_check = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+                is_truncated = bool(filtered_for_check and not filtered_for_check.endswith('}'))
                 
-                # 将 AI 返回的原始响应写入 ai.log（不打印到控制台）
-                self._write_ai_response_log(filename, raw_content, cache_md5, system_message=system_msg, user_message=prompt)
+                # 将 AI 返回的原始响应写入 ai.log（截断时打印 filename 和 ai.log 路径）
+                self._write_ai_response_log(filename, raw_content, cache_md5,
+                                            system_message=system_msg, user_message=prompt,
+                                            truncated=is_truncated)
                 return raw_content
             
             except openai.RateLimitError:  # API 限流（429）
