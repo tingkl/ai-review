@@ -1688,12 +1688,9 @@ class AIEngine:
             print(f"    {os.path.relpath(ai_log)}")
             print(f"    {os.path.relpath(json_fix_log)}")
 
-        # ===== 阶段3: 确保必要字段存在 =====
-        # 默认 passed=False（绝对阻断），只有在明确通过时才设为 True
+        # ===== 阶段3: 兜底：确保 summary 不为空 =====
         if not result.summary:
             result.summary = "审核完成（系统异常，默认阻断）"
-        if not hasattr(result, 'issues'):
-            result.issues = []
 
         return result
 
