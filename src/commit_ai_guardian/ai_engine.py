@@ -285,7 +285,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     Returns:
         ReviewResult。完整复用 AIEngine._parse_response 的解析逻辑
     """
-    result = ReviewResult(filename=filename, raw_response=response)
+    result = ReviewResult(filename=filename, raw_response=response, passed=False)
 
     # 防御：空响应
     if not response or not response.strip():
@@ -300,7 +300,6 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
 
     if not json_str:
         result.summary = "无法从响应中解析 JSON"
-        result.passed = False
         return result
 
     # 快速处理：空数组 [] = 审核通过（AI 认为没问题但忘了包装成对象）
@@ -322,19 +321,16 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
 
     if data is None:
         result.summary = "JSON 解析失败"
-        result.passed = False
         return result
     
     # AI 可能返回非空数组（如 [{issue1}, ...]）而不是对象
     if isinstance(data, list):
         # 非空数组 = 有 issues 但没有 summary/passed 包装，交给修复 AI 处理
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到数组（{len(data)} 个元素）"
-        result.passed = False
         return result
     
     if not isinstance(data, dict):
         result.summary = f"JSON 类型错误: 期望对象 {{...}}，实际得到 {type(data).__name__}"
-        result.passed = False
         return result
 
     # 检查顶层必需字段
@@ -342,7 +338,6 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     missing_top = _REQUIRED_TOP_FIELDS - set(data.keys())
     if missing_top:
         result.summary = f"JSON 字段缺失: 缺少顶层必填字段: {', '.join(sorted(missing_top))}"
-        result.passed = False
         return result
 
     # 提取 summary（passed 由系统根据 severity 自动计算，不依赖 AI 填写）
@@ -362,7 +357,6 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                         result.summary = f"JSON 字段缺失: {first_err}"
                     else:
                         result.summary = f"JSON 类型错误: {first_err}"
-                    result.passed = False
                     return result
                 
                 severity = issue_data.get('severity', 'info')
@@ -381,7 +375,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     
     # 根据 severity 修正 passed（不盲目信任 AI 返回的 passed）
     if has_warning_or_above:
-        result.passed = False
+        pass  # 默认 False，不处理
     elif result.issues or issues_data == []:
         # issues 为空数组 或 只有 info 级别 → passed = true
         result.passed = True
@@ -1672,7 +1666,7 @@ class AIEngine:
         Returns:
             ReviewResult
         """
-        result = ReviewResult(filename=filename, raw_response=raw_response)
+        result = ReviewResult(filename=filename, raw_response=raw_response, passed=False)
         
         # AI 返回了数组（如 []）——包装为合规对象
         if isinstance(data, list):
@@ -1692,14 +1686,12 @@ class AIEngine:
                     message_val = issue_data.get('message', '')
                     if not message_val or not str(message_val).strip():
                         result.summary = "JSON 字段缺失: issue 缺少必填字段 message"
-                        result.passed = False
                         return result
                     
                     # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
                     severity = issue_data.get('severity', 'info')
                     if severity not in ('critical', 'error', 'warning', 'info'):
                         result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
-                        result.passed = False
                         return result
                     
                     # category 直接用中文（schema 枚举已改为中文）
@@ -1723,8 +1715,7 @@ class AIEngine:
             for issue in result.issues
         )
         if has_real_issues:
-            result.passed = False
-
+            pass  # 默认 False，不处理
         return result
 
     def _parse_response(self, response: str, filename: str, cache_md5: str = "") -> ReviewResult:
@@ -1809,8 +1800,6 @@ class AIEngine:
         # 默认 passed=False（绝对阻断），只有在明确通过时才设为 True
         if not result.summary:
             result.summary = "审核完成（系统异常，默认阻断）"
-        if not hasattr(result, 'passed'):
-            result.passed = False
         if not hasattr(result, 'issues'):
             result.issues = []
 
