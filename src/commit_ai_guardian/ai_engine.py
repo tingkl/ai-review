@@ -512,13 +512,13 @@ class AIEngine:
         # 根据 diff_mode 决定审核策略
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
-        # 计算缓存 key（无论是否启用缓存，都用于 ai.log 命名）
+        # 计算缓存 key（MD5 前7位，用于缓存文件名和 ai.log 命名）
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
-            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
+            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
         else:
             full_content = ""
-            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
         
         # 检查缓存（可配置关闭）
         use_cache = getattr(self.config, 'use_cache', True)
@@ -526,28 +526,28 @@ class AIEngine:
             cached = self._check_cache(cache_key)
             if cached:
                 cached.filename = filename
-                cached.cache_md5 = cache_key[:7]
+                cached.cache_md5 = cache_key
                 print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
-                cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+                cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
                 print(f"  {os.path.relpath(cache_path)}")
                 return cached
         
         # 构建 Prompt：根据 diff_mode 选择策略
         if diff_mode == 'full' and full_content:
             # full 模式：审核完整文件内容，但标注变更部分
-            prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key[:7])
+            prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key)
         else:
             # diff 模式：只审核变更内容
-            prompt = self._build_prompt(file_diff, cache_key[:7])
+            prompt = self._build_prompt(file_diff, cache_key)
         
         try:
-            response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
-            result = self._parse_response(response, filename, cache_md5=cache_key[:7])
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
+            result = self._parse_response(response, filename, cache_md5=cache_key)
             # diff 模式下：把第一个变更行号和 MD5 赋给结果（文件名头显示用）
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
-            result.cache_md5 = cache_key[:7]
+            result.cache_md5 = cache_key
             # 审核成功，保存到缓存（可配置关闭）
             if use_cache:
                 self._save_cache(cache_key, result)
@@ -560,7 +560,7 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过，需排查
                 raw_response=str(e),
-                cache_md5=cache_key[:7],
+                cache_md5=cache_key,
             )
     
 
@@ -678,7 +678,7 @@ class AIEngine:
             print(f"[信息] 清理 {cleaned} 个过期日志文件（{size_kb:.1f} KB）")
 
     def _get_cache_key_for_file(self, file_diff: Any) -> Optional[str]:
-        """计算文件的缓存 key（用于批量缓存检查）
+        """计算文件的缓存 key（MD5 前7位，用于缓存文件名）
         
         diff_mode=full 时用完整文件内容 MD5，diff 模式用 diff 内容 MD5。
         不需要缓存的返回 None。
@@ -687,7 +687,7 @@ class AIEngine:
             file_diff: FileDiff 对象
             
         Returns:
-            MD5 字符串，或 None
+            MD5 前7位字符串，或 None
         """
         filename = getattr(file_diff, 'filename', 'unknown')
         diff_mode = getattr(self.config, 'diff_mode', 'full')
@@ -695,12 +695,12 @@ class AIEngine:
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
             if full_content:
-                return hashlib.md5(full_content.encode('utf-8')).hexdigest()
+                return hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
             return None
         else:
             diff_content = getattr(file_diff, 'diff_content', '')
             if diff_content:
-                return hashlib.md5(diff_content.encode('utf-8')).hexdigest()
+                return hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
             return None
     
     def _review_file_no_cache(self, file_diff: Any) -> ReviewResult:
@@ -720,27 +720,27 @@ class AIEngine:
         diff_content = getattr(file_diff, 'diff_content', '')
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
-        # 构建 Prompt（先算 cache_key，传给 prompt builder 用于日志命名）
+        # 构建 Prompt（先算 cache_key，MD5 前7位用于日志命名）
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
             if full_content:
-                cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()
-                prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key[:7])
+                cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
+                prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key)
             else:
-                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
-                prompt = self._build_prompt(file_diff, cache_key[:7])
+                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
+                prompt = self._build_prompt(file_diff, cache_key)
         else:
-            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()
-            prompt = self._build_prompt(file_diff, cache_key[:7])
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
+            prompt = self._build_prompt(file_diff, cache_key)
         
         try:
-            response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
-            result = self._parse_response(response, filename, cache_md5=cache_key[:7])
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
+            result = self._parse_response(response, filename, cache_md5=cache_key)
             # diff 模式下：把第一个变更行号和 MD5 赋给结果
             line_numbers = getattr(file_diff, 'line_numbers', [])
             if line_numbers:
                 result.first_line_number = line_numbers[0]
-            result.cache_md5 = cache_key[:7]
+            result.cache_md5 = cache_key
             # 保存到缓存（可配置关闭）
             if getattr(self.config, 'use_cache', True):
                 self._save_cache(cache_key, result)
@@ -752,7 +752,7 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
-                cache_md5=cache_key[:7],
+                cache_md5=cache_key,
             )
     
     def review_batch(self, file_diffs: List[Any]) -> List[ReviewResult]:
@@ -812,7 +812,7 @@ class AIEngine:
                     cache_key = self._get_cache_key_for_file(file_diffs[idx]) or ""
                     print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
                     if cache_key:
-                        cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+                        cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
                         print(f"  {os.path.relpath(cache_path)}")
         
         # ===== 第二阶段：并发调 AI（只处理未命中的文件）=====
@@ -1827,29 +1827,29 @@ class AIEngine:
         content = getattr(source_file, 'content', '')
         
         # 计算缓存 key（无论是否启用缓存，都用于 ai.log 命名）
-        content_md5 = hashlib.md5(content.encode('utf-8')).hexdigest()
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
         
         # 检查缓存（可配置关闭）
         use_cache = getattr(self.config, 'use_cache', True)
         if use_cache:
-            cached = self._check_cache(content_md5)
+            cached = self._check_cache(cache_key)
             if cached:
                 cached.filename = filename
-                cached.cache_md5 = content_md5[:7]
+                cached.cache_md5 = cache_key
                 print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
-                cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{content_md5[:7]}.json"
+                cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
                 print(f"  {os.path.relpath(cache_path)}")
                 return cached
         
-        prompt = self._build_full_file_prompt(source_file, content_md5[:7])
+        prompt = self._build_full_file_prompt(source_file, cache_key)
         
         try:
-            response = self._call_api(prompt, filename=filename, cache_md5=content_md5[:7])
-            result = self._parse_response(response, filename, cache_md5=content_md5[:7])
-            result.cache_md5 = content_md5[:7]
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
+            result = self._parse_response(response, filename, cache_md5=cache_key)
+            result.cache_md5 = cache_key
             # 审核成功，保存到缓存（可配置关闭）
             if use_cache:
-                self._save_cache(content_md5, result)
+                self._save_cache(cache_key, result)
             return result
         except Exception as e:
             print(f"[错误] 审核文件 {filename} 失败: {e}")
@@ -1858,21 +1858,21 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
-                cache_md5=content_md5[:7],
+                cache_md5=cache_key,
             )
     
     def _get_cache_key_for_source(self, source_file: Any) -> Optional[str]:
-        """计算 SourceFile 的缓存 key
+        """计算 SourceFile 的缓存 key（MD5 前7位）
         
         Args:
             source_file: SourceFile 对象
             
         Returns:
-            MD5 字符串，或 None
+            MD5 前7位字符串，或 None
         """
         content = getattr(source_file, 'content', '')
         if content:
-            return hashlib.md5(content.encode('utf-8')).hexdigest()
+            return hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
         return None
     
     def _review_source_no_cache(self, source_file: Any) -> ReviewResult:
@@ -1890,12 +1890,12 @@ class AIEngine:
         print(f"[信息] AI 审核中: {filename}\n")
         
         content = getattr(source_file, 'content', '')
-        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
         
         try:
-            prompt = self._build_full_file_prompt(source_file, cache_key[:7])
-            response = self._call_api(prompt, filename=filename, cache_md5=cache_key[:7])
-            result = self._parse_response(response, filename, cache_md5=cache_key[:7])
+            prompt = self._build_full_file_prompt(source_file, cache_key)
+            response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
+            result = self._parse_response(response, filename, cache_md5=cache_key)
             if getattr(self.config, 'use_cache', True):
                 self._save_cache(cache_key, result)
             return result
@@ -1962,7 +1962,7 @@ class AIEngine:
                     cache_key = self._get_cache_key_for_source(source_files[idx]) or ""
                     print(f"[信息] 缓存命中: {filename}  跳过 AI 审核")
                     if cache_key:
-                        cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key[:7]}.json"
+                        cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{cache_key}.json"
                         print(f"  {os.path.relpath(cache_path)}")
         
         # ===== 第二阶段：并发调 AI =====
