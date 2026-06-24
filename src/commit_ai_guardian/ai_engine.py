@@ -45,12 +45,16 @@ from .prompt_loader import PromptLoader
 def _try_parse_json(json_str: str) -> Optional[Dict]:
     """尝试多种策略解析 JSON，返回 dict 或 None
     
-    策略（按顺序）：
-    1. 直接解析
+    本地修复策略（按顺序，层层降级）：
+    1. 直接解析（标准 json.loads）
     2. 去除 BOM 头
-    3. 将单引号替换为双引号
-    4. 去除 trailing commas
-    5. 去除注释（// 和 /* */）
+    3. 单引号替换为双引号
+    4. 去除 trailing commas（,} 和 ,]）
+    5. 去除 // 行注释
+    6. 修复非法转义（\] \' 等 JSON 不支持的转义）
+    7. 括号补全（统计未闭合的 { [ 补齐）
+    
+    所有策略都失败 → 返回 None（交给上层调用修复 AI）
     
     Args:
         json_str: 可能不规范的 JSON 字符串
