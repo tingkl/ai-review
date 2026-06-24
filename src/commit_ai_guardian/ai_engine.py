@@ -738,16 +738,17 @@ class AIEngine:
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
         # 构建 Prompt（先算 cache_key，MD5 前7位用于日志命名）
+        # diff_content 为空时 cache_key = None，避免空字符串 MD5 碰撞
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
             if full_content:
                 cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
                 prompt = self._build_full_file_prompt_for_diff(filename, full_content, diff_content, file_diff, cache_key)
             else:
-                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
+                cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7] if diff_content else None
                 prompt = self._build_prompt(file_diff, cache_key)
         else:
-            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7] if diff_content else None
             prompt = self._build_prompt(file_diff, cache_key)
         
         try:
@@ -1085,7 +1086,8 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        ai_log = logs_dir / f"{cache_md5}.ai.log"
+        log_name = cache_md5 or filename.replace('/', '_')
+        ai_log = logs_dir / f"{log_name}.ai.log"
         try:
             from datetime import datetime
             sep_line = "=" * 60
@@ -1440,7 +1442,8 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        name = cache_md5
+        # cache_md5 为 None 时用文件名作为 fallback（如 diff_content 为空时）
+        name = cache_md5 or filename.replace('/', '_')
         
         # 文件名格式: {md5}.json_fix.log，和 ai.log ({md5}.ai.log) 对应
         log_file = logs_dir / f"{name}.json_fix.log"
@@ -1685,11 +1688,11 @@ class AIEngine:
         
         content = getattr(source_file, 'content', '')
         
-        # 计算缓存 key（无论是否启用缓存，都用于 ai.log 命名）
-        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
+        # 计算缓存 key（content 为空时禁用缓存避免空字符串 MD5 碰撞）
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7] if content else None
         
-        # 检查缓存（可配置关闭）
-        use_cache = getattr(self.config, 'use_cache', True)
+        # 检查缓存（可配置关闭；content 为空时禁用缓存）
+        use_cache = getattr(self.config, 'use_cache', True) and cache_key is not None
         if use_cache:
             cached = self._check_cache(cache_key)
             if cached:
@@ -1749,13 +1752,13 @@ class AIEngine:
         print(f"[信息] AI 审核中: {filename}\n")
         
         content = getattr(source_file, 'content', '')
-        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7]
+        cache_key = hashlib.md5(content.encode('utf-8')).hexdigest()[:7] if content else None
         
         try:
             prompt = self._build_full_file_prompt(source_file, cache_key)
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
             result = self._parse_response(response, filename, cache_md5=cache_key)
-            if getattr(self.config, 'use_cache', True):
+            if getattr(self.config, 'use_cache', True) and cache_key is not None:
                 self._save_cache(cache_key, result)
             return result
         except Exception as e:
@@ -1765,6 +1768,7 @@ class AIEngine:
                 summary=f"审核失败: {str(e)}",
                 passed=False,  # ← 异常时标记未通过
                 raw_response=str(e),
+                cache_md5=cache_key,
             )
     
     def review_source_batch(self, source_files: List[Any]) -> List[ReviewResult]:
