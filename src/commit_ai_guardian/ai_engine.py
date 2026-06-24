@@ -1094,7 +1094,7 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        name = cache_md5[:7] if cache_md5 else self._sanitize_log_filename(filename)
+        name = cache_md5 if cache_md5 else self._sanitize_log_filename(filename)
         ai_log = logs_dir / f"{name}.ai.log"
         try:
             from datetime import datetime
@@ -1152,7 +1152,7 @@ class AIEngine:
         下次重新审核。
         
         Args:
-            content_md5: 文件内容（diff 或完整内容）的完整 MD5 哈希（32位）
+            content_md5: 文件内容（diff 或完整内容）的 MD5 前7位
             
         Returns:
             ReviewResult（缓存命中），或 None（缓存未命中）
@@ -1160,9 +1160,9 @@ class AIEngine:
         if not self._cache_dir:
             return None
         
-        cache_file = self._cache_dir / f"{content_md5[:7]}.json"
+        cache_file = self._cache_dir / f"{content_md5}.json"
         # broken 缓存格式: {md5}_MMDDHHMMSS.json
-        broken_files = list(self._cache_dir.glob(f"{content_md5[:7]}_*.json"))
+        broken_files = list(self._cache_dir.glob(f"{content_md5}_*.json"))
         
         # 上次 JSON 解析失败，当作缓存未命中，下次重新审核
         if broken_files:
@@ -1184,8 +1184,8 @@ class AIEngine:
                         suggestion=issue_data.get('suggestion', ''),
                         code_snippet=issue_data.get('code_snippet', ''),
                     ))
-            # cache_md5 从 JSON 恢复，如果没有则从缓存文件名推断
-            cache_md5 = data.get('cache_md5', '') or content_md5[:7]
+            # cache_md5 从 JSON 恢复，如果没有则用传入的 content_md5
+            cache_md5 = data.get('cache_md5', '') or content_md5
             return ReviewResult(
                 filename=data.get('filename', ''),
                 issues=issues,
@@ -1211,7 +1211,7 @@ class AIEngine:
         这样 _check_cache 会跳过它，下次重新审核。
         
         Args:
-            content_md5: 文件内容（diff 或完整内容）的完整 MD5 哈希（32位）
+            content_md5: 文件内容（diff 或完整内容）的 MD5 前7位
             result: ReviewResult 审核结果
         """
         if not self._cache_dir:
@@ -1228,9 +1228,9 @@ class AIEngine:
         # broken 缓存用时间戳标记：{md5}_MMDDHHMMSS.json
         if is_broken:
             ts = datetime.now().strftime("%m%d%H%M%S")
-            cache_file = self._cache_dir / f"{content_md5[:7]}_{ts}.json"
+            cache_file = self._cache_dir / f"{content_md5}_{ts}.json"
         else:
-            cache_file = self._cache_dir / f"{content_md5[:7]}.json"
+            cache_file = self._cache_dir / f"{content_md5}.json"
         try:
             data = {
                 'filename': result.filename,
@@ -1238,7 +1238,7 @@ class AIEngine:
                 'passed': result.passed,
                 'raw_response': result.raw_response,
                 'extracted_json': result.extracted_json,
-                'cache_md5': result.cache_md5 or content_md5[:7],
+                'cache_md5': result.cache_md5 or content_md5,
                 'issues': [
                     {
                         'severity': issue.severity,
@@ -1459,7 +1459,7 @@ class AIEngine:
         logs_dir = Path(self.repo_path) / ".ai-review" / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
 
-        name = cache_md5[:7]
+        name = cache_md5
         
         # 文件名格式: {md5}.json_fix.log，和 ai.log ({md5}.ai.log) 对应
         log_file = logs_dir / f"{name}.json_fix.log"
@@ -1788,7 +1788,7 @@ class AIEngine:
                     print(f"[警告] AI 修复 JSON 失败")
 
             # 打印日志路径（帮助定位问题，用相对路径）
-            md5_short = cache_md5[:7] if cache_md5 else "unknown"
+            md5_short = cache_md5 if cache_md5 else "unknown"
             cache_path = Path(self.repo_path) / ".ai-review" / "cache" / f"{md5_short}.json"
             ai_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.ai.log"
             json_fix_log = Path(self.repo_path) / ".ai-review" / "logs" / f"{md5_short}.json_fix.log"
