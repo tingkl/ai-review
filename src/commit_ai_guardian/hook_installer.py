@@ -582,6 +582,7 @@ fi
         'temperature': ('0.3', 'AI 随机性 (0=最保守, 0.3=平衡, 0.7=灵活)'),
         'proxy': ('""', 'HTTP 代理地址'),
         'json_fix_history_mode': ('"full"', 'JSON 修复 AI 上下文模式: full=完整历史(默认), last=只带上一次'),
+        'json_fix_max_attempts': ('5', 'JSON 修复 AI 最大尝试次数 (默认5次)'),
     }
     
     def _ensure_config_file(self, config_file: Path) -> None:

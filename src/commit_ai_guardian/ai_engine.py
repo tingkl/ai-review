@@ -208,12 +208,11 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     无需重新调用 AI（不花钱、不耗时间）。
 
     解析策略（层层降级）：
-    1. 从 <result> 标签中提取 JSON（prompt 要求 AI 必须用 <result> 包裹）
-    2. 过滤 <think> 标签
-    3. 从 markdown 代码块 ```json ... ``` 中提取 JSON（兼容旧格式）
-    4. 找第一个 {...}
-    5. 尝试修复常见问题（BOM、单引号等）
-    6. 最后都失败 → passed=False（让用户知道出问题了）
+    1. 过滤 <think> 标签
+    2. 从 markdown 代码块 ```json ... ``` 中提取 JSON（兼容旧格式）
+    3. 找第一个 {...}
+    4. 尝试修复常见问题（BOM、单引号等）
+    5. 最后都失败 → passed=False（让用户知道出问题了）
 
     Args:
         response: AI 返回的原始文本（从 ai.log 文件读取的内容）
@@ -238,31 +237,19 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         response = filtered_response
         print(f"[信息] 已过滤 <think> 推理标签")
 
-    # 策略 0（最优先）：从 <result> 标签中提取 JSON
-    # prompt 已要求 AI 把 JSON 包裹在 <result></result> 中，这是最可靠的提取方式
+    # 策略 0（最优先）：从 ```json ... ``` 代码块中提取（兼容旧格式）
     json_str = None
-    result_match = re.search(r'<result>(.*?)</result>', response, re.DOTALL)
-    if result_match:
-        json_str = result_match.group(1).strip()
-        # <result> 为空或只有空白 → AI 认为没有发现问题，直接通过
-        if not json_str:
-            result.summary = "审核完成，未发现问题"
-            result.passed = True
-            return result
+    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
+    if json_match:
+        json_str = json_match.group(1).strip()
 
-    # 策略 1：从 ```json ... ``` 代码块中提取（兼容旧格式）
-    if json_str is None:
-        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1).strip()
-
-    # 策略 2：从响应中找第一个 {...}（非贪婪，可能因 code_snippet 中的花括号而提取不完整）
+    # 策略 1：从响应中找第一个 {...}（非贪婪，可能因 code_snippet 中的花括号而提取不完整）
     if json_str is None:
         brace_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
         if brace_match:
             json_str = brace_match.group(0).strip()
 
-    # 策略 3：直接解析整个响应（去掉常见的前缀废话）
+    # 策略 2：直接解析整个响应（去掉常见的前缀废话）
     if json_str is None:
         cleaned = response.strip()
         for prefix in ['以下是', '这是', '审核结果', '结果如下', 'JSON 如下', '返回结果']:
@@ -1361,9 +1348,7 @@ class AIEngine:
                 # 检测 AI 响应是否可能被截断（JSON 不完整）
                 # 先过滤 <think> 再检测，避免 think 内容干扰判断
                 filtered_for_check = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
-                has_complete_result = re.search(r'<result>.*?</result>', filtered_for_check, re.DOTALL) is not None
-                is_complete = has_complete_result or filtered_for_check.endswith('}')
-                if filtered_for_check and not is_complete:
+                if filtered_for_check and not filtered_for_check.endswith('}'):
                     current_max = getattr(self.config, 'max_tokens', 4096)
                     print(f"\n⚠️  AI 返回内容可能被截断（文件: {filename}，当前 max_tokens={current_max}）")
                     print(f"    建议: 运行 'commit-ai-guardian configure' 增加 max_tokens 值")
@@ -1419,17 +1404,12 @@ class AIEngine:
         # 先过滤 <think> 标签
         filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
         
-        # 策略 0: 从 <result> 标签提取
-        m = re.search(r'<result>(.*?)</result>', filtered, re.DOTALL)
-        if m:
-            return m.group(1).strip()
-
-        # 策略 1: 从 ```json 代码块提取
+        # 策略 0: 从 ```json 代码块提取
         m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
         if m:
             return m.group(1).strip()
 
-        # 策略 2: 找第一个 {...}
+        # 策略 1: 找第一个 {...}
         m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
         if m:
             return m.group(0).strip()
@@ -1543,8 +1523,8 @@ class AIEngine:
                 errors.append(f"issues[{i}] 必须是对象")
                 continue
             
-            # 必填字段
-            for field in ['severity', 'category', 'line_number', 'message']:
+            # 必填字段（category 不强制要求）
+            for field in ['severity', 'line_number', 'message']:
                 if field not in issue:
                     errors.append(f"issues[{i}] 缺少必填字段: '{field}'")
             
@@ -1593,6 +1573,7 @@ class AIEngine:
 
         model = getattr(self.config, 'model', 'gpt-4o-mini')
         max_tokens = getattr(self.config, 'max_tokens', 4096)
+        max_attempts = getattr(self.config, 'json_fix_max_attempts', 5)
 
         # 根据模型名称获取禁用 think 的额外参数
         extra_params = self._get_disable_thinking_params(model)
@@ -1609,7 +1590,7 @@ class AIEngine:
 
         all_attempts_log = []  # 收集所有尝试的日志
         
-        for attempt in range(3):
+        for attempt in range(max_attempts):
             try:
                 # 构造 messages：system + 原始修复请求 + 历史对话
                 messages = [
@@ -1673,7 +1654,7 @@ class AIEngine:
         # 所有尝试都失败了，仍然写入日志（方便查看定位）
         self._write_json_fix_log(filename, cache_md5,
                                  system_msg, fix_prompt,
-                                 "\n\n".join(all_attempts_log) + "\n\n=== 最终结果：全部 3 次尝试均失败 ===")
+                                 "\n\n".join(all_attempts_log) + f"\n\n=== 最终结果：全部 {max_attempts} 次尝试均失败 ===")
         return None
 
     def _build_result_from_dict(self, data, filename: str, raw_response: str) -> ReviewResult:

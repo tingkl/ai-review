@@ -62,6 +62,7 @@ class Config:
     proxy: Optional[str] = None              # HTTP 代理
     use_cache: bool = True                   # 是否使用缓存 (false=不检查缓存、不写入缓存)
     json_fix_history_mode: str = "full"      # JSON 修复 AI 上下文模式: full=完整历史(默认), last=只带上一次
+    json_fix_max_attempts: int = 5            # JSON 修复 AI 最大尝试次数 (默认5次)
 
     def __post_init__(self):
         """校验配置值（类型不安全时静默回退到默认值）
@@ -108,6 +109,12 @@ class Config:
         # json_fix_history_mode 校验
         if self.json_fix_history_mode not in ("full", "last"):
             self.json_fix_history_mode = "full"
+        # json_fix_max_attempts 校验：负值或类型错误时回退默认值（0 视为未配置）
+        try:
+            if self.json_fix_max_attempts < 0:
+                self.json_fix_max_attempts = 5
+        except TypeError:
+            self.json_fix_max_attempts = 5
     
     def merge(self, other: 'Config', explicit_fields: set = None) -> 'Config':
         """合并另一个配置，非空字段覆盖当前配置
@@ -137,8 +144,8 @@ class Config:
                 continue
             
             if value is not None and value != "" and value != []:
-                # 数值型字段（max_file_size, timeout, max_tokens）：0 视为未配置
-                if key in ("max_file_size", "timeout", "max_tokens") and value == 0:
+                # 数值型字段（max_file_size, timeout, max_tokens, json_fix_max_attempts）：0 视为未配置
+                if key in ("max_file_size", "timeout", "max_tokens", "json_fix_max_attempts") and value == 0:
                     continue
                 result_dict[key] = value
         

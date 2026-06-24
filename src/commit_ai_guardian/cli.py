@@ -446,6 +446,15 @@ def configure(config_path):
         type=click.Choice(["default", "compact", "minimal"], case_sensitive=False)
     )
     
+    # JSON Fix Max Attempts
+    click.echo("")
+    click.echo("  JSON 修复 AI 最大尝试次数：")
+    click.echo("    当审核 AI 返回的 JSON 格式不正确时，")
+    click.echo("    会调用修复 AI 进行修复，此值控制最大尝试次数")
+    click.echo("    建议值：5（默认值）")
+    click.echo("")
+    config.json_fix_max_attempts = click.prompt("  JSON 修复最大尝试次数", default=config.json_fix_max_attempts, type=int)
+    
     # Temperature
     click.echo("")
     click.echo("  Temperature 说明：")
@@ -506,6 +515,7 @@ def status(repo):
         click.echo(f"  - Temperature: {config.temperature} (0=保守, 0.3=平衡, 0.7=灵活)")
         click.echo(f"  - Case Format: {config.case_format}")
         click.echo(f"  - JSON Fix History: {config.json_fix_history_mode} (full=完整历史, last=只带上一次)")
+        click.echo(f"  - JSON Fix Max Attempts: {config.json_fix_max_attempts}")
         click.echo(f"  - Include Patterns: {config.include_patterns or ['*']}")
         click.echo(f"  - Ignore Patterns: {config.ignore_patterns or '无'}")
         click.echo(f"  - Proxy: {config.proxy or '未配置'}")
@@ -620,9 +630,6 @@ def _debug_ai_log(log_path, filename, repo):
         if ai_response_match:
             raw_response = ai_response_match.group(1).strip()
             click.echo(f"📄 AI 响应长度: {len(raw_response)} 字符\n")
-        elif '<result>' in log_content:
-            raw_response = log_content
-            click.echo("📄 使用兼容模式（旧格式 ai.log）\n")
         else:
             raw_response = log_content
 
@@ -667,19 +674,13 @@ def _debug_json_fix_log(log_path):
         click.echo(f"1. <think> 标签: {'有 (已过滤)' if has_think else '无'}")
 
         # 步骤 2: 提取 JSON
-        # 策略 0: <result>
-        m = re.search(r'<result>(.*?)</result>', filtered, re.DOTALL)
+        # 策略 0: ```json
+        m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
         if m:
             extracted = m.group(1).strip()
-            click.echo(f"2. 提取: <result> 标签匹配 ({len(extracted)} 字符)")
+            click.echo(f"2. 提取: ```json 代码块匹配 ({len(extracted)} 字符)")
         else:
-            # 策略 1: ```json
-            m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
-            if m:
-                extracted = m.group(1).strip()
-                click.echo(f"2. 提取: ```json 代码块匹配 ({len(extracted)} 字符)")
-            else:
-                # 策略 2: 第一个 {...}
+            # 策略 1: 第一个 {...}
                 m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
                 if m:
                     extracted = m.group(0).strip()

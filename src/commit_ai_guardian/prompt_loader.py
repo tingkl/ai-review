@@ -15,13 +15,43 @@ from pathlib import Path
 from typing import Optional
 
 
-# 内置默认模板（模板不存在时的兜底）
+# 公共数据结构定义（审核AI和修复AI共用）
+_REVIEW_DATA_STRUCTURE = (
+    "=== 返回数据结构（字段名不可更改）===\n"
+    "{\n"
+    '  "summary": "总体评价（2-3句话）",\n'
+    "  \"passed\": true/false,\n"
+    '  "issues": [\n'
+    "    {\n"
+    '      "severity": "严重级别",\n'
+    '      "category": "问题类别",\n'
+    '      "line_number": 0,\n'
+    '      "message": "问题描述（必填）",\n'
+    '      "suggestion": "修复建议",\n'
+    '      "code_snippet": "相关代码片段"\n'
+    "    }\n"
+    "  ]\n"
+    "}\n"
+    "字段说明：\n"
+    "- summary: 审核总结，2-3句话\n"
+    "- passed: true=通过（无warning/error/critical问题），false=不通过\n"
+    "- issues: 问题列表。空数组表示没有问题\n"
+    "- severity: 取值 critical/error/warning/info（或中文：致命/错误/警告/提示）\n"
+    "- category: 取值 Bug检测/安全/代码风格/性能/最佳实践/文档\n"
+    "- line_number: 问题所在行号，单个整数\n"
+    "- message: 问题描述，必填，不能为空字符串或'-'\n"
+    "- suggestion: 修复建议，可选\n"
+    "- code_snippet: 相关代码片段，可选\n"
+)
+
+# 审核AI system message
 DEFAULT_SYSTEM_MESSAGE = (
     "你是一位专业的代码审核专家，擅长发现代码中的问题并给出改进建议。\n"
     "\n"
     "=== 输出格式 ===\n"
-    "输出包裹在 <result> 标签中：<result>{...}</result>\n"
-    "不要 ```json 代码块，不要解释文字。\n"
+    "直接输出 JSON 对象，不要 ```json 代码块，不要解释文字。\n"
+    "\n"
+    + _REVIEW_DATA_STRUCTURE +
     "\n"
     "[规则1] JSON 自检（schema 已约束字段名和类型，只需确认内容）：\n"
     "  - message 必须是有意义的描述，不能为空或 '-' \n"
@@ -110,8 +140,8 @@ DEFAULT_FULL_FILE_TEMPLATE = """请对以下完整代码文件进行全面审核
 DEFAULT_JSON_FIX_SYSTEM_MESSAGE = (
     "你是 JSON 修复专家。严格按以下规则输出：\n"
     "\n"
-    "[规则1] 输出格式——用 <result> 标签包裹完整对象：\n"
-    "  <result>{\"summary\":\"...\",\"passed\":true/false,\"issues\":[...]}</result>\n"
+    "[规则1] 输出格式——直接输出 JSON 对象：\n"
+    "  {\"summary\":\"...\",\"passed\":true/false,\"issues\":[...]}\n"
     "  必须是对象 {}，不要返回数组 [] 或纯文本。\n"
     "  不要 ```json 代码块，不要解释文字。\n"
     "\n"
@@ -130,7 +160,8 @@ DEFAULT_JSON_FIX_SYSTEM_MESSAGE = (
     "      • line_number 必须是整数，不是整数时改为 0\n"
     "      • severity 必须是：critical/error/warning/info（或中文：致命/错误/警告/提示）\n"
     "      • category 必须是：Bug检测/安全/代码风格/性能/最佳实践/文档\n"
-    "  - 禁止：删除 issue、改字段名、改 message/suggestion/code_snippet 的内容\n"
+    "  - " + _REVIEW_DATA_STRUCTURE.replace("\n", "\n    ") + "\n"
+    "  - 不要修改 message/suggestion/code_snippet 的文本内容\n"
     "  - 特别小心 code_snippet 和 suggestion 中的 { } 不要破坏 JSON 结构\n"
     "\n"
     "[规则5] 截断检测——输出前自检：\n"
@@ -157,7 +188,7 @@ DEFAULT_JSON_FIX_TEMPLATE = """修复以下 JSON 的语法错误。
       - 如果只有 info 级别或 issues 为空 → passed 为 true
    ⚠️ summary 要有意义（如"发现X个问题"或"审核通过"），不要写"修复说明"
 2. 如果 JSON 语法错误（引号、逗号、括号），修复语法保持内容不变
-3. 输出必须用 <result> 标签包裹修复后的 JSON"""
+3. 直接输出 JSON 对象，不要 ```json 代码块"""
 
 # 项目仓库中存放 prompt 模板的目录
 REPO_PROMPTS_DIR = Path(".ai-review") / "prompts"
