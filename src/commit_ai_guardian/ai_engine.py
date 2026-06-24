@@ -1361,7 +1361,7 @@ class AIEngine:
                         {"role": "user", "content": prompt}
                     ],
                     temperature=getattr(self.config, 'temperature', 0.3),  # 从配置读取，默认 0.3
-                    max_tokens=getattr(self.config, 'max_tokens', 4096),   # 从配置读取，默认 4096
+                    max_tokens=getattr(self.config, 'max_tokens', 8192),   # 从配置读取，默认 8K
                     **extra_params,      # 主流模型禁用 think 的额外参数（如 enable_thinking=false）
                 )
                 raw_content = response.choices[0].message.content or ""
@@ -1570,7 +1570,7 @@ class AIEngine:
             return None
 
         model = getattr(self.config, 'model', 'gpt-4o-mini')
-        max_tokens = getattr(self.config, 'max_tokens', 4096)
+        max_tokens = getattr(self.config, 'max_tokens', 8192)
         max_attempts = getattr(self.config, 'json_fix_max_attempts', 5)
 
         # 根据模型名称获取禁用 think 的额外参数
