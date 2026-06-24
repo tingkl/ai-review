@@ -1226,7 +1226,7 @@ ${code}
             if (typeof data !== 'object') return { _raw: response, summary: `JSON type error: 期望对象，实际得到 ${typeof data}`, passed: false, issues: [] };
 
             // 10. 顶层字段检查
-            const requiredTop = ['summary', 'passed', 'issues'];
+            const requiredTop = ['summary', 'issues'];
             const missingTop = requiredTop.filter(f => !(f in data));
             if (missingTop.length > 0) {
                 return { _raw: response, summary: `JSON field missing: 缺少顶层必填字段: ${missingTop.join(', ')}`, passed: false, issues: [] };
@@ -1306,19 +1306,18 @@ ${code}
             return null;
         }
 
-        // schema 校验（跟实际工具 _validate_review_schema 一致）
+        // schema 校验（跟实际工具 parse_ai_response 一致）
         function validateSchema(data) {
             const errors = [];
 
-            // 1. 顶层必填字段
-            for (const field of ['summary', 'passed', 'issues']) {
+            // 1. 顶层必填字段（passed 由系统根据 severity 自动计算，不需要 AI 填写）
+            for (const field of ['summary', 'issues']) {
                 if (!(field in data)) errors.push(`缺少顶层必填字段: '${field}'`);
             }
             if (errors.length > 0) return errors;
 
             // 2. 类型检查
             if (typeof data.summary !== 'string') errors.push("'summary' 必须是字符串");
-            if (typeof data.passed !== 'boolean') errors.push("'passed' 必须是布尔值 (true/false)");
             if (!Array.isArray(data.issues)) {
                 errors.push("'issues' 必须是数组");
                 return errors;
@@ -1385,7 +1384,6 @@ ${code}
 === 返回数据结构（字段名不可更改）===
 {
   "summary": "总体评价（2-3句话）",
-  "passed": true/false,
   "issues": [
     {
       "severity": "严重级别",
@@ -1399,8 +1397,6 @@ ${code}
 }
 字段说明与约束：
 - summary: 审核总结，2-3句话
-- passed: 布尔值，true=通过，false=不通过
-  计算规则：有 warning/error/critical 级别 issue → false；只有 info 或 issues 为空 → true
 - issues: 问题列表。空数组表示没有问题
 - severity: 枚举值，只能是 critical/error/warning/info 之一
 - category: 枚举值，只能是 Bug检测/安全/代码风格/性能/最佳实践/文档 之一
