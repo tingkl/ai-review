@@ -1519,11 +1519,11 @@ class AIEngine:
             print(f"[警告] 写入 json_fix.log 失败: {e}")
 
     def _fix_json_with_ai(self, broken_json: str, filename: str,
-                           cache_md5: str = "") -> Optional[str]:
+                           cache_md5: str = "") -> Optional[ReviewResult]:
         """AI 修复 JSON 语法错误
 
         本地所有修复策略都失败后，调用 AI 来修复 JSON。
-        只修复语法（转义、逗号、括号），不修改内容。最多重试 2 次。
+        修复成功后直接用 parse_ai_response 解析为 ReviewResult。
 
         Args:
             broken_json: 有语法错误的 JSON 字符串
@@ -1531,7 +1531,7 @@ class AIEngine:
             cache_md5: MD5 前7位，用于 json_fix 日志文件名
 
         Returns:
-            修复后的 JSON 字符串，或 None
+            修复并解析后的 ReviewResult，或 None（修复失败）
         """
         if not self.client:
             return None
@@ -1576,21 +1576,29 @@ class AIEngine:
                 # 记录本次尝试
                 all_attempts_log.append(f"--- 尝试 {attempt + 1} ---\n{fixed}")
 
-                # 提取 JSON
-                fixed_json = _extract_json(fixed)
-
-                # 验证：用 parse_ai_response 做完整校验（顶层类型 + issue 级别）
-                temp_result = parse_ai_response(fixed_json, filename)
-                if not any(kw in temp_result.summary for kw in JSON_ERROR_KEYWORDS):
-                    # 校验通过，写入日志（包含所有失败尝试），返回修复后的 JSON
+                # 验证：用 parse_ai_response 做完整校验（提取 + 顶层类型 + issue 级别）
+                severity_threshold = getattr(self.config, 'severity_threshold', 'warning')
+                fixed_result = parse_ai_response(fixed, filename, severity_threshold)
+                if not any(kw in fixed_result.summary for kw in JSON_ERROR_KEYWORDS):
+                    # 校验通过，构建有意义的 summary
+                    if fixed_result.issues:
+                        issue_count = len(fixed_result.issues)
+                        sev_counts = {}
+                        for issue in fixed_result.issues:
+                            sev_counts[issue.severity] = sev_counts.get(issue.severity, 0) + 1
+                        sev_parts = [f"{c}个{s}" for s, c in sorted(sev_counts.items(), key=lambda x: -{'critical':4,'error':3,'warning':2,'info':1}.get(x[0],0))]
+                        fixed_result.summary = f"发现 {issue_count} 个问题（{', '.join(sev_parts)}）"
+                    elif not fixed_result.summary or fixed_result.summary in ('修复说明', ''):
+                        fixed_result.summary = 'AI 审核完成，未发现问题'
+                    # 写入日志（包含所有失败尝试），返回 ReviewResult
                     self._write_json_fix_log(filename, cache_md5,
                                              system_msg, fix_prompt, 
                                              "\n\n".join(all_attempts_log))
-                    return fixed_json  # 校验通过，返回修复后的 JSON
+                    return fixed_result  # 校验通过，返回 ReviewResult
 
                 # 校验失败，更新对话历史供下次使用
-                error_msg = temp_result.summary
-                print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{temp_result.summary}")
+                error_msg = fixed_result.summary
+                print(f"[信息] JSON 修复第 {attempt + 1} 次 schema 校验未通过：{fixed_result.summary}")
                 if history_mode == "last":
                     attempt_history.clear()  # 只保留最后一次
                 attempt_history.append({"role": "assistant", "content": fixed_json})
@@ -1615,74 +1623,6 @@ class AIEngine:
                                  system_msg, fix_prompt,
                                  "\n\n".join(all_attempts_log) + f"\n\n=== 最终结果：全部 {max_attempts} 次尝试均失败 ===")
         return None
-
-    def _build_result_from_dict(self, data, filename: str, raw_response: str,
-                                 severity_threshold: str = "warning") -> ReviewResult:
-        """从解析后的 dict/list 构建 ReviewResult（含字段名校验）
-
-        AI 有时会返回数组（如 []）而不是对象，在此自动包装为合规对象。
-        不盲目信任 AI 返回的 passed 值——最终 passed 根据 issues 的 severity 决定。
-
-        Args:
-            data: 解析后的 JSON（dict 或 list）
-            filename: 被审核的文件名
-            raw_response: AI 原始响应文本
-            severity_threshold: 阻断级别 (info/warning/error/critical)
-
-        Returns:
-            ReviewResult
-        """
-        result = ReviewResult(filename=filename, raw_response=raw_response, passed=False)
-        
-        # AI 返回了数组（如 []）——包装为合规对象
-        if isinstance(data, list):
-            print(f"[信息] AI 返回了数组，自动包装为对象")
-            data = {"summary": "AI 返回了数组格式，已自动转换", "passed": False, "issues": []}
-        
-        result.summary = data.get('summary', '') or '审核完成'
-        # passed 由系统根据 severity_threshold 自动计算，不读取 AI 返回的值
-
-        # issue 字段名校验：必须有 message 字段且非空
-        issues_data = data.get('issues', [])
-        if isinstance(issues_data, list):
-            for issue_data in issues_data:
-                if isinstance(issue_data, dict):
-                    # 检查必填字段 message
-                    message_val = issue_data.get('message', '')
-                    if not message_val or not str(message_val).strip():
-                        result.summary = "JSON 字段缺失: issue 缺少必填字段 message"
-                        return result
-                    
-                    # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
-                    severity = issue_data.get('severity', 'info')
-                    if severity not in ('critical', 'error', 'warning', 'info'):
-                        result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
-                        return result
-                    
-                    # category 直接用中文（schema 枚举已改为中文）
-                    category = issue_data.get('category', '最佳实践')
-                    
-                    issue = ReviewIssue(
-                        severity=severity,
-                        category=category,
-                        line_number=issue_data.get('line_number'),
-                        message=message_val,
-                        suggestion=issue_data.get('suggestion', ''),
-                        code_snippet=issue_data.get('code_snippet', ''),
-                    )
-                    result.issues.append(issue)
-
-        # 关键修正：根据 severity_threshold 重新计算 passed
-        _SEVERITY_ORDER = {'info': 0, 'warning': 1, 'error': 2, 'critical': 3}
-        threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
-        has_severe_issue = any(
-            _SEVERITY_ORDER.get(issue.severity, 0) >= threshold_level
-            for issue in result.issues
-        )
-        if not has_severe_issue and result.issues:
-            # 所有 issue severity < threshold → passed = true
-            result.passed = True
-        return result
 
     def _parse_response(self, response: str, filename: str, cache_md5: str = "") -> ReviewResult:
         """解析 AI 的响应文本为结构化的 ReviewResult
@@ -1717,7 +1657,7 @@ class AIEngine:
         # 这两种情况在 parse_ai_response 里都返回 passed=False，
         # 但 summary 文本不同。关键词匹配是区分它们的唯一方式。
         #
-        # 关键词来源（parse_ai_response 和 _build_result_from_dict 中标准化生成的错误文本）：
+        # 关键词来源（parse_ai_response 中标准化生成的错误文本）：
         #   "JSON 解析失败"        → _try_parse_json 所有策略都失败
         #   "无法从响应中解析 JSON"  → 找不到任何 JSON 内容（花括号匹配、代码块提取都失败）
         #   "JSON 字段缺失"        → 顶层字段（summary/passed/issues）或 issue.message 缺失/为空
@@ -1731,27 +1671,11 @@ class AIEngine:
 
             if broken_json and self.client:
                 print(f"[信息] JSON 本地解析失败，调用 AI 修复...")
-                fixed_json = self._fix_json_with_ai(broken_json, filename, cache_md5=cache_md5)
+                fixed_result = self._fix_json_with_ai(broken_json, filename, cache_md5=cache_md5)
 
-                if fixed_json:
-                    # 用修复后的 JSON 重新解析（接受 dict 或 list）
-                    data = _try_parse_json(fixed_json)
-                    if data and isinstance(data, (dict, list)):
-                        result = self._build_result_from_dict(data, filename, response, severity_threshold)
-                        # 修复 AI 的 summary 通常是"修复说明"等无意义文字
-                        # 如果修复成功且有 issues，替换为基于 issues 的有意义 summary
-                        if result.issues:
-                            issue_count = len(result.issues)
-                            sev_counts = {}
-                            for issue in result.issues:
-                                sev_counts[issue.severity] = sev_counts.get(issue.severity, 0) + 1
-                            sev_parts = [f"{c}个{s}" for s, c in sorted(sev_counts.items(), key=lambda x: -{'critical':4,'error':3,'warning':2,'info':1}.get(x[0],0))]
-                            result.summary = f"发现 {issue_count} 个问题（{', '.join(sev_parts)}）"
-                        elif not result.summary or result.summary in ('修复说明', ''):
-                            result.summary = 'AI 审核完成，未发现问题'
-                        print(f"[信息] AI 修复 JSON 成功，解析通过")
-                    else:
-                        print(f"[警告] AI 修复后 JSON 仍无法解析")
+                if fixed_result:
+                    result = fixed_result
+                    print(f"[信息] AI 修复 JSON 成功，解析通过")
                 else:
                     print(f"[警告] AI 修复 JSON 失败")
 
