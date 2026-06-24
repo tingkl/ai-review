@@ -265,7 +265,8 @@ def _validate_issue_core(issue_data: dict, index: int) -> list:
     return errors
 
 
-def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
+def parse_ai_response(response: str, filename: str = "unknown",
+                       severity_threshold: str = "warning") -> ReviewResult:
     """解析 AI 的原始响应文本为结构化的 ReviewResult（纯函数，不依赖 AIEngine）
 
     用于 debug-log 命令：用户保存 AI 原始响应到文件，本地解析看结果，
@@ -281,6 +282,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     Args:
         response: AI 返回的原始文本（从 ai.log 文件读取的内容）
         filename: 被审核的文件名（用于展示）
+        severity_threshold: 阻断级别 (info/warning/error/critical)
 
     Returns:
         ReviewResult。完整复用 AIEngine._parse_response 的解析逻辑
@@ -345,7 +347,9 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
 
     # 解析 issues 列表（用 _validate_issue_core 统一校验）
     issues_data = data.get('issues', [])
-    has_warning_or_above = False  # 有 warning/error/critical 则 passed 应为 false
+    _SEVERITY_ORDER = {'info': 0, 'warning': 1, 'error': 2, 'critical': 3}
+    threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
+    has_severe_issue = False  # 有 severity >= threshold 的 issue
     if isinstance(issues_data, list):
         for i, issue_data in enumerate(issues_data):
             if isinstance(issue_data, dict):
@@ -360,8 +364,8 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                     return result
                 
                 severity = issue_data.get('severity', 'info')
-                if severity in ('warning', 'error', 'critical'):
-                    has_warning_or_above = True
+                if _SEVERITY_ORDER.get(severity, 0) >= threshold_level:
+                    has_severe_issue = True
                 
                 issue = ReviewIssue(
                     severity=severity,
@@ -373,13 +377,12 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                 )
                 result.issues.append(issue)
     
-    # 根据 severity 修正 passed（不盲目信任 AI 返回的 passed）
-    if has_warning_or_above:
+    # 根据 severity_threshold 修正 passed
+    if has_severe_issue:
         pass  # 默认 False，不处理
     elif result.issues or issues_data == []:
-        # issues 为空数组 或 只有 info 级别 → passed = true
+        # issues 为空数组 或 所有 issue severity < threshold → passed = true
         result.passed = True
-    # 其他情况（issues 不是数组等）保持 AI 返回的 passed 值
 
     return result
 
@@ -1642,7 +1645,8 @@ class AIEngine:
                                  "\n\n".join(all_attempts_log) + f"\n\n=== 最终结果：全部 {max_attempts} 次尝试均失败 ===")
         return None
 
-    def _build_result_from_dict(self, data, filename: str, raw_response: str) -> ReviewResult:
+    def _build_result_from_dict(self, data, filename: str, raw_response: str,
+                                 severity_threshold: str = "warning") -> ReviewResult:
         """从解析后的 dict/list 构建 ReviewResult（含字段名校验）
 
         AI 有时会返回数组（如 []）而不是对象，在此自动包装为合规对象。
@@ -1652,6 +1656,7 @@ class AIEngine:
             data: 解析后的 JSON（dict 或 list）
             filename: 被审核的文件名
             raw_response: AI 原始响应文本
+            severity_threshold: 阻断级别 (info/warning/error/critical)
 
         Returns:
             ReviewResult
@@ -1697,15 +1702,16 @@ class AIEngine:
                     )
                     result.issues.append(issue)
 
-        # 关键修正：根据 issues 的 severity 重新计算 passed
-        # 有 warning/error/critical 的问题时，强制 passed=False
-        # 不盲目信任 AI（尤其 JSON 修复 AI）返回的 passed 值
-        has_real_issues = any(
-            issue.severity in ('warning', 'error', 'critical')
+        # 关键修正：根据 severity_threshold 重新计算 passed
+        _SEVERITY_ORDER = {'info': 0, 'warning': 1, 'error': 2, 'critical': 3}
+        threshold_level = _SEVERITY_ORDER.get(severity_threshold, 1)
+        has_severe_issue = any(
+            _SEVERITY_ORDER.get(issue.severity, 0) >= threshold_level
             for issue in result.issues
         )
-        if has_real_issues:
-            pass  # 默认 False，不处理
+        if not has_severe_issue and result.issues:
+            # 所有 issue severity < threshold → passed = true
+            result.passed = True
         return result
 
     def _parse_response(self, response: str, filename: str, cache_md5: str = "") -> ReviewResult:
@@ -1725,8 +1731,11 @@ class AIEngine:
         Returns:
             ReviewResult
         """
+        # 获取用户配置的阻断级别
+        severity_threshold = getattr(self.config, 'severity_threshold', 'warning')
+        
         # ===== 阶段1: 本地解析 =====
-        result = parse_ai_response(response, filename)
+        result = parse_ai_response(response, filename, severity_threshold)
 
         # ===== 阶段2: 解析或校验失败 → AI 修复 =====
         #
@@ -1759,7 +1768,7 @@ class AIEngine:
                     # 用修复后的 JSON 重新解析（接受 dict 或 list）
                     data = _try_parse_json(fixed_json)
                     if data and isinstance(data, (dict, list)):
-                        result = self._build_result_from_dict(data, filename, response)
+                        result = self._build_result_from_dict(data, filename, response, severity_threshold)
                         # 修复 AI 的 summary 通常是"修复说明"等无意义文字
                         # 如果修复成功且有 issues，替换为基于 issues 的有意义 summary
                         if result.issues:
