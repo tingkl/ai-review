@@ -1512,6 +1512,7 @@ class AIEngine:
         model = getattr(self.config, 'model', 'gpt-4o-mini')
         max_tokens = getattr(self.config, 'max_tokens', 8192)
         max_attempts = getattr(self.config, 'json_fix_max_attempts', 5)
+        print(f"[信息] JSON 修复 AI 启动（最多 {max_attempts} 次尝试）")
 
         # 根据模型名称获取禁用 think 的额外参数
         extra_params = self._get_disable_thinking_params(model)
