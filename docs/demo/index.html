@@ -1183,21 +1183,50 @@ ${code}
             // 1. 过滤 <think> 标签
             let filtered = response.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
-            // 2. 从 ```json 代码块提取（最优先）
+            // 2. 从 ```json 代码块提取（行级匹配）
+            // 找到 ```json 后，匹配到第一个单独成行的 ```（前面只有空白字符）
+            // suggestion 内部的 ``` 前面有代码内容，不是单独成行，因此不会被误判
             let jsonStr = null;
-            const codeMatch = filtered.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-            if (codeMatch) jsonStr = codeMatch[1].trim();
-
-            // 3. 花括号匹配：第一个 { 到最后一个 }（处理嵌套 JSON）
-            if (!jsonStr) {
-                const firstBrace = filtered.indexOf('{');
-                const lastBrace = filtered.lastIndexOf('}');
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    jsonStr = filtered.slice(firstBrace, lastBrace + 1).trim();
+            const startMatch = filtered.match(/```json\s*(?:\n|$)/);
+            if (startMatch) {
+                const startIdx = startMatch[0].length;
+                const endMatch = filtered.slice(startIdx).match(/(?:^|\n)\s*```\s*(?:\n|$)/);
+                if (endMatch) {
+                    jsonStr = filtered.slice(startIdx, startIdx + endMatch.index).trim();
                 }
             }
 
-            // 4. 整个响应作为 JSON（最后尝试）
+            // 3. 从 <result> 标签提取
+            if (!jsonStr) {
+                const resultMatch = filtered.match(/<result>\s*([\s\S]*?)\s*<\/result>/);
+                if (resultMatch) jsonStr = resultMatch[1].trim();
+            }
+
+            // 4. 用栈计数找匹配的 {} 边界（正确处理嵌套）
+            if (!jsonStr) {
+                const firstBrace = filtered.indexOf('{');
+                if (firstBrace !== -1) {
+                    let braceCount = 0, inString = false, escapeNext = false;
+                    for (let i = firstBrace; i < filtered.length; i++) {
+                        const ch = filtered[i];
+                        if (escapeNext) { escapeNext = false; continue; }
+                        if (ch === '\\') { escapeNext = true; continue; }
+                        if (ch === '"') { inString = !inString; continue; }
+                        if (!inString) {
+                            if (ch === '{') braceCount++;
+                            else if (ch === '}') {
+                                braceCount--;
+                                if (braceCount === 0) {
+                                    jsonStr = filtered.slice(firstBrace, i + 1).trim();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. 整个响应作为 JSON（最后尝试）
             if (!jsonStr) {
                 jsonStr = filtered;
             }
