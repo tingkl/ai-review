@@ -20,7 +20,6 @@ _REVIEW_DATA_STRUCTURE = (
     "=== 返回数据结构（字段名不可更改）===\n"
     "{\n"
     '  "summary": "总体评价（2-3句话）",\n'
-    "  \"passed\": true/false,\n"
     '  "issues": [\n'
     "    {\n"
     '      "severity": "严重级别",\n'
@@ -34,8 +33,6 @@ _REVIEW_DATA_STRUCTURE = (
     "}\n"
     "字段说明与约束：\n"
     "- summary: 审核总结，2-3句话\n"
-    "- passed: 布尔值，true=通过，false=不通过\n"
-    "  计算规则：有 warning/error/critical 级别 issue → false；只有 info 或 issues 为空 → true\n"
     "- issues: 问题列表。空数组表示没有问题\n"
     "- severity: 枚举值，只能是 critical/error/warning/info 之一\n"
     "- category: 枚举值，只能是 Bug检测/安全/代码风格/性能/最佳实践/文档 之一\n"

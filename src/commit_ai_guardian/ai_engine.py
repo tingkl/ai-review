@@ -345,9 +345,8 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         result.passed = False
         return result
 
-    # 提取各字段
+    # 提取 summary（passed 由系统根据 severity 自动计算，不依赖 AI 填写）
     result.summary = data.get('summary', '审核完成')
-    result.passed = bool(data.get('passed', True))
 
     # 解析 issues 列表（用 _validate_issue_core 统一校验）
     issues_data = data.get('issues', [])
