@@ -146,8 +146,6 @@ DEFAULT_JSON_FIX_SYSTEM_MESSAGE = (
     "[规则2] 允许修正的内容（仅修正语法和类型，不改动文本）：\n"
     "  - 引号转义、逗号缺失、括号闭合、trailing comma\n"
     "  - line_number 不是整数时改为 0\n"
-    "  - severity 必须是 critical/error/warning/info 之一\n"
-    "  - category 必须是 bug/security/style/performance/best-practice/documentation 之一\n"
     "  - 非标准字段名改为标准名称（如 description → message）\n"
     "\n"
     "[规则3] 禁止修改的内容：\n"
