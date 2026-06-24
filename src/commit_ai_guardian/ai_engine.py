@@ -51,7 +51,7 @@ def _try_parse_json(json_str: str) -> Optional[Dict]:
     3. 单引号替换为双引号
     4. 去除 trailing commas（,} 和 ,]）
     5. 去除 // 行注释
-    6. 修复非法转义（\] \' 等 JSON 不支持的转义）
+    6. 修复非法转义（\\] \\' 等 JSON 不支持的转义）
     7. 括号补全（统计未闭合的 { [ 补齐）
     
     所有策略都失败 → 返回 None（交给上层调用修复 AI）
