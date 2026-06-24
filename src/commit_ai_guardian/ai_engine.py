@@ -167,13 +167,7 @@ class ReviewIssue:
     code_snippet: str = ""
     
     def __post_init__(self):
-        """验证字段值"""
-        valid_severities = ["critical", "error", "warning", "info"]
-        if self.severity not in valid_severities:
-            self.severity = "info"
-        
-        # category 不校验，AI 返回任意字符串均可
-        
+        """本地修复：line_number 字符串转整数，category 任意字符串均可"""
         # 确保 line_number 是整数或 None
         # AI 可能返回范围格式如 "80-81"，提取第一个数字
         if self.line_number is not None:
@@ -315,9 +309,11 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     result.passed = bool(data.get('passed', True))
 
     # 解析 issues 列表
-    # 校验：每个 issue 必须有 message 字段且非空，否则触发 JSON 修复
+    # 校验：每个 issue 必须有 message 字段且非空，severity 必须合法
     _REQUIRED_ISSUE_FIELDS = {'message'}
+    _VALID_SEVERITIES = {'critical', 'error', 'warning', 'info'}
     issues_data = data.get('issues', [])
+    has_warning_or_above = False  # 有 warning/error/critical 则 passed 应为 false
     if isinstance(issues_data, list):
         for issue_data in issues_data:
             if isinstance(issue_data, dict):
@@ -329,8 +325,19 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                     result.raw_response = response
                     return result
                 
+                # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
+                severity = issue_data.get('severity', 'info')
+                if severity not in _VALID_SEVERITIES:
+                    result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
+                    result.passed = False
+                    result.raw_response = response
+                    return result
+                
+                if severity in ('warning', 'error', 'critical'):
+                    has_warning_or_above = True
+                
                 issue = ReviewIssue(
-                    severity=issue_data.get('severity', 'info'),
+                    severity=severity,
                     category=issue_data.get('category', 'best-practice'),
                     line_number=issue_data.get('line_number'),
                     message=issue_data.get('message', ''),
@@ -338,6 +345,14 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
                     code_snippet=issue_data.get('code_snippet', ''),
                 )
                 result.issues.append(issue)
+    
+    # 根据 severity 修正 passed（不盲目信任 AI 返回的 passed）
+    if has_warning_or_above:
+        result.passed = False
+    elif result.issues or issues_data == []:
+        # issues 为空数组 或 只有 info 级别 → passed = true
+        result.passed = True
+    # 其他情况（issues 不是数组等）保持 AI 返回的 passed 值
 
     return result
 
@@ -1695,9 +1710,15 @@ class AIEngine:
                         result.raw_response = raw_response
                         return result
                     
-                    # severity 保持英文（本来就返回英文）
-                    # category 直接用中文（schema 枚举已改为中文）
+                    # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
                     severity = issue_data.get('severity', 'info')
+                    if severity not in ('critical', 'error', 'warning', 'info'):
+                        result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
+                        result.passed = False
+                        result.raw_response = raw_response
+                        return result
+                    
+                    # category 直接用中文（schema 枚举已改为中文）
                     category = issue_data.get('category', '最佳实践')
                     
                     issue = ReviewIssue(
