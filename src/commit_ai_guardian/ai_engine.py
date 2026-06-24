@@ -1546,12 +1546,6 @@ class AIEngine:
             msg = issue.get('message')
             if msg is not None and (not isinstance(msg, str) or not msg.strip()):
                 errors.append(f"issues[{i}].message 不能为空字符串")
-            
-            # 禁止的字段名（别名）
-            invalid_fields = {'description', 'fix_suggestion', 'fix', 'advice', 'title', 'desc', 'code'}
-            found_invalid = invalid_fields & set(issue.keys())
-            if found_invalid:
-                errors.append(f"issues[{i}] 使用了非标准字段名: {found_invalid}，请改为标准名称: message/suggestion/code_snippet")
         
         return errors
 
