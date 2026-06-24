@@ -121,28 +121,34 @@ def _try_parse_json(json_str: str) -> Optional[Dict]:
 def _extract_json(text: str) -> str:
     """从文本中提取 JSON 字符串（层层降级）
 
-    1. 从 ```json ... ``` 代码块提取
-    2. 找第一个 {...}
-    3. 整个文本作为 JSON
+    内部会自动过滤 <think> 标签，调用方无需预处理。
+
+    1. 过滤 <think> 标签
+    2. 从 ```json ... ``` 代码块提取
+    3. 找第一个 {...}
+    4. 整个文本作为 JSON
 
     Args:
-        text: 已过滤 <think> 标签后的文本
+        text: AI 返回的原始响应文本（可包含 <think> 标签）
 
     Returns:
         JSON 字符串（不会返回空字符串）
     """
+    # 过滤 <think> 标签
+    filtered = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    
     # 策略 0: 从 ```json 代码块提取
-    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
     if m:
         return m.group(1).strip()
 
     # 策略 1: 找第一个 {...}
-    m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    m = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', filtered, re.DOTALL)
     if m:
         return m.group(0).strip()
 
     # 策略 2: 整个文本作为 JSON
-    return text.strip()
+    return filtered
 
 
 def _read_file_full_content(repo_path: str, filename: str) -> str:
