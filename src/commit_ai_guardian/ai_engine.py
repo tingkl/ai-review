@@ -534,15 +534,16 @@ class AIEngine:
         diff_mode = getattr(self.config, 'diff_mode', 'full')
         
         # 计算缓存 key（MD5 前7位，用于缓存文件名和 ai.log 命名）
+        # 注意：diff_content 为空时（如未 git add），禁用缓存避免空字符串 MD5 碰撞
         if diff_mode == 'full':
             full_content = _read_file_full_content(self.repo_path, filename)
-            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7]
+            cache_key = hashlib.md5(full_content.encode('utf-8')).hexdigest()[:7] if full_content else None
         else:
             full_content = ""
-            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7]
+            cache_key = hashlib.md5(diff_content.encode('utf-8')).hexdigest()[:7] if diff_content else None
         
-        # 检查缓存（可配置关闭）
-        use_cache = getattr(self.config, 'use_cache', True)
+        # 检查缓存（可配置关闭；diff_content 为空时禁用缓存）
+        use_cache = getattr(self.config, 'use_cache', True) and cache_key is not None
         if use_cache:
             cached = self._check_cache(cache_key)
             if cached:
