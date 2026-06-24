@@ -1402,14 +1402,19 @@ class AIEngine:
         
         raise RuntimeError("API 调用失败，已达到最大重试次数")
     
-    def _extract_json_str(self, response: str) -> Optional[str]:
-        """从 AI 响应中提取 JSON 字符串（复用 parse_ai_response 的提取逻辑）
+    def _extract_json_str(self, response: str) -> str:
+        """从 AI 响应中提取 JSON 字符串
+
+        提取策略（层层降级）：
+        1. 从 ```json ... ``` 代码块提取
+        2. 找第一个 {...}
+        3. 整个响应作为 JSON（给修复 AI 去修）
 
         Args:
             response: AI 返回的原始文本
 
         Returns:
-            JSON 字符串，或 None
+            JSON 字符串（不会返回 None，最坏情况返回原始响应）
         """
         # 先过滤 <think> 标签
         filtered = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
@@ -1424,7 +1429,8 @@ class AIEngine:
         if m:
             return m.group(0).strip()
 
-        return None
+        # 策略 2: 整个响应作为 JSON（修复 AI 会去修）
+        return filtered
 
     def _write_json_fix_log(self, filename: str, cache_md5: str,
                              system_message: str, user_message: str,
@@ -1622,7 +1628,7 @@ class AIEngine:
                 all_attempts_log.append(f"--- 尝试 {attempt + 1} ---\n{fixed}")
 
                 # 提取 JSON
-                fixed_json = self._extract_json_str(fixed) or fixed.strip()
+                fixed_json = self._extract_json_str(fixed)
 
                 # 验证：先解析，再校验 schema
                 data = _try_parse_json(fixed_json)
