@@ -225,8 +225,7 @@ class ReviewResult:
     passed: bool = False  # 默认阻断，只有明确通过时才设为 True
     raw_response: str = ""  # AI 原始响应（调试用）
     extracted_json: str = ""  # 从 raw_response 中提取的 JSON 字符串（给修复 AI 用）
-    first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号
-    cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（文件名头显示用，cache 文件名也是前7位）
+    cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（cache 文件名也是前7位）
 
 
 def _validate_issue_core(issue_data: dict, index: int) -> list:
@@ -565,10 +564,6 @@ class AIEngine:
         try:
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
             result = self._parse_response(response, filename, cache_md5=cache_key)
-            # diff 模式下：把第一个变更行号和 MD5 赋给结果（文件名头显示用）
-            line_numbers = getattr(file_diff, 'line_numbers', [])
-            if line_numbers:
-                result.first_line_number = line_numbers[0]
             result.cache_md5 = cache_key
             # 审核成功，保存到缓存（可配置关闭）
             if use_cache:
@@ -758,10 +753,6 @@ class AIEngine:
         try:
             response = self._call_api(prompt, filename=filename, cache_md5=cache_key)
             result = self._parse_response(response, filename, cache_md5=cache_key)
-            # diff 模式下：把第一个变更行号和 MD5 赋给结果
-            line_numbers = getattr(file_diff, 'line_numbers', [])
-            if line_numbers:
-                result.first_line_number = line_numbers[0]
             result.cache_md5 = cache_key
             # 保存到缓存（可配置关闭）
             if getattr(self.config, 'use_cache', True):
