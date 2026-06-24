@@ -137,9 +137,10 @@ def _extract_json(text: str) -> str:
     内部会自动过滤 <think> 标签，调用方无需预处理。
 
     1. 过滤 <think> 标签
-    2. 从 ```json ... ``` 代码块提取
-    3. 找第一个 {...}
-    4. 整个文本作为 JSON
+    2. 从 ```json ... ``` 代码块提取（取最长匹配，避免内部代码块截断）
+    3. 从 <result> 标签提取
+    4. 用栈计数找匹配的 {...}（处理嵌套 JSON）
+    5. 整个文本作为 JSON
 
     Args:
         text: AI 返回的原始响应文本（可包含 <think> 标签）
@@ -149,19 +150,47 @@ def _extract_json(text: str) -> str:
     """
     # 过滤 <think> 标签
     filtered = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    
-    # 策略 0: 从 ```json 代码块提取
-    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', filtered, re.DOTALL)
+
+    # 策略 0: 从 ```json 代码块提取（行级匹配）
+    # 找到 ```json 后，匹配到第一个单独成行的 ```（前面只有空白字符）
+    # suggestion 内部的 ``` 前面有代码内容，不是单独成行，因此不会被误判
+    start_match = re.search(r'```json\s*(?:\n|$)', filtered)
+    if start_match:
+        start_idx = start_match.end()
+        end_match = re.search(r'(?:^|\n)\s*```\s*(?:\n|$)', filtered[start_idx:])
+        if end_match:
+            return filtered[start_idx:start_idx + end_match.start()].strip()
+
+    # 策略 1: 从 <result> 标签提取
+    m = re.search(r'<result>\s*(.*?)\s*</result>', filtered, re.DOTALL)
     if m:
         return m.group(1).strip()
 
-    # 策略 1: 找第一个 { 和最后一个 } 之间的内容（处理嵌套 JSON）
+    # 策略 2: 用栈计数找匹配的 {} 边界（正确处理嵌套）
     first_brace = filtered.find('{')
-    last_brace = filtered.rfind('}')
-    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        return filtered[first_brace:last_brace + 1].strip()
+    if first_brace != -1:
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        for i, ch in enumerate(filtered[first_brace:], start=first_brace):
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\':
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if ch == '{':
+                    brace_count += 1
+                elif ch == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        return filtered[first_brace:i + 1].strip()
 
-    # 策略 2: 整个文本作为 JSON
+    # 策略 3: 整个文本作为 JSON
     return filtered
 
 
