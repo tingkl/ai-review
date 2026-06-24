@@ -223,7 +223,8 @@ class ReviewResult:
     issues: List[ReviewIssue] = field(default_factory=list)
     summary: str = ""
     passed: bool = True
-    raw_response: str = ""
+    raw_response: str = ""  # AI 原始响应（调试用）
+    extracted_json: str = ""  # 从 raw_response 中提取的 JSON 字符串（给修复 AI 用）
     first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号
     cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（文件名头显示用，cache 文件名也是前7位）
 
@@ -259,6 +260,7 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     # ===== JSON 提取（层层降级） =====
     # _extract_json 内部已过滤 <think> 标签，无需预处理
     json_str = _extract_json(response)
+    result.extracted_json = json_str  # 保存提取后的 JSON，修复 AI 直接用
 
     if not json_str:
         result.summary = "无法从响应中解析 JSON"
@@ -1166,6 +1168,7 @@ class AIEngine:
                 summary=data.get('summary', ''),
                 passed=data.get('passed', True),
                 raw_response=data.get('raw_response', ''),
+                extracted_json=data.get('extracted_json', ''),
                 cache_md5=cache_md5,
             )
         except Exception:
@@ -1210,6 +1213,7 @@ class AIEngine:
                 'summary': result.summary,
                 'passed': result.passed,
                 'raw_response': result.raw_response,
+                'extracted_json': result.extracted_json,
                 'cache_md5': result.cache_md5 or content_md5[:7],
                 'issues': [
                     {
@@ -1761,7 +1765,7 @@ class AIEngine:
         # 如果 not matched：说明 JSON 合法，只是审核不通过，不调用修复 AI
         json_error_keywords = ("JSON 解析失败", "无法从响应中解析 JSON", "JSON 字段缺失", "JSON 字段名错误", "JSON 类型错误")
         if not result.passed and any(kw in result.summary for kw in json_error_keywords):
-            broken_json = _extract_json(response)
+            broken_json = result.extracted_json or _extract_json(response)
 
             if broken_json and self.client:
                 print(f"[信息] JSON 本地解析失败，调用 AI 修复...")
