@@ -203,21 +203,7 @@ class ReviewIssue:
     suggestion: str = ""
     code_snippet: str = ""
     
-    def __post_init__(self):
-        """本地修复：line_number 字符串转整数，category 任意字符串均可"""
-        # 确保 line_number 是整数或 None
-        # AI 可能返回范围格式如 "80-81"，提取第一个数字
-        if self.line_number is not None:
-            try:
-                line_str = str(self.line_number).strip()
-                # 提取第一个数字序列（如 "80-81" → "80"，"60" → "60"）
-                match = re.search(r'\d+', line_str)
-                if match:
-                    self.line_number = int(match.group())
-                else:
-                    self.line_number = None
-            except (ValueError, TypeError):
-                self.line_number = None
+
 
 
 @dataclass
@@ -231,6 +217,44 @@ class ReviewResult:
     extracted_json: str = ""  # 从 raw_response 中提取的 JSON 字符串（给修复 AI 用）
     first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号
     cache_md5: str = ""  # 缓存 key 的 MD5 前7位短码（文件名头显示用，cache 文件名也是前7位）
+
+
+def _validate_issue_core(issue_data: dict, index: int) -> list:
+    """校验单个 issue 的核心规则（message/severity/line_number）
+
+    两边共用：parse_ai_response 首次解析 + _validate_review_schema 二次校验。
+    返回错误列表（空列表表示校验通过）。
+
+    Args:
+        issue_data: 单个 issue 的字典
+        index: issue 在数组中的索引（用于错误信息）
+
+    Returns:
+        错误信息列表（空表示通过）
+    """
+    errors = []
+
+    # 必填字段存在性
+    for field in ['severity', 'line_number', 'message']:
+        if field not in issue_data:
+            errors.append(f"issues[{index}] 缺少必填字段: '{field}'")
+
+    # severity 枚举
+    sev = issue_data.get('severity')
+    if sev is not None and sev not in ('critical', 'error', 'warning', 'info'):
+        errors.append(f"issues[{index}].severity 值非法: '{sev}'，必须是 critical/error/warning/info 之一")
+
+    # line_number 类型（必须是整数或 null）
+    ln = issue_data.get('line_number')
+    if ln is not None and not isinstance(ln, int):
+        errors.append(f"issues[{index}].line_number 必须是整数，当前类型: {type(ln).__name__}")
+
+    # message 非空
+    msg = issue_data.get('message')
+    if msg is not None and (not isinstance(msg, str) or not msg.strip()):
+        errors.append(f"issues[{index}].message 不能为空字符串")
+
+    return errors
 
 
 def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
@@ -317,29 +341,24 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
     result.summary = data.get('summary', '审核完成')
     result.passed = bool(data.get('passed', True))
 
-    # 解析 issues 列表
-    # 校验：每个 issue 必须有 message 字段且非空，severity 必须合法
-    _REQUIRED_ISSUE_FIELDS = {'message'}
-    _VALID_SEVERITIES = {'critical', 'error', 'warning', 'info'}
+    # 解析 issues 列表（用 _validate_issue_core 统一校验）
     issues_data = data.get('issues', [])
     has_warning_or_above = False  # 有 warning/error/critical 则 passed 应为 false
     if isinstance(issues_data, list):
-        for issue_data in issues_data:
+        for i, issue_data in enumerate(issues_data):
             if isinstance(issue_data, dict):
-                # 检查必填字段是否存在且非空
-                missing = {f for f in _REQUIRED_ISSUE_FIELDS if not issue_data.get(f) or not str(issue_data[f]).strip()}
-                if missing:
-                    result.summary = f"JSON 字段缺失: issue 缺少必填字段 {missing}"
+                # 统一校验（message/severity/line_number）
+                issue_errors = _validate_issue_core(issue_data, i)
+                if issue_errors:
+                    first_err = issue_errors[0]
+                    if "缺少必填字段" in first_err or "不能为空字符串" in first_err:
+                        result.summary = f"JSON 字段缺失: {first_err}"
+                    else:
+                        result.summary = f"JSON 类型错误: {first_err}"
                     result.passed = False
                     return result
                 
-                # severity 合法性校验 —— 不合法则交给 JSON 修复 AI
                 severity = issue_data.get('severity', 'info')
-                if severity not in _VALID_SEVERITIES:
-                    result.summary = f"JSON 类型错误: severity 值非法: '{severity}'，必须是 critical/error/warning/info 之一"
-                    result.passed = False
-                    return result
-                
                 if severity in ('warning', 'error', 'critical'):
                     has_warning_or_above = True
                 
@@ -1519,33 +1538,12 @@ class AIEngine:
             errors.append("'issues' 必须是数组")
             return errors
         
-        # 3. issues 数组中每个 issue 的校验
+        # 3. issues 数组中每个 issue 的校验（用 _validate_issue_core 统一校验）
         for i, issue in enumerate(data['issues']):
             if not isinstance(issue, dict):
                 errors.append(f"issues[{i}] 必须是对象")
                 continue
-            
-            # 必填字段（category 不强制要求）
-            for field in ['severity', 'line_number', 'message']:
-                if field not in issue:
-                    errors.append(f"issues[{i}] 缺少必填字段: '{field}'")
-            
-            # severity 枚举值
-            sev = issue.get('severity')
-            if sev and sev not in ['critical', 'error', 'warning', 'info']:
-                errors.append(f"issues[{i}].severity 值非法: '{sev}'，必须是 critical/error/warning/info 之一")
-            
-            # category 不校验，任意字符串均可
-            
-            # line_number 类型
-            ln = issue.get('line_number')
-            if ln is not None and not isinstance(ln, int):
-                errors.append(f"issues[{i}].line_number 必须是整数，当前类型: {type(ln).__name__}")
-            
-            # message 非空
-            msg = issue.get('message')
-            if msg is not None and (not isinstance(msg, str) or not msg.strip()):
-                errors.append(f"issues[{i}].message 不能为空字符串")
+            errors.extend(_validate_issue_core(issue, i))
         
         return errors
 
