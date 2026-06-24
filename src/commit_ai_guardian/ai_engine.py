@@ -243,16 +243,9 @@ def parse_ai_response(response: str, filename: str = "unknown") -> ReviewResult:
         if brace_match:
             json_str = brace_match.group(0).strip()
 
-    # 策略 2：直接解析整个响应（去掉常见的前缀废话）
+    # 策略 2：整个响应直接作为 JSON（前面策略都失败时的最后尝试）
     if json_str is None:
-        cleaned = response.strip()
-        for prefix in ['以下是', '这是', '审核结果', '结果如下', 'JSON 如下', '返回结果']:
-            if prefix in cleaned and '{' in cleaned:
-                idx = cleaned.find('{')
-                if idx > 0:
-                    cleaned = cleaned[idx:]
-                    break
-        json_str = cleaned
+        json_str = response.strip()
 
     if not json_str:
         result.summary = "无法从响应中解析 JSON"
