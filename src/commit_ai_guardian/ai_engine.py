@@ -212,7 +212,7 @@ class ReviewResult:
     filename: str = ""
     issues: List[ReviewIssue] = field(default_factory=list)
     summary: str = ""
-    passed: bool = True
+    passed: bool = False  # 默认阻断，只有明确通过时才设为 True
     raw_response: str = ""  # AI 原始响应（调试用）
     extracted_json: str = ""  # 从 raw_response 中提取的 JSON 字符串（给修复 AI 用）
     first_line_number: Optional[int] = None  # diff 模式下第一个变更的行号
