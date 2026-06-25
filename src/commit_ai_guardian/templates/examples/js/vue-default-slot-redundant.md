@@ -1,8 +1,7 @@
 ---
 title: Vue 默认插槽冗余使用 <template #default>
-severity: 2
-level: suggestion
-category: style
+severity: warning
+category: 代码风格
 tags: [vue, slot, default, 冗余]
 languages: [vue, javascript]
 ---

@@ -1,7 +1,6 @@
 ---
 title: 查询条件中空字符串过滤
-severity: 0
-level: info
+severity: info
 category: 最佳实践
 tags: [mongoose, mongodb, 查询条件, 空字符串, 过滤]
 languages: [typescript, javascript]

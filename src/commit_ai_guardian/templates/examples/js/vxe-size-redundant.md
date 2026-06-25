@@ -1,8 +1,7 @@
 ---
 title: VXE 组件 size 属性冗余或与全局配置不一致
-severity: 3
-level: warning
-category: style
+severity: warning
+category: 代码风格
 tags: [vxe, size, 全局配置, 冗余, 一致性]
 languages: [vue, javascript]
 ---

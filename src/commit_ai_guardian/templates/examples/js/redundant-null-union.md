@@ -1,8 +1,7 @@
 ---
 title: 冗余的 number | null 联合类型声明
-severity: 3
-level: warning
-category: style
+severity: warning
+category: 代码风格
 tags: [TypeScript, 冗余, null, 联合类型, 可选链]
 languages: [typescript]
 ---
