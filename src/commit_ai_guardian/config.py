@@ -343,6 +343,8 @@ class ConfigManager:
         lines.append(f"  json_fix_history_mode: {config.json_fix_history_mode} (full=完整历史, last=只带上一次)")
         lines.append(f"  diff_mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
         lines.append(f"  use_cache: {config.use_cache} (false=不命中缓存)")
+        lines.append(f"  cache_ttl: {config.cache_ttl} 秒")
+        lines.append(f"  log_ttl: {config.log_ttl} 秒")
         lines.append(f"  proxy: {config.proxy or '(未配置)'}")
         lines.append(f"  include_patterns: {config.include_patterns or '(未配置, 审核所有文件)'}")
         lines.append(f"  ignore_patterns: {config.ignore_patterns or '(未配置)'}")

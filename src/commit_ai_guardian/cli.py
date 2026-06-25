@@ -495,30 +495,10 @@ def status(repo):
                 click.echo(f"项目配置: {project_path} ❌ 不存在")
                 click.echo(f"          (创建 .ai-review/config.yaml 可覆盖全局配置)")
         
+        # 打印配置（统一使用 log_config，与 gate commit 一致）
         click.echo()
-        click.echo(f"  - 检测路径: {Path(repo).resolve()}")
-        click.echo(f"  - 审核开关: {'已启用 ✅' if config.enabled else '已禁用 ⚠️'}")
-        click.echo(f"  - API Key: {'已配置 ✅' if config.api_key else '未配置 ❌'}")
-        click.echo(f"  - API Base: {config.api_base}")
-        click.echo(f"  - Model: {config.model}")
-        click.echo(f"  - Language: {config.language}")
-        click.echo(f"  - Severity Threshold: {config.severity_threshold}")
-        click.echo(f"  - Diff Mode: {config.diff_mode} (full=完整文件, diff=只审变更)")
-        click.echo(f"  - Max File Size: {config.max_file_size} KB")
-        click.echo(f"  - Cache: {'启用' if config.use_cache else '禁用'}")
-        click.echo(f"  - Cache TTL: {config.cache_ttl}")
-        click.echo(f"  - Log TTL: {config.log_ttl}")
-        click.echo(f"  - Timeout: {config.timeout} 秒")
-        click.echo(f"  - Max Tokens: {config.max_tokens}")
-        click.echo(f"  - Temperature: {config.temperature} (0=保守, 0.3=平衡, 0.7=灵活)")
-        click.echo(f"  - Case Format: {config.case_format}")
-        click.echo(f"  - JSON Fix History: {config.json_fix_history_mode} (full=完整历史, last=只带上一次)")
-        click.echo(f"  - JSON Fix Max Attempts: {config.json_fix_max_attempts}")
-        click.echo(f"  - Include Patterns: {config.include_patterns or ['*']}")
-        click.echo(f"  - Ignore Patterns: {config.ignore_patterns or '无'}")
-        click.echo(f"  - Proxy: {config.proxy or '未配置'}")
-        
-        click.echo()
+        config_manager.log_config(config, "当前生效")
+        click.echo(f"  检测路径: {Path(repo).resolve()}")
         if installer.is_git_repo():
             hook_path = installer.get_hook_path()
             hook_exists = Path(hook_path).exists() if hook_path else False
