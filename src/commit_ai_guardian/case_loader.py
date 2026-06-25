@@ -8,9 +8,8 @@
 ```markdown
 ---
 title: SQL 注入
-severity: 9
-level: critical
-category: 安全漏洞
+severity: critical
+category: 安全
 tags: [SQL, 注入]
 languages: [python, java]
 ---
@@ -352,13 +351,9 @@ class CaseLoader:
         for i, case in enumerate(cases, 1):
             title = case.get("title", "未知")
             desc = case.get("description", "")
-            severity = case.get("severity", "")
-            level = case.get("level", "warning")
+            severity = case.get("severity", "warning")
 
-            # severity 可能是数字或字符串
-            severity_label = f"{severity}/{level}" if isinstance(severity, int) else level
-
-            lines.append(f"[案例{i}|{title}|{severity_label}]")
+            lines.append(f"[案例{i}|{title}|{severity}]")
 
             # 非法值 fallback 到 default
             effective_format = case_format if case_format in ("default", "compact", "minimal") else "default"

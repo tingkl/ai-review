@@ -18,11 +18,11 @@ except ImportError:
 from .case_loader import parse_frontmatter, extract_examples, extract_check_points
 
 
-VALID_LEVELS = {"critical", "error", "warning", "info"}
+VALID_SEVERITIES = {"critical", "error", "warning", "info"}
 VALID_CATEGORIES = {"Bug检测", "安全", "代码风格", "性能", "最佳实践", "文档"}
 
 # frontmatter 必填字段
-REQUIRED_FIELDS = ["title", "severity", "level", "category"]
+REQUIRED_FIELDS = ["title", "severity", "category"]
 
 
 def validate_case_file(filepath: Path) -> Tuple[bool, List[str]]:
@@ -65,21 +65,13 @@ def validate_case_file(filepath: Path) -> Tuple[bool, List[str]]:
     # 5. 检查字段值
     if "severity" in frontmatter:
         sev = frontmatter["severity"]
-        if isinstance(sev, int):
-            if not (1 <= sev <= 10):
-                errors.append(f"severity 数值必须在 1-10 之间，当前: {sev}")
-        else:
-            errors.append(f"severity 必须是 1-10 的数字，当前: '{sev}'")
-    
-    if "level" in frontmatter:
-        level = frontmatter["level"]
-        if level not in VALID_LEVELS:
-            errors.append(f"level 必须是 {VALID_LEVELS} 之一，当前: '{level}'")
+        if sev not in VALID_SEVERITIES:
+            errors.append(f"severity 必须是 {'/'.join(sorted(VALID_SEVERITIES))} 之一，当前: '{sev}'")
     
     if "category" in frontmatter:
         cat = frontmatter["category"]
         if cat not in VALID_CATEGORIES:
-            errors.append(f"category 必须是 {VALID_CATEGORIES} 之一，当前: '{cat}'")
+            errors.append(f"category 必须是 {'/'.join(sorted(VALID_CATEGORIES))} 之一，当前: '{cat}'")
     
     # 6. 检查正文结构
     if "## 问题描述" not in body:
