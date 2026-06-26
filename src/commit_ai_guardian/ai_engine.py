@@ -647,17 +647,20 @@ class AIEngine:
 
         now = time.time()
         cleaned = 0
+        total_size = 0
         # 同时清理 .json 和 broken 缓存（{md5}_MMDDHHMMSS.json）
         for cache_file in list(self._cache_dir.glob('*.json')):
             try:
                 if now - cache_file.stat().st_mtime > ttl_seconds:
+                    total_size += cache_file.stat().st_size
                     cache_file.unlink()
                     cleaned += 1
             except Exception:
                 pass
 
         if cleaned > 0:
-            print(f"[信息] 清理 {cleaned} 个过期缓存文件")
+            size_kb = total_size / 1024
+            print(f"[信息] 清理 {cleaned} 个过期缓存文件（{size_kb:.1f} KB）")
 
     def _parse_log_ttl(self) -> Optional[float]:
         """解析 log_ttl 配置为秒数
