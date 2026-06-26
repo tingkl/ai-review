@@ -264,15 +264,14 @@ class PromptLoader:
         """加载用户自定义 prompt（custom_prompt.md）
         
         从 .ai-review/prompts/custom_prompt.md 加载。
-        如果文件不存在或为空，返回空字符串。
+        如果文件不存在、为空或含占位符，返回空字符串。
         
         Returns:
             自定义 prompt 内容，或空字符串
         """
-        custom_path = self.prompts_dir / "custom_prompt.md"
-        if not custom_path.exists():
+        content = self._load_file("custom_prompt.md", "")
+        if not content:
             return ""
-        content = custom_path.read_text(encoding='utf-8').strip()
         # 去掉 HTML 注释（<!-- ... -->）
         import re
         content = re.sub(r'<!--.*?-->', '', content, flags=re.DOTALL).strip()
